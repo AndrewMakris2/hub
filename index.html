@@ -1849,39 +1849,45 @@ const QUIZ_STEPS = ["Genres", "Activities", "Top 3", "Anything else?"];
 
 function QuizModal({ theme, profile, setProfile, onClose }) {
   const [step, setStep] = useState(0);
-  const [genres, setGenres] = useState(profile.genres);
-  const [activities, setActivities] = useState(profile.activities);
-  const [topPicks, setTopPicks] = useState(profile.topPicks);
-  const [notes, setNotes] = useState(profile.notes);
+
+  const genres = profile.genres;
+  const activities = profile.activities;
+  const topPicks = profile.topPicks;
+  const notes = profile.notes;
 
   const likedActivities = Object.keys(activities).filter((a) => activities[a] === "like");
 
   function toggleGenre(g) {
-    setGenres((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]));
+    const next = genres.includes(g) ? genres.filter((x) => x !== g) : [...genres, g];
+    setProfile({ ...profile, genres: next });
   }
 
   function cycleActivity(a) {
-    setActivities((prev) => {
-      const current = prev[a] || "neutral";
-      const next = current === "neutral" ? "like" : current === "like" ? "dislike" : "neutral";
-      const updated = { ...prev, [a]: next };
-      if (next !== "like") {
-        setTopPicks((tp) => tp.filter((x) => x !== a));
-      }
-      return updated;
-    });
+    const current = activities[a] || "neutral";
+    const next = current === "neutral" ? "like" : current === "like" ? "dislike" : "neutral";
+    const nextActivities = { ...activities, [a]: next };
+    const nextTopPicks = next !== "like" ? topPicks.filter((x) => x !== a) : topPicks;
+    setProfile({ ...profile, activities: nextActivities, topPicks: nextTopPicks });
   }
 
   function toggleTopPick(a) {
-    setTopPicks((prev) => {
-      if (prev.includes(a)) return prev.filter((x) => x !== a);
-      if (prev.length >= 3) return prev;
-      return [...prev, a];
-    });
+    let next;
+    if (topPicks.includes(a)) {
+      next = topPicks.filter((x) => x !== a);
+    } else if (topPicks.length >= 3) {
+      return;
+    } else {
+      next = [...topPicks, a];
+    }
+    setProfile({ ...profile, topPicks: next });
+  }
+
+  function updateNotes(value) {
+    setProfile({ ...profile, notes: value });
   }
 
   function finish() {
-    setProfile({ ...profile, genres, activities, topPicks, notes: notes.trim() });
+    setProfile({ ...profile, notes: notes.trim() });
     onClose();
   }
 
@@ -2087,7 +2093,7 @@ function QuizModal({ theme, profile, setProfile, onClose }) {
             </p>
             <textarea
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={(e) => updateNotes(e.target.value)}
               placeholder="e.g. Big fan of heist movies, just got into pottery..."
               className="v-input"
               rows={4}
@@ -2157,7 +2163,7 @@ function QuizModal({ theme, profile, setProfile, onClose }) {
                 fontWeight: 700,
               }}
             >
-              Save & Finish
+              Done
             </button>
           )}
         </div>
