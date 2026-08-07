@@ -699,6 +699,17 @@ function pushHistoryPoint(series, value) {
   return next.slice(-30);
 }
 
+function analyzeTrend(series, { flatThreshold = 0.5, minSpanDays = 6 } = {}) {
+  if (!series || series.length < 3) return null;
+  const first = series[0];
+  const last = series[series.length - 1];
+  const spanDays = Math.round((new Date(last.date) - new Date(first.date)) / 86400000);
+  if (spanDays < minSpanDays) return null;
+  const delta = Math.round((last.value - first.value) * 10) / 10;
+  const status = Math.abs(delta) <= flatThreshold ? "flat" : delta > 0 ? "up" : "down";
+  return { status, delta, spanDays, first: first.value, last: last.value };
+}
+
 const DEFAULT_PROFILE = {
   interests: ["Golf", "Fitness", "Reading"],
   genres: [],
@@ -853,9 +864,7 @@ function Metric({ theme, label, value, suffix, prefix, formatDisplay, editable, 
           textTransform: "uppercase",
           color: theme.textMuted,
           marginBottom: "6px",
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
+          lineHeight: 1.3,
         }}
       >
         {label}
@@ -1259,7 +1268,7 @@ async function shareVideoFile(video, onStatus) {
    goal progress, and event dates to produce a short list of nudges.
 ---------------------------------------------------------------------- */
 
-function generateSuggestions({ fitness, golf, trackers, profile, events }) {
+function generateSuggestions({ fitness, golf, trackers, profile, events, history }) {
   const suggestions = [];
 
   if (profile.topPicks && profile.topPicks.length > 0) {
@@ -1280,7 +1289,13 @@ function generateSuggestions({ fitness, golf, trackers, profile, events }) {
 
   trackers.forEach((t) => {
     const progress = computeGoalProgress(t.value, t.target);
-    if (progress !== null && progress < 50) {
+    const trend = analyzeTrend((history.trackers && history.trackers[t.id]) || []);
+    if (progress !== null && trend && trend.status === "flat") {
+      suggestions.push({
+        id: `s-tracker-${t.id}`,
+        text: `${t.label} has held at ${trend.last} for ${trend.spanDays} days (goal ${t.target}) — a push this week would help.`,
+      });
+    } else if (progress !== null && progress < 50) {
       suggestions.push({
         id: `s-tracker-${t.id}`,
         text: `${t.label} is at ${progress}% of your goal (${t.value}/${t.target}) — a push this week would help.`,
@@ -1298,12 +1313,25 @@ function generateSuggestions({ fitness, golf, trackers, profile, events }) {
     }
   });
 
+  const weightTrend = analyzeTrend(history.fitness, { flatThreshold: 1 });
   if (fitness.currentWeight > fitness.targetWeight) {
     const diff = Math.round((fitness.currentWeight - fitness.targetWeight) * 10) / 10;
-    suggestions.push({
-      id: "s-fitness",
-      text: `You're ${diff} lbs from your target weight — a cardio session this week would help close the gap.`,
-    });
+    if (weightTrend && weightTrend.status === "flat") {
+      suggestions.push({
+        id: "s-fitness",
+        text: `Weight's held steady around ${fitness.currentWeight} lbs for ${weightTrend.spanDays} days — might be worth mixing up your routine.`,
+      });
+    } else if (weightTrend && weightTrend.status === "down") {
+      suggestions.push({
+        id: "s-fitness",
+        text: `Down ${Math.abs(weightTrend.delta)} lbs over the last ${weightTrend.spanDays} days — keep it up, ${diff} lbs to go.`,
+      });
+    } else {
+      suggestions.push({
+        id: "s-fitness",
+        text: `You're ${diff} lbs from your target weight — a cardio session this week would help close the gap.`,
+      });
+    }
   } else {
     suggestions.push({
       id: "s-fitness",
@@ -1311,11 +1339,24 @@ function generateSuggestions({ fitness, golf, trackers, profile, events }) {
     });
   }
 
+  const handicapTrend = analyzeTrend(history.golf, { flatThreshold: 0.3 });
   if (profile.interests.some((i) => i.toLowerCase().includes("golf"))) {
-    suggestions.push({
-      id: "s-golf",
-      text: `Handicap is sitting at ${golf.handicap} — booking a round would keep it sharp.`,
-    });
+    if (handicapTrend && handicapTrend.status === "flat") {
+      suggestions.push({
+        id: "s-golf",
+        text: `Handicap's been steady at ${golf.handicap} for ${handicapTrend.spanDays} days — a lesson or range session could break the plateau.`,
+      });
+    } else if (handicapTrend && handicapTrend.status === "down") {
+      suggestions.push({
+        id: "s-golf",
+        text: `Handicap's down ${Math.abs(handicapTrend.delta)} over the last ${handicapTrend.spanDays} days, now at ${golf.handicap} — booking another round would keep the momentum.`,
+      });
+    } else {
+      suggestions.push({
+        id: "s-golf",
+        text: `Handicap is sitting at ${golf.handicap} — booking a round would keep it sharp.`,
+      });
+    }
   }
 
   if (profile.genres && profile.genres.length > 0) {
@@ -2551,10 +2592,10 @@ function ProfileSection({ theme, profile, setProfile }) {
   );
 }
 
-function SuggestionsSection({ theme, fitness, golf, trackers, profile, events }) {
+function SuggestionsSection({ theme, fitness, golf, trackers, profile, events, history }) {
   const suggestions = useMemo(
-    () => generateSuggestions({ fitness, golf, trackers, profile, events }),
-    [fitness, golf, trackers, profile, events]
+    () => generateSuggestions({ fitness, golf, trackers, profile, events, history }),
+    [fitness, golf, trackers, profile, events, history]
   );
 
   return (
@@ -2699,11 +2740,11 @@ function ThemePopover({ theme, themeKey, setThemeKey, onClose }) {
     <div
       className="v-scroll"
       style={{
-        position: "absolute",
-        top: "calc(100% + 12px)",
-        right: 0,
+        position: "fixed",
+        top: "64px",
+        right: "16px",
         width: "300px",
-        maxWidth: "min(88vw, 320px)",
+        maxWidth: "min(92vw, 320px)",
         maxHeight: "70vh",
         overflowY: "auto",
         zIndex: 50,
@@ -2785,6 +2826,7 @@ function ThemePicker({ theme, themeKey, setThemeKey }) {
           color: theme.text,
           fontSize: "13px",
           fontWeight: 600,
+          maxWidth: "min(40vw, 160px)",
         }}
       >
         <span
@@ -2792,17 +2834,28 @@ function ThemePicker({ theme, themeKey, setThemeKey }) {
             width: "24px",
             height: "24px",
             borderRadius: "50%",
+            flexShrink: 0,
             display: "inline-block",
             border: `1px solid ${theme.divider}`,
             ...swatchFill(current),
           }}
         />
-        {current.name}
+        <span
+          style={{
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            minWidth: 0,
+          }}
+        >
+          {current.name}
+        </span>
         <span
           style={{
             fontSize: "9px",
             color: theme.textMuted,
             display: "inline-block",
+            flexShrink: 0,
             transform: open ? "rotate(180deg)" : "none",
             transition: "transform 0.15s ease",
           }}
@@ -3045,10 +3098,11 @@ function BackupMenu({
       {open && (
         <div
           style={{
-            position: "absolute",
-            top: "calc(100% + 12px)",
-            right: 0,
+            position: "fixed",
+            top: "64px",
+            right: "16px",
             width: "260px",
+            maxWidth: "min(92vw, 260px)",
             zIndex: 50,
             padding: "16px",
             ...cardBackgroundStyle(theme),
@@ -3344,10 +3398,11 @@ function CalendarMenu({ theme, integrations, setIntegrations, onEvents, connecte
         <div
           className="v-scroll"
           style={{
-            position: "absolute",
-            top: "calc(100% + 12px)",
-            right: 0,
+            position: "fixed",
+            top: "64px",
+            right: "16px",
             width: "280px",
+            maxWidth: "min(92vw, 280px)",
             maxHeight: "80vh",
             overflowY: "auto",
             zIndex: 50,
@@ -3647,6 +3702,7 @@ function App() {
             trackers={trackers}
             profile={profile}
             events={[...events, ...allConnectedEvents]}
+            history={history}
           />
           <FitnessSection
             theme={theme}
