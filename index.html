@@ -1043,6 +1043,128 @@ function IconClose({ size = 16 }) {
   );
 }
 
+function IconVideo({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="5" width="14" height="14" rx="2" />
+      <path d="M16 9l6-3v12l-6-3" />
+    </svg>
+  );
+}
+
+function IconShare({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3v12M8 7l4-4 4 4" />
+      <path d="M4 13v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6" />
+    </svg>
+  );
+}
+
+function IconUpload({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 16V4M7 9l5-5 5 5" />
+      <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+    </svg>
+  );
+}
+
+/* ----------------------------------------------------------------------
+   VIDEO LIBRARY STORAGE
+   Video files are stored in IndexedDB (localStorage caps out around
+   5-10MB, nowhere near enough for video). Lives in this browser only —
+   not backed up, not synced, and excluded from JSON backup/restore.
+---------------------------------------------------------------------- */
+
+const VIDEO_DB_NAME = "vantage-videos";
+const VIDEO_STORE = "videos";
+
+function openVideoDB() {
+  return new Promise((resolve, reject) => {
+    if (!window.indexedDB) {
+      reject(new Error("This browser doesn't support local video storage."));
+      return;
+    }
+    const req = indexedDB.open(VIDEO_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(VIDEO_STORE)) {
+        db.createObjectStore(VIDEO_STORE, { keyPath: "id" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function dbPutVideo(record) {
+  const db = await openVideoDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(VIDEO_STORE, "readwrite");
+    tx.objectStore(VIDEO_STORE).put(record);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function dbGetAllVideos() {
+  const db = await openVideoDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(VIDEO_STORE, "readonly");
+    const req = tx.objectStore(VIDEO_STORE).getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function dbDeleteVideo(id) {
+  const db = await openVideoDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(VIDEO_STORE, "readwrite");
+    tx.objectStore(VIDEO_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+function formatBytes(bytes) {
+  if (!bytes) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+  return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+function extFromType(type) {
+  if (!type) return "mp4";
+  const parts = type.split("/");
+  return parts[1] ? parts[1].split(";")[0] : "mp4";
+}
+
+async function shareVideoFile(video, onStatus) {
+  const file = new File([video.blob], `${video.title || "video"}.${extFromType(video.type)}`, { type: video.type });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: video.title || "Fitness video" });
+      onStatus({ type: "success", message: "Shared — finish posting inside TikTok." });
+    } catch (err) {
+      if (err && err.name !== "AbortError") {
+        onStatus({ type: "error", message: "Share was cancelled or failed." });
+      }
+    }
+    return;
+  }
+  const url = URL.createObjectURL(video.blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = file.name;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  onStatus({ type: "success", message: "Native share isn't available here — downloaded instead. Upload it in TikTok." });
+}
+
 /* ----------------------------------------------------------------------
    SUGGESTIONS ENGINE
    Pure, local, rule-based — no external calls or API keys. Reads profile,
@@ -1497,6 +1619,228 @@ function CustomTrackersSection({ theme, trackers, setTrackers }) {
           Add Tracker
         </button>
       </div>
+    </Card>
+  );
+}
+
+function VideoLibrarySection({ theme }) {
+  const [videos, setVideos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [dbError, setDbError] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [statusById, setStatusById] = useState({});
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    dbGetAllVideos()
+      .then((records) => {
+        if (cancelled) return;
+        const withUrls = records
+          .sort((a, b) => b.createdAt - a.createdAt)
+          .map((r) => ({ ...r, url: URL.createObjectURL(r.blob) }));
+        setVideos(withUrls);
+        setLoading(false);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setDbError(err.message || "Couldn't open local video storage.");
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      videos.forEach((v) => URL.revokeObjectURL(v.url));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function setStatus(id, status) {
+    setStatusById((prev) => ({ ...prev, [id]: status }));
+    if (status) {
+      setTimeout(() => setStatusById((prev) => ({ ...prev, [id]: null })), 5000);
+    }
+  }
+
+  async function handleFileChange(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploading(true);
+    try {
+      const id = "v" + Date.now() + Math.random().toString(36).slice(2, 6);
+      const record = { id, title: file.name.replace(/\.[^.]+$/, ""), type: file.type, size: file.size, createdAt: Date.now(), blob: file };
+      await dbPutVideo(record);
+      setVideos((prev) => [{ ...record, url: URL.createObjectURL(file) }, ...prev]);
+    } catch (err) {
+      setDbError(err.message || "Couldn't save that video.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function renameVideo(id, title) {
+    setVideos((prev) => prev.map((v) => (v.id === id ? { ...v, title } : v)));
+    const video = videos.find((v) => v.id === id);
+    if (video) {
+      await dbPutVideo({ id: video.id, title, type: video.type, size: video.size, createdAt: video.createdAt, blob: video.blob });
+    }
+  }
+
+  async function deleteVideo(id) {
+    const video = videos.find((v) => v.id === id);
+    if (video) URL.revokeObjectURL(video.url);
+    setVideos((prev) => prev.filter((v) => v.id !== id));
+    await dbDeleteVideo(id);
+  }
+
+  return (
+    <Card theme={theme} style={{ gridColumn: "1 / -1" }} delay={260}>
+      <SectionLabel theme={theme} icon={<IconVideo />}>Fitness Videos</SectionLabel>
+      <div style={{ fontSize: "12px", color: theme.textMuted, marginBottom: "16px", lineHeight: 1.4 }}>
+        Stored locally in this browser only — not backed up or synced. Share sends the file straight to
+        TikTok's share sheet; finish posting there.
+      </div>
+
+      {dbError && (
+        <div style={{ fontSize: "13px", color: theme.danger, marginBottom: "14px" }}>{dbError}</div>
+      )}
+
+      {loading ? (
+        <div style={{ fontSize: "13px", color: theme.textFaint }}>Loading videos…</div>
+      ) : videos.length === 0 ? (
+        <div style={{ fontSize: "13px", color: theme.textFaint, marginBottom: "18px" }}>
+          No videos yet — upload one below.
+        </div>
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+            gap: "16px",
+            marginBottom: "20px",
+          }}
+        >
+          {videos.map((v) => {
+            const status = statusById[v.id];
+            return (
+              <div
+                key={v.id}
+                style={{
+                  background: theme.accentSoft,
+                  border: `1px solid ${theme.divider}`,
+                  borderRadius: "12px",
+                  padding: "12px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                }}
+              >
+                <video
+                  src={v.url}
+                  controls
+                  style={{ width: "100%", borderRadius: "8px", background: "#000", display: "block", maxHeight: "220px" }}
+                />
+                <input
+                  value={v.title}
+                  onChange={(e) => renameVideo(v.id, e.target.value)}
+                  className="v-input"
+                  style={{
+                    width: "100%",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    color: theme.text,
+                    background: "transparent",
+                    border: "none",
+                    borderRadius: "6px",
+                    padding: "2px 0",
+                    "--focus-ring": theme.accentSoft,
+                    "--focus-border": "transparent",
+                  }}
+                />
+                <div style={{ fontSize: "11px", color: theme.textFaint }}>{formatBytes(v.size)}</div>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button
+                    onClick={() => shareVideoFile(v, (s) => setStatus(v.id, s))}
+                    className="v-btn"
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "6px",
+                      background: theme.accent,
+                      color: theme.accentText,
+                      border: "none",
+                      borderRadius: "8px",
+                      padding: "7px 10px",
+                      fontSize: "12px",
+                      fontWeight: 700,
+                    }}
+                  >
+                    <IconShare />
+                    Share to TikTok
+                  </button>
+                  <button
+                    onClick={() => deleteVideo(v.id)}
+                    title="Delete"
+                    className="v-btn"
+                    style={{
+                      border: `1px solid ${theme.inputBorder}`,
+                      background: "transparent",
+                      color: theme.danger,
+                      borderRadius: "8px",
+                      padding: "7px 10px",
+                      fontSize: "12px",
+                      fontWeight: 700,
+                    }}
+                  >
+                    <IconClose size={13} />
+                  </button>
+                </div>
+                {status && (
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      color: status.type === "error" ? theme.danger : theme.positive,
+                    }}
+                  >
+                    {status.message}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <button
+        onClick={() => fileInputRef.current && fileInputRef.current.click()}
+        disabled={uploading}
+        className="v-btn"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          background: theme.accent,
+          color: theme.accentText,
+          border: "none",
+          borderRadius: "8px",
+          padding: "10px 18px",
+          fontSize: "13.5px",
+          fontWeight: 700,
+          opacity: uploading ? 0.6 : 1,
+        }}
+      >
+        <IconUpload />
+        {uploading ? "Saving…" : "Upload Video"}
+      </button>
+      <input ref={fileInputRef} type="file" accept="video/*" onChange={handleFileChange} style={{ display: "none" }} />
     </Card>
   );
 }
@@ -3001,6 +3345,7 @@ function App() {
           <FinancialSection theme={theme} />
           <ProfileSection theme={theme} profile={profile} setProfile={setProfile} />
           <CustomTrackersSection theme={theme} trackers={trackers} setTrackers={setTrackers} />
+          <VideoLibrarySection theme={theme} />
         </div>
       </div>
     </div>
