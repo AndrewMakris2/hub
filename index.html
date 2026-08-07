@@ -604,6 +604,7 @@ const STORAGE_KEYS = {
   integrations: "dash.integrations",
   upcoming: "dash.upcoming",
   history: "dash.history",
+  briefingLastShown: "dash.briefingLastShown",
 };
 
 function isMergeablePlainObject(v) {
@@ -802,7 +803,7 @@ function cardBackgroundStyle(theme) {
   return style;
 }
 
-function SectionLabel({ theme, icon, children }) {
+function SectionLabel({ theme, icon, children, style }) {
   return (
     <div
       style={{
@@ -815,6 +816,7 @@ function SectionLabel({ theme, icon, children }) {
         textTransform: "uppercase",
         color: theme.sectionLabelColor,
         marginBottom: "14px",
+        ...style,
       }}
     >
       {icon && <span style={{ display: "inline-flex" }}>{icon}</span>}
@@ -1107,9 +1109,9 @@ function IconUser() {
   );
 }
 
-function IconBulb() {
+function IconBulb({ size = 14 }) {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2.3h6c0-1.1.4-1.8 1-2.3A7 7 0 0 0 12 2z" />
     </svg>
   );
@@ -2592,39 +2594,163 @@ function ProfileSection({ theme, profile, setProfile }) {
   );
 }
 
-function SuggestionsSection({ theme, fitness, golf, trackers, profile, events, history }) {
-  const suggestions = useMemo(
-    () => generateSuggestions({ fitness, golf, trackers, profile, events, history }),
-    [fitness, golf, trackers, profile, events, history]
-  );
+function greetingForNow() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
 
+function BriefingModal({ theme, suggestions, onClose }) {
+  const dateLabel = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+
+  return ReactDOM.createPortal(
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 100,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "20px",
+        background: "rgba(0,0,0,0.6)",
+      }}
+    >
+      <div
+        className="v-scroll"
+        style={{
+          width: "100%",
+          maxWidth: "540px",
+          maxHeight: "85vh",
+          overflowY: "auto",
+          "--scroll-thumb": theme.divider,
+          ...cardBackgroundStyle(theme),
+          padding: "30px",
+        }}
+      >
+        <div
+          style={{
+            fontSize: "11px",
+            fontWeight: 700,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            color: theme.sectionLabelColor,
+            marginBottom: "8px",
+          }}
+        >
+          {dateLabel}
+        </div>
+        <div style={{ fontSize: "26px", fontWeight: 800, color: theme.text, marginBottom: "6px" }}>
+          {greetingForNow()}
+        </div>
+        <div style={{ fontSize: "14px", color: theme.textMuted, marginBottom: "24px" }}>
+          {suggestions.length > 0
+            ? "Here's what's worth knowing for your day."
+            : "Nothing urgent on deck — clean slate today."}
+        </div>
+
+        {suggestions.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "26px" }}>
+            {suggestions.map((s) => (
+              <div
+                key={s.id}
+                style={{
+                  display: "flex",
+                  gap: "12px",
+                  alignItems: "flex-start",
+                  background: theme.accentSoft,
+                  border: `1px solid ${theme.divider}`,
+                  borderRadius: "12px",
+                  padding: "14px 16px",
+                }}
+              >
+                <span style={{ color: theme.accent, flexShrink: 0, marginTop: "2px" }}>
+                  <IconBulb size={18} />
+                </span>
+                <span style={{ fontSize: "14.5px", color: theme.text, lineHeight: 1.5 }}>{s.text}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button
+          onClick={onClose}
+          className="v-btn"
+          style={{
+            width: "100%",
+            padding: "13px",
+            borderRadius: "10px",
+            border: "none",
+            background: theme.accent,
+            color: theme.accentText,
+            fontSize: "14.5px",
+            fontWeight: 700,
+          }}
+        >
+          Let's go
+        </button>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function SuggestionsSection({ theme, suggestions, onOpenBriefing }) {
   return (
     <Card theme={theme} style={{ gridColumn: "1 / -1" }} delay={0}>
-      <SectionLabel theme={theme} icon={<IconBulb />}>For You</SectionLabel>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "12px",
+          marginBottom: "18px",
+        }}
+      >
+        <SectionLabel theme={theme} icon={<IconBulb size={16} />} style={{ marginBottom: 0 }}>
+          For You
+        </SectionLabel>
+        <button
+          onClick={onOpenBriefing}
+          className="v-btn"
+          style={{
+            fontSize: "12px",
+            fontWeight: 700,
+            color: theme.accent,
+            background: "transparent",
+            border: "none",
+            padding: "4px 6px",
+            flexShrink: 0,
+          }}
+        >
+          View briefing
+        </button>
+      </div>
       {suggestions.length > 0 ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "14px" }}>
           {suggestions.map((s) => (
             <div
               key={s.id}
               style={{
                 display: "flex",
-                gap: "10px",
+                gap: "14px",
                 alignItems: "flex-start",
                 background: theme.accentSoft,
                 border: `1px solid ${theme.divider}`,
-                borderRadius: "12px",
-                padding: "12px 14px",
+                borderRadius: "14px",
+                padding: "18px 20px",
               }}
             >
               <span style={{ color: theme.accent, flexShrink: 0, marginTop: "2px" }}>
-                <IconBulb />
+                <IconBulb size={20} />
               </span>
-              <span style={{ fontSize: "13px", color: theme.text, lineHeight: 1.45 }}>{s.text}</span>
+              <span style={{ fontSize: "15.5px", color: theme.text, lineHeight: 1.55 }}>{s.text}</span>
             </div>
           ))}
         </div>
       ) : (
-        <div style={{ fontSize: "13px", color: theme.textFaint }}>
+        <div style={{ fontSize: "14px", color: theme.textFaint }}>
           Nothing urgent right now — keep up the good work.
         </div>
       )}
@@ -3648,6 +3774,30 @@ function App() {
   );
   const connectedCounts = { google: connectedEvents.google.length, microsoft: connectedEvents.microsoft.length };
 
+  const allEvents = useMemo(() => [...events, ...allConnectedEvents], [events, allConnectedEvents]);
+  const suggestions = useMemo(
+    () => generateSuggestions({ fitness, golf, trackers, profile, events: allEvents, history }),
+    [fitness, golf, trackers, profile, allEvents, history]
+  );
+
+  const [briefingOpen, setBriefingOpen] = useState(() => {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      return localStorage.getItem(STORAGE_KEYS.briefingLastShown) !== today;
+    } catch (e) {
+      return false;
+    }
+  });
+
+  function dismissBriefing() {
+    try {
+      localStorage.setItem(STORAGE_KEYS.briefingLastShown, new Date().toISOString().slice(0, 10));
+    } catch (e) {
+      /* localStorage unavailable — just close in-memory */
+    }
+    setBriefingOpen(false);
+  }
+
   return (
     <div
       style={{
@@ -3695,15 +3845,7 @@ function App() {
             gap: "20px",
           }}
         >
-          <SuggestionsSection
-            theme={theme}
-            fitness={fitness}
-            golf={golf}
-            trackers={trackers}
-            profile={profile}
-            events={[...events, ...allConnectedEvents]}
-            history={history}
-          />
+          <SuggestionsSection theme={theme} suggestions={suggestions} onOpenBriefing={() => setBriefingOpen(true)} />
           <FitnessSection
             theme={theme}
             data={fitness}
@@ -3731,6 +3873,10 @@ function App() {
           <VideoLibrarySection theme={theme} />
         </div>
       </div>
+
+      {briefingOpen && suggestions.length > 0 && (
+        <BriefingModal theme={theme} suggestions={suggestions} onClose={dismissBriefing} />
+      )}
     </div>
   );
 }
