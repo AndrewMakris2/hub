@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Vantage</title>
 <meta name="color-scheme" content="light dark" />
+<meta name="theme-color" content="#0b1f3a" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Vantage" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icon-192.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
@@ -594,6 +602,8 @@ const STORAGE_KEYS = {
   trackers: "dash.trackers",
   profile: "dash.profile",
   integrations: "dash.integrations",
+  upcoming: "dash.upcoming",
+  history: "dash.history",
 };
 
 function isMergeablePlainObject(v) {
@@ -666,10 +676,28 @@ function computeGoalProgress(value, target) {
   return Math.max(0, Math.min(100, Math.round((v / t) * 100)));
 }
 
-const UPCOMING_EVENTS = [
+const DEFAULT_UPCOMING_EVENTS = [
   { id: "e1", title: "Telluride Trip", detail: "Aug 14 – 17", date: "2026-08-14" },
   { id: "e2", title: "Fal.Con 2026", detail: "Aug 31 – Sep 3", date: "2026-08-31" },
 ];
+
+const DEFAULT_HISTORY = { fitness: [], golf: [], trackers: {} };
+
+function pushHistoryPoint(series, value) {
+  const numValue = Number(value);
+  if (Number.isNaN(numValue)) return series;
+  const today = new Date().toISOString().slice(0, 10);
+  const idx = series.findIndex((p) => p.date === today);
+  let next;
+  if (idx !== -1) {
+    next = series.slice();
+    next[idx] = { date: today, value: numValue };
+  } else {
+    next = [...series, { date: today, value: numValue }];
+  }
+  next.sort((a, b) => a.date.localeCompare(b.date));
+  return next.slice(-30);
+}
 
 const DEFAULT_PROFILE = {
   interests: ["Golf", "Fitness", "Reading"],
@@ -801,7 +829,7 @@ function Card({ theme, children, style, delay = 0 }) {
   );
 }
 
-function Metric({ theme, label, value, suffix, editable, onChange, inputType }) {
+function Metric({ theme, label, value, suffix, prefix, formatDisplay, editable, onChange, inputType }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
 
@@ -874,7 +902,8 @@ function Metric({ theme, label, value, suffix, editable, onChange, inputType }) 
             wordBreak: "break-word",
           }}
         >
-          {value}
+          {prefix}
+          {formatDisplay ? formatDisplay(value) : value}
           {suffix ? (
             <span style={{ fontSize: "15px", fontWeight: 600, color: theme.textMuted, marginLeft: "4px" }}>
               {suffix}
@@ -941,6 +970,65 @@ function ProgressBar({ theme, from, to, current }) {
           }}
         />
       </div>
+    </div>
+  );
+}
+
+function Sparkline({ theme, data, label, width = 130, height = 34, goodDirection = "down" }) {
+  if (!data || data.length < 2) {
+    return (
+      <div style={{ marginTop: "16px", fontSize: "11px", color: theme.textFaint }}>
+        Trend appears after a couple more updates.
+      </div>
+    );
+  }
+
+  const values = data.map((d) => d.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const stepX = width / (data.length - 1);
+  const pad = 4;
+  const points = data
+    .map((d, i) => {
+      const x = i * stepX;
+      const y = pad + (1 - (d.value - min) / range) * (height - pad * 2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  const lastX = (data.length - 1) * stepX;
+  const lastY = pad + (1 - (values[values.length - 1] - min) / range) * (height - pad * 2);
+  const first = values[0];
+  const last = values[values.length - 1];
+  const delta = Math.round((last - first) * 10) / 10;
+  const improved = goodDirection === "down" ? delta < 0 : delta > 0;
+  const worsened = goodDirection === "down" ? delta > 0 : delta < 0;
+  const deltaColor = delta === 0 ? theme.textMuted : improved ? theme.positive : worsened ? theme.danger : theme.textMuted;
+
+  return (
+    <div style={{ marginTop: "16px" }}>
+      {label && (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontSize: "11px",
+            fontWeight: 600,
+            color: theme.textMuted,
+            marginBottom: "6px",
+          }}
+        >
+          <span>{label}</span>
+          <span style={{ color: deltaColor }}>
+            {delta > 0 ? "+" : ""}
+            {delta}
+          </span>
+        </div>
+      )}
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: "block" }}>
+        <polyline points={points} fill="none" stroke={theme.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx={lastX} cy={lastY} r="2.75" fill={theme.accent} />
+      </svg>
     </div>
   );
 }
@@ -1256,7 +1344,7 @@ function generateSuggestions({ fitness, golf, trackers, profile, events }) {
    SECTIONS
 ---------------------------------------------------------------------- */
 
-function FitnessSection({ theme, data, setData }) {
+function FitnessSection({ theme, data, setData, history, onRecordWeight }) {
   return (
     <Card theme={theme} delay={0}>
       <SectionLabel theme={theme} icon={<IconDumbbell />}>Fitness</SectionLabel>
@@ -1274,7 +1362,11 @@ function FitnessSection({ theme, data, setData }) {
           suffix="lbs"
           editable
           inputType="number"
-          onChange={(v) => setData({ ...data, currentWeight: Number(v) || data.currentWeight })}
+          onChange={(v) => {
+            const next = Number(v) || data.currentWeight;
+            setData({ ...data, currentWeight: next });
+            onRecordWeight(next);
+          }}
         />
         <Metric
           theme={theme}
@@ -1287,11 +1379,12 @@ function FitnessSection({ theme, data, setData }) {
         />
       </MetricGrid>
       <ProgressBar theme={theme} from={225} to={data.targetWeight} current={data.currentWeight} />
+      <Sparkline theme={theme} data={history} label="Weight trend" goodDirection="down" />
     </Card>
   );
 }
 
-function GolfSection({ theme, data, setData }) {
+function GolfSection({ theme, data, setData, history, onRecordHandicap }) {
   return (
     <Card theme={theme} delay={60}>
       <SectionLabel theme={theme} icon={<IconGolf />}>Golf</SectionLabel>
@@ -1310,19 +1403,59 @@ function GolfSection({ theme, data, setData }) {
           value={data.handicap}
           editable
           inputType="number"
-          onChange={(v) => setData({ ...data, handicap: Number(v) })}
+          onChange={(v) => {
+            const next = Number(v);
+            setData({ ...data, handicap: next });
+            onRecordHandicap(next);
+          }}
         />
       </MetricGrid>
+      <Sparkline theme={theme} data={history} label="Handicap trend" goodDirection="down" />
     </Card>
   );
 }
 
-function UpcomingSection({ theme, connectedEvents }) {
-  const merged = [...UPCOMING_EVENTS, ...connectedEvents].sort((a, b) => a.date.localeCompare(b.date));
+function UpcomingSection({ theme, events, setEvents, connectedEvents }) {
+  const [title, setTitle] = useState("");
+  const [date, setDate] = useState("");
+  const [detail, setDetail] = useState("");
+
+  function addEvent() {
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle || !date) return;
+    const id = "pe" + Date.now() + Math.random().toString(36).slice(2, 6);
+    const autoDetail = new Date(date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    setEvents([...events, { id, title: trimmedTitle, date, detail: detail.trim() || autoDetail }]);
+    setTitle("");
+    setDate("");
+    setDetail("");
+  }
+
+  function removeEvent(id) {
+    setEvents(events.filter((e) => e.id !== id));
+  }
+
+  const merged = [...events, ...connectedEvents].sort((a, b) => a.date.localeCompare(b.date));
+
+  const inputStyle = {
+    background: theme.inputBg,
+    border: `1px solid ${theme.inputBorder}`,
+    borderRadius: "8px",
+    color: theme.inputText,
+    padding: "8px 10px",
+    fontSize: "12.5px",
+    minWidth: 0,
+    "--focus-ring": theme.accentSoft,
+    "--focus-border": theme.accent,
+  };
+
   return (
     <Card theme={theme} delay={120}>
       <SectionLabel theme={theme} icon={<IconCalendar />}>Upcoming</SectionLabel>
-      <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginBottom: "16px" }}>
+        {merged.length === 0 && (
+          <div style={{ fontSize: "13px", color: theme.textFaint }}>No upcoming events — add one below.</div>
+        )}
         {merged.map((ev) => (
           <div
             key={ev.id}
@@ -1335,7 +1468,17 @@ function UpcomingSection({ theme, connectedEvents }) {
               borderBottom: `1px solid ${theme.divider}`,
             }}
           >
-            <span style={{ fontSize: "15px", fontWeight: 600, color: theme.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <span
+              style={{
+                fontSize: "15px",
+                fontWeight: 600,
+                color: theme.text,
+                minWidth: 0,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
               {ev.title}
               {ev.source && (
                 <span style={{ fontSize: "10px", fontWeight: 700, color: theme.textFaint, marginLeft: "6px" }}>
@@ -1343,29 +1486,92 @@ function UpcomingSection({ theme, connectedEvents }) {
                 </span>
               )}
             </span>
-            <span
-              style={{
-                fontSize: "12px",
-                fontWeight: 600,
-                color: theme.chipText,
-                background: theme.chip,
-                padding: "5px 10px",
-                borderRadius: "999px",
-                whiteSpace: "nowrap",
-                flexShrink: 0,
-              }}
-            >
-              {ev.detail}
+            <span style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+              <span
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: theme.chipText,
+                  background: theme.chip,
+                  padding: "5px 10px",
+                  borderRadius: "999px",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {ev.detail}
+              </span>
+              {!ev.source && (
+                <button
+                  onClick={() => removeEvent(ev.id)}
+                  title="Remove"
+                  className="v-btn"
+                  style={{
+                    width: "20px",
+                    height: "20px",
+                    borderRadius: "50%",
+                    border: "none",
+                    background: theme.dangerSoft,
+                    color: theme.danger,
+                    fontSize: "12px",
+                    lineHeight: "20px",
+                    textAlign: "center",
+                    padding: 0,
+                    flexShrink: 0,
+                  }}
+                >
+                  ×
+                </button>
+              )}
             </span>
           </div>
         ))}
+      </div>
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+        <input
+          placeholder="Event title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && addEvent()}
+          className="v-input"
+          style={{ ...inputStyle, flex: "2 1 130px" }}
+        />
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="v-input"
+          style={{ ...inputStyle, flex: "1 1 135px" }}
+        />
+        <input
+          placeholder="Detail (optional)"
+          value={detail}
+          onChange={(e) => setDetail(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && addEvent()}
+          className="v-input"
+          style={{ ...inputStyle, flex: "1 1 110px" }}
+        />
+        <button
+          onClick={addEvent}
+          className="v-btn"
+          style={{
+            background: theme.accent,
+            color: theme.accentText,
+            border: "none",
+            borderRadius: "8px",
+            padding: "8px 14px",
+            fontSize: "12.5px",
+            fontWeight: 700,
+            flexShrink: 0,
+          }}
+        >
+          Add
+        </button>
       </div>
     </Card>
   );
 }
 
-function FinancialSection({ theme }) {
-  const d = DEFAULT_FINANCIAL;
+function FinancialSection({ theme, data, setData }) {
   return (
     <Card theme={theme} delay={180}>
       <SectionLabel theme={theme} icon={<IconTrendingUp />}>Financial</SectionLabel>
@@ -1373,22 +1579,37 @@ function FinancialSection({ theme }) {
         <Metric
           theme={theme}
           label="Target 20% Down Payment"
-          value={`$${d.targetDownPayment.toLocaleString()}`}
-          editable={false}
+          value={data.targetDownPayment}
+          prefix="$"
+          formatDisplay={(v) => Number(v).toLocaleString()}
+          editable
+          inputType="number"
+          onChange={(v) => setData({ ...data, targetDownPayment: Number(v) || data.targetDownPayment })}
         />
         <Metric
           theme={theme}
-          label="Timeline"
-          value={`${d.timelineLow}–${d.timelineHigh}`}
+          label="Timeline From"
+          value={data.timelineLow}
           suffix="months"
-          editable={false}
+          editable
+          inputType="number"
+          onChange={(v) => setData({ ...data, timelineLow: Number(v) || data.timelineLow })}
+        />
+        <Metric
+          theme={theme}
+          label="Timeline To"
+          value={data.timelineHigh}
+          suffix="months"
+          editable
+          inputType="number"
+          onChange={(v) => setData({ ...data, timelineHigh: Number(v) || data.timelineHigh })}
         />
       </MetricGrid>
     </Card>
   );
 }
 
-function CustomTrackersSection({ theme, trackers, setTrackers }) {
+function CustomTrackersSection({ theme, trackers, setTrackers, trackerHistory, onRecordTracker }) {
   const [label, setLabel] = useState("");
   const [value, setValue] = useState("");
   const [target, setTarget] = useState("");
@@ -1410,6 +1631,7 @@ function CustomTrackersSection({ theme, trackers, setTrackers }) {
 
   function updateTrackerValue(id, newValue) {
     setTrackers(trackers.map((t) => (t.id === id ? { ...t, value: newValue } : t)));
+    onRecordTracker(id, newValue);
   }
 
   function updateTrackerTarget(id, newTarget) {
@@ -1566,6 +1788,9 @@ function CustomTrackersSection({ theme, trackers, setTrackers }) {
                       }}
                     />
                   </div>
+                )}
+                {!Number.isNaN(Number(t.value)) && (trackerHistory[t.id] || []).length >= 2 && (
+                  <Sparkline theme={theme} data={trackerHistory[t.id]} width={140} height={28} goodDirection="up" />
                 )}
               </div>
             );
@@ -2601,6 +2826,14 @@ function isPlainObject(v) {
   return v !== null && typeof v === "object" && !Array.isArray(v);
 }
 
+function sanitizeHistorySeries(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter((p) => isPlainObject(p) && typeof p.date === "string" && Number.isFinite(Number(p.value)))
+    .map((p) => ({ date: p.date, value: Number(p.value) }))
+    .slice(-30);
+}
+
 function sanitizeBackup(parsed) {
   const out = {};
   if (!isPlainObject(parsed)) return out;
@@ -2650,6 +2883,34 @@ function sanitizeBackup(parsed) {
       notes: typeof p.notes === "string" ? p.notes : "",
     };
   }
+  if (isPlainObject(parsed.financial)) {
+    const fi = parsed.financial;
+    out.financial = {
+      targetDownPayment: Number(fi.targetDownPayment) || DEFAULT_FINANCIAL.targetDownPayment,
+      timelineLow: Number(fi.timelineLow) || DEFAULT_FINANCIAL.timelineLow,
+      timelineHigh: Number(fi.timelineHigh) || DEFAULT_FINANCIAL.timelineHigh,
+    };
+  }
+  if (Array.isArray(parsed.events)) {
+    out.events = parsed.events
+      .filter((e) => isPlainObject(e) && typeof e.title === "string" && e.title.trim() && typeof e.date === "string")
+      .map((e, i) => ({
+        id: typeof e.id === "string" && e.id ? e.id : "pe" + Date.now() + i,
+        title: String(e.title),
+        date: String(e.date),
+        detail: String(e.detail ?? ""),
+      }));
+  }
+  if (isPlainObject(parsed.history)) {
+    const h = parsed.history;
+    out.history = {
+      fitness: sanitizeHistorySeries(h.fitness),
+      golf: sanitizeHistorySeries(h.golf),
+      trackers: isPlainObject(h.trackers)
+        ? Object.fromEntries(Object.entries(h.trackers).map(([k, v]) => [k, sanitizeHistorySeries(v)]))
+        : {},
+    };
+  }
   return out;
 }
 
@@ -2670,11 +2931,17 @@ function BackupMenu({
   golf,
   trackers,
   profile,
+  financial,
+  events,
+  history,
   setThemeKey,
   setFitness,
   setGolf,
   setTrackers,
   setProfile,
+  setFinancial,
+  setEvents,
+  setHistory,
 }) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState(null);
@@ -2701,6 +2968,9 @@ function BackupMenu({
       golf,
       trackers,
       profile,
+      financial,
+      events,
+      history,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -2737,6 +3007,9 @@ function BackupMenu({
         if (sanitized.golf) setGolf(sanitized.golf);
         if (sanitized.trackers) setTrackers(sanitized.trackers);
         if (sanitized.profile) setProfile(sanitized.profile);
+        if (sanitized.financial) setFinancial(sanitized.financial);
+        if (sanitized.events) setEvents(sanitized.events);
+        if (sanitized.history) setHistory(sanitized.history);
         setStatus({ type: "success", message: "Backup restored." });
       } catch (err) {
         setStatus({ type: "error", message: "Couldn't parse that file as JSON." });
@@ -3191,12 +3464,18 @@ function Header({
   profile,
   integrations,
   connectedCounts,
+  financial,
+  events,
+  history,
   setThemeKey,
   setFitness,
   setGolf,
   setTrackers,
   setProfile,
   setIntegrations,
+  setFinancial,
+  setEvents,
+  setHistory,
   onEvents,
 }) {
   return (
@@ -3260,11 +3539,17 @@ function Header({
           golf={golf}
           trackers={trackers}
           profile={profile}
+          financial={financial}
+          events={events}
+          history={history}
           setThemeKey={setThemeKey}
           setFitness={setFitness}
           setGolf={setGolf}
           setTrackers={setTrackers}
           setProfile={setProfile}
+          setFinancial={setFinancial}
+          setEvents={setEvents}
+          setHistory={setHistory}
         />
         <ThemePicker theme={theme} themeKey={themeKey} setThemeKey={setThemeKey} />
       </div>
@@ -3283,6 +3568,18 @@ function App() {
   const [fitness, setFitness] = usePersistentState(STORAGE_KEYS.fitness, DEFAULT_FITNESS);
   const [golf, setGolf] = usePersistentState(STORAGE_KEYS.golf, DEFAULT_GOLF);
   const [trackers, setTrackers] = usePersistentState(STORAGE_KEYS.trackers, DEFAULT_TRACKERS);
+  const [financial, setFinancial] = usePersistentState(STORAGE_KEYS.financial, DEFAULT_FINANCIAL);
+  const [events, setEvents] = usePersistentState(STORAGE_KEYS.upcoming, DEFAULT_UPCOMING_EVENTS);
+  const [history, setHistory] = usePersistentState(STORAGE_KEYS.history, DEFAULT_HISTORY);
+  function recordWeight(value) {
+    setHistory((h) => ({ ...h, fitness: pushHistoryPoint(h.fitness, value) }));
+  }
+  function recordHandicap(value) {
+    setHistory((h) => ({ ...h, golf: pushHistoryPoint(h.golf, value) }));
+  }
+  function recordTracker(id, value) {
+    setHistory((h) => ({ ...h, trackers: { ...h.trackers, [id]: pushHistoryPoint(h.trackers[id] || [], value) } }));
+  }
   const [profile, setProfile] = usePersistentState(STORAGE_KEYS.profile, DEFAULT_PROFILE);
   const [integrations, setIntegrations] = usePersistentState(STORAGE_KEYS.integrations, DEFAULT_INTEGRATIONS);
 
@@ -3314,12 +3611,18 @@ function App() {
         profile={profile}
         integrations={integrations}
         connectedCounts={connectedCounts}
+        financial={financial}
+        events={events}
+        history={history}
         setThemeKey={setThemeKey}
         setFitness={setFitness}
         setGolf={setGolf}
         setTrackers={setTrackers}
         setProfile={setProfile}
         setIntegrations={setIntegrations}
+        setFinancial={setFinancial}
+        setEvents={setEvents}
+        setHistory={setHistory}
         onEvents={handleCalendarEvents}
       />
 
@@ -3343,14 +3646,32 @@ function App() {
             golf={golf}
             trackers={trackers}
             profile={profile}
-            events={[...UPCOMING_EVENTS, ...allConnectedEvents]}
+            events={[...events, ...allConnectedEvents]}
           />
-          <FitnessSection theme={theme} data={fitness} setData={setFitness} />
-          <GolfSection theme={theme} data={golf} setData={setGolf} />
-          <UpcomingSection theme={theme} connectedEvents={allConnectedEvents} />
-          <FinancialSection theme={theme} />
+          <FitnessSection
+            theme={theme}
+            data={fitness}
+            setData={setFitness}
+            history={history.fitness}
+            onRecordWeight={recordWeight}
+          />
+          <GolfSection
+            theme={theme}
+            data={golf}
+            setData={setGolf}
+            history={history.golf}
+            onRecordHandicap={recordHandicap}
+          />
+          <UpcomingSection theme={theme} events={events} setEvents={setEvents} connectedEvents={allConnectedEvents} />
+          <FinancialSection theme={theme} data={financial} setData={setFinancial} />
           <ProfileSection theme={theme} profile={profile} setProfile={setProfile} />
-          <CustomTrackersSection theme={theme} trackers={trackers} setTrackers={setTrackers} />
+          <CustomTrackersSection
+            theme={theme}
+            trackers={trackers}
+            setTrackers={setTrackers}
+            trackerHistory={history.trackers}
+            onRecordTracker={recordTracker}
+          />
           <VideoLibrarySection theme={theme} />
         </div>
       </div>
@@ -3360,6 +3681,16 @@ function App() {
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(<App />);
+</script>
+
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => {
+        /* offline app-shell caching is a nice-to-have, not required */
+      });
+    });
+  }
 </script>
 </body>
 </html>
