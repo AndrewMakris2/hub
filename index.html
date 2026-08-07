@@ -596,12 +596,20 @@ const STORAGE_KEYS = {
   integrations: "dash.integrations",
 };
 
+function isMergeablePlainObject(v) {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
 function loadJSON(key, fallback) {
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return fallback;
     const parsed = JSON.parse(raw);
-    return parsed ?? fallback;
+    if (parsed == null) return fallback;
+    if (isMergeablePlainObject(fallback) && isMergeablePlainObject(parsed)) {
+      return { ...fallback, ...parsed };
+    }
+    return parsed;
   } catch (e) {
     return fallback;
   }
@@ -665,12 +673,65 @@ const UPCOMING_EVENTS = [
 
 const DEFAULT_PROFILE = {
   interests: ["Golf", "Fitness", "Reading"],
+  genres: [],
+  activities: {},
+  topPicks: [],
+  notes: "",
 };
 
 const DEFAULT_INTEGRATIONS = {
   googleClientId: "",
   msClientId: "",
 };
+
+const QUIZ_GENRES = [
+  "Action",
+  "Comedy",
+  "Drama",
+  "Sci-Fi",
+  "Horror",
+  "Documentary",
+  "Romance",
+  "Thriller",
+  "Animation",
+  "Fantasy",
+  "Crime",
+  "Reality TV",
+];
+
+const QUIZ_ACTIVITIES = [
+  "Hiking",
+  "Cooking",
+  "Gaming",
+  "Live Music",
+  "Museums",
+  "Golf",
+  "Reading",
+  "Travel",
+  "Photography",
+  "Board Games",
+  "Wine/Beer Tasting",
+  "Movie Nights",
+  "Running",
+  "Yoga",
+  "Fishing",
+  "Skiing/Snowboarding",
+];
+
+function findFreeWeekendDay(events) {
+  const busyDates = new Set(events.map((e) => e.date));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  for (let i = 1; i <= 9; i++) {
+    const d = new Date(today.getTime() + i * 86400000);
+    const day = d.getDay();
+    const iso = d.toISOString().slice(0, 10);
+    if ((day === 0 || day === 6) && !busyDates.has(iso)) {
+      return { date: iso, label: d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }) };
+    }
+  }
+  return null;
+}
 
 function daysUntil(dateStr) {
   const target = new Date(dateStr + "T00:00:00");
@@ -965,6 +1026,23 @@ function IconLink() {
   );
 }
 
+function IconChecklist({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 6h11M9 12h11M9 18h11" />
+      <path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2" />
+    </svg>
+  );
+}
+
+function IconClose({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+
 /* ----------------------------------------------------------------------
    SUGGESTIONS ENGINE
    Pure, local, rule-based — no external calls or API keys. Reads profile,
@@ -974,24 +1052,20 @@ function IconLink() {
 function generateSuggestions({ fitness, golf, trackers, profile, events }) {
   const suggestions = [];
 
-  if (fitness.currentWeight > fitness.targetWeight) {
-    const diff = Math.round((fitness.currentWeight - fitness.targetWeight) * 10) / 10;
-    suggestions.push({
-      id: "s-fitness",
-      text: `You're ${diff} lbs from your target weight — a cardio session this week would help close the gap.`,
-    });
-  } else {
-    suggestions.push({
-      id: "s-fitness",
-      text: `You've hit your target weight — nice work. Consider setting a new one.`,
-    });
-  }
-
-  if (profile.interests.some((i) => i.toLowerCase().includes("golf"))) {
-    suggestions.push({
-      id: "s-golf",
-      text: `Handicap is sitting at ${golf.handicap} — booking a round would keep it sharp.`,
-    });
+  if (profile.topPicks && profile.topPicks.length > 0) {
+    const pick = profile.topPicks[0];
+    const free = findFreeWeekendDay(events);
+    if (free) {
+      suggestions.push({
+        id: "s-freeday",
+        text: `You're free ${free.label} — good day for ${pick.toLowerCase()}, your top pick from the quiz.`,
+      });
+    } else {
+      suggestions.push({
+        id: "s-toppick",
+        text: `You ranked ${pick.toLowerCase()} as a top pick in the quiz — worth making time for it this week.`,
+      });
+    }
   }
 
   trackers.forEach((t) => {
@@ -1014,6 +1088,34 @@ function generateSuggestions({ fitness, golf, trackers, profile, events }) {
     }
   });
 
+  if (fitness.currentWeight > fitness.targetWeight) {
+    const diff = Math.round((fitness.currentWeight - fitness.targetWeight) * 10) / 10;
+    suggestions.push({
+      id: "s-fitness",
+      text: `You're ${diff} lbs from your target weight — a cardio session this week would help close the gap.`,
+    });
+  } else {
+    suggestions.push({
+      id: "s-fitness",
+      text: `You've hit your target weight — nice work. Consider setting a new one.`,
+    });
+  }
+
+  if (profile.interests.some((i) => i.toLowerCase().includes("golf"))) {
+    suggestions.push({
+      id: "s-golf",
+      text: `Handicap is sitting at ${golf.handicap} — booking a round would keep it sharp.`,
+    });
+  }
+
+  if (profile.genres && profile.genres.length > 0) {
+    const top = profile.genres.slice(0, 2).join(" and ");
+    suggestions.push({
+      id: "s-genre",
+      text: `You're into ${top} — worth checking what's new to watch there this week.`,
+    });
+  }
+
   const trackedLabels = trackers.map((t) => t.label.toLowerCase());
   profile.interests.forEach((interest) => {
     const hasTracker = trackedLabels.some((l) => l.includes(interest.toLowerCase()));
@@ -1025,7 +1127,7 @@ function generateSuggestions({ fitness, golf, trackers, profile, events }) {
     }
   });
 
-  return suggestions.slice(0, 4);
+  return suggestions.slice(0, 5);
 }
 
 /* ----------------------------------------------------------------------
@@ -1399,8 +1501,334 @@ function CustomTrackersSection({ theme, trackers, setTrackers }) {
   );
 }
 
+const QUIZ_STEPS = ["Genres", "Activities", "Top 3", "Anything else?"];
+
+function QuizModal({ theme, profile, setProfile, onClose }) {
+  const [step, setStep] = useState(0);
+  const [genres, setGenres] = useState(profile.genres);
+  const [activities, setActivities] = useState(profile.activities);
+  const [topPicks, setTopPicks] = useState(profile.topPicks);
+  const [notes, setNotes] = useState(profile.notes);
+
+  const likedActivities = Object.keys(activities).filter((a) => activities[a] === "like");
+
+  function toggleGenre(g) {
+    setGenres((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]));
+  }
+
+  function cycleActivity(a) {
+    setActivities((prev) => {
+      const current = prev[a] || "neutral";
+      const next = current === "neutral" ? "like" : current === "like" ? "dislike" : "neutral";
+      const updated = { ...prev, [a]: next };
+      if (next !== "like") {
+        setTopPicks((tp) => tp.filter((x) => x !== a));
+      }
+      return updated;
+    });
+  }
+
+  function toggleTopPick(a) {
+    setTopPicks((prev) => {
+      if (prev.includes(a)) return prev.filter((x) => x !== a);
+      if (prev.length >= 3) return prev;
+      return [...prev, a];
+    });
+  }
+
+  function finish() {
+    setProfile({ ...profile, genres, activities, topPicks, notes: notes.trim() });
+    onClose();
+  }
+
+  const chipBase = {
+    fontSize: "12.5px",
+    fontWeight: 600,
+    padding: "7px 12px",
+    borderRadius: "999px",
+    border: "1px solid transparent",
+    cursor: "pointer",
+  };
+
+  return ReactDOM.createPortal(
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 100,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "20px",
+        background: "rgba(0,0,0,0.55)",
+      }}
+    >
+      <div
+        className="v-scroll"
+        style={{
+          width: "100%",
+          maxWidth: "540px",
+          maxHeight: "85vh",
+          overflowY: "auto",
+          "--scroll-thumb": theme.divider,
+          ...cardBackgroundStyle(theme),
+          padding: "24px",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "4px" }}>
+          <div>
+            <div
+              style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                color: theme.sectionLabelColor,
+                marginBottom: "6px",
+              }}
+            >
+              Taste Quiz &middot; Step {step + 1} of {QUIZ_STEPS.length}
+            </div>
+            <div style={{ fontSize: "19px", fontWeight: 800, color: theme.text }}>{QUIZ_STEPS[step]}</div>
+          </div>
+          <button
+            onClick={onClose}
+            title="Close"
+            className="v-btn"
+            style={{
+              border: "none",
+              background: theme.accentSoft,
+              color: theme.text,
+              width: "30px",
+              height: "30px",
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <IconClose />
+          </button>
+        </div>
+
+        <div style={{ display: "flex", gap: "5px", marginBottom: "20px" }}>
+          {QUIZ_STEPS.map((s, i) => (
+            <div
+              key={s}
+              style={{
+                height: "3px",
+                flex: 1,
+                borderRadius: "999px",
+                background: i <= step ? theme.accent : theme.progressTrack,
+              }}
+            />
+          ))}
+        </div>
+
+        {step === 0 && (
+          <div>
+            <p style={{ fontSize: "13px", color: theme.textMuted, marginTop: 0, marginBottom: "16px", lineHeight: 1.5 }}>
+              Pick every genre you enjoy in movies or TV — as many as apply.
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+              {QUIZ_GENRES.map((g) => {
+                const active = genres.includes(g);
+                return (
+                  <button
+                    key={g}
+                    onClick={() => toggleGenre(g)}
+                    className="v-btn"
+                    style={{
+                      ...chipBase,
+                      background: active ? theme.accentSoft : theme.chip,
+                      color: active ? theme.accent : theme.chipText,
+                      borderColor: active ? theme.accent : "transparent",
+                    }}
+                  >
+                    {g}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {step === 1 && (
+          <div>
+            <p style={{ fontSize: "13px", color: theme.textMuted, marginTop: 0, marginBottom: "16px", lineHeight: 1.5 }}>
+              Tap each activity to cycle through: skip &rarr; like &rarr; dislike &rarr; skip.
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+              {QUIZ_ACTIVITIES.map((a) => {
+                const state = activities[a] || "neutral";
+                const style =
+                  state === "like"
+                    ? { background: theme.chip, color: theme.positive, borderColor: theme.positive }
+                    : state === "dislike"
+                    ? { background: theme.dangerSoft, color: theme.danger, borderColor: theme.danger }
+                    : { background: theme.chip, color: theme.chipText, borderColor: "transparent" };
+                return (
+                  <button key={a} onClick={() => cycleActivity(a)} className="v-btn" style={{ ...chipBase, ...style }}>
+                    {state === "like" ? "✓ " : state === "dislike" ? "✕ " : ""}
+                    {a}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div>
+            <p style={{ fontSize: "13px", color: theme.textMuted, marginTop: 0, marginBottom: "16px", lineHeight: 1.5 }}>
+              Of the ones you liked, pick up to 3 you'd actually want to make time for. Suggestions will
+              prioritize these.
+            </p>
+            {likedActivities.length === 0 ? (
+              <div style={{ fontSize: "13px", color: theme.textFaint }}>
+                Go back and mark a few activities as liked first.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                {likedActivities.map((a) => {
+                  const rank = topPicks.indexOf(a);
+                  const active = rank !== -1;
+                  return (
+                    <button
+                      key={a}
+                      onClick={() => toggleTopPick(a)}
+                      className="v-btn"
+                      style={{
+                        ...chipBase,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        background: active ? theme.accentSoft : theme.chip,
+                        color: active ? theme.accent : theme.chipText,
+                        borderColor: active ? theme.accent : "transparent",
+                      }}
+                    >
+                      {active && (
+                        <span
+                          style={{
+                            width: "16px",
+                            height: "16px",
+                            borderRadius: "50%",
+                            background: theme.accent,
+                            color: theme.accentText,
+                            fontSize: "10px",
+                            fontWeight: 800,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          {rank + 1}
+                        </span>
+                      )}
+                      {a}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {step === 3 && (
+          <div>
+            <p style={{ fontSize: "13px", color: theme.textMuted, marginTop: 0, marginBottom: "12px", lineHeight: 1.5 }}>
+              Favorite movie, show, hobby, anything — free text, totally optional.
+            </p>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="e.g. Big fan of heist movies, just got into pottery..."
+              className="v-input"
+              rows={4}
+              style={{
+                width: "100%",
+                resize: "vertical",
+                background: theme.inputBg,
+                border: `1px solid ${theme.inputBorder}`,
+                borderRadius: "8px",
+                color: theme.inputText,
+                padding: "10px 12px",
+                fontSize: "13.5px",
+                fontFamily: "inherit",
+                "--focus-ring": theme.accentSoft,
+                "--focus-border": theme.accent,
+              }}
+            />
+          </div>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: "24px", gap: "10px" }}>
+          <button
+            onClick={() => setStep((s) => Math.max(0, s - 1))}
+            disabled={step === 0}
+            className="v-btn"
+            style={{
+              padding: "9px 16px",
+              borderRadius: "8px",
+              border: `1px solid ${theme.inputBorder}`,
+              background: "transparent",
+              color: theme.text,
+              fontSize: "13px",
+              fontWeight: 700,
+              opacity: step === 0 ? 0.4 : 1,
+              cursor: step === 0 ? "default" : "pointer",
+            }}
+          >
+            Back
+          </button>
+          {step < QUIZ_STEPS.length - 1 ? (
+            <button
+              onClick={() => setStep((s) => Math.min(QUIZ_STEPS.length - 1, s + 1))}
+              className="v-btn"
+              style={{
+                padding: "9px 20px",
+                borderRadius: "8px",
+                border: "none",
+                background: theme.accent,
+                color: theme.accentText,
+                fontSize: "13px",
+                fontWeight: 700,
+              }}
+            >
+              Next
+            </button>
+          ) : (
+            <button
+              onClick={finish}
+              className="v-btn"
+              style={{
+                padding: "9px 20px",
+                borderRadius: "8px",
+                border: "none",
+                background: theme.accent,
+                color: theme.accentText,
+                fontSize: "13px",
+                fontWeight: 700,
+              }}
+            >
+              Save & Finish
+            </button>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function ProfileSection({ theme, profile, setProfile }) {
   const [tag, setTag] = useState("");
+  const [quizOpen, setQuizOpen] = useState(false);
+
+  const quizTaken = profile.genres.length > 0 || Object.keys(profile.activities).length > 0;
+  const likedCount = Object.values(profile.activities).filter((v) => v === "like").length;
 
   function addInterest() {
     const trimmed = tag.trim();
@@ -1498,6 +1926,52 @@ function ProfileSection({ theme, profile, setProfile }) {
           Add
         </button>
       </div>
+
+      <div
+        style={{
+          marginTop: "16px",
+          paddingTop: "16px",
+          borderTop: `1px solid ${theme.divider}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "10px",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ fontSize: "12px", color: theme.textMuted, lineHeight: 1.4 }}>
+          {quizTaken ? (
+            <>
+              Taste quiz: {profile.genres.length} genre{profile.genres.length === 1 ? "" : "s"}, {likedCount} liked
+              activit{likedCount === 1 ? "y" : "ies"}.
+            </>
+          ) : (
+            "Take the taste quiz to power richer, more specific suggestions."
+          )}
+        </div>
+        <button
+          onClick={() => setQuizOpen(true)}
+          className="v-btn"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "7px",
+            flexShrink: 0,
+            background: theme.accentSoft,
+            color: theme.text,
+            border: `1px solid ${theme.cardBorder}`,
+            borderRadius: "8px",
+            padding: "7px 14px",
+            fontSize: "12.5px",
+            fontWeight: 700,
+          }}
+        >
+          <IconChecklist />
+          {quizTaken ? "Retake Quiz" : "Take the Quiz"}
+        </button>
+      </div>
+
+      {quizOpen && <QuizModal theme={theme} profile={profile} setProfile={setProfile} onClose={() => setQuizOpen(false)} />}
     </Card>
   );
 }
@@ -1811,8 +2285,19 @@ function sanitizeBackup(parsed) {
       }));
   }
   if (isPlainObject(parsed.profile) && Array.isArray(parsed.profile.interests)) {
+    const p = parsed.profile;
+    const activities = isPlainObject(p.activities) ? p.activities : {};
+    const validActivityStates = new Set(["like", "dislike", "neutral"]);
     out.profile = {
-      interests: parsed.profile.interests.filter((i) => typeof i === "string" && i.trim()).map(String),
+      interests: p.interests.filter((i) => typeof i === "string" && i.trim()).map(String),
+      genres: Array.isArray(p.genres) ? p.genres.filter((g) => typeof g === "string" && g.trim()).map(String) : [],
+      activities: Object.fromEntries(
+        Object.entries(activities).filter(([, v]) => validActivityStates.has(v))
+      ),
+      topPicks: Array.isArray(p.topPicks)
+        ? p.topPicks.filter((t) => typeof t === "string" && t.trim()).map(String).slice(0, 3)
+        : [],
+      notes: typeof p.notes === "string" ? p.notes : "",
     };
   }
   return out;
