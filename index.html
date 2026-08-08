@@ -81,6 +81,20 @@
     overflow-y: auto;
     z-index: 20;
   }
+  /* Background/blur live on a pseudo-element, not .v-rail itself — a
+     backdrop-filter on .v-rail would make it the containing block for
+     any position:fixed descendant (the popovers below), confining them
+     to the rail's narrow width instead of the viewport. */
+  .v-rail::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: var(--rail-bg);
+    border-right: 1px solid var(--rail-border);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
   .v-rail-nav { flex: 1; display: flex; flex-direction: column; gap: 2px; }
   .v-rail-utilities { display: flex; flex-direction: column; gap: 8px; }
   .v-main { margin-left: 232px; }
@@ -112,9 +126,8 @@
       padding: 14px 20px;
       gap: 12px;
       overflow: visible;
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
     }
+    .v-rail::before { border-right: none; border-bottom: 1px solid var(--rail-border); }
     .v-rail-nav { display: none; }
     .v-rail-utilities { flex-direction: row; align-items: center; }
     .v-main { margin-left: 0; }
@@ -745,6 +758,7 @@ const DEFAULT_FINANCIAL = {
   targetDownPayment: 90000,
   timelineLow: 12,
   timelineHigh: 17,
+  currentSavings: 0,
 };
 
 const DEFAULT_TRACKERS = [
@@ -1765,10 +1779,23 @@ function UpcomingSection({ theme, events, setEvents, connectedEvents }) {
 }
 
 function FinancialSection({ theme, data, setData }) {
+  const currentSavings = data.currentSavings || 0;
+  const target = data.targetDownPayment || 0;
+  const remaining = Math.max(0, target - currentSavings);
   return (
     <Card theme={theme} delay={180}>
       <SectionLabel theme={theme} icon={<IconTrendingUp />}>Financial</SectionLabel>
       <MetricGrid>
+        <Metric
+          theme={theme}
+          label="Current Savings"
+          value={currentSavings}
+          prefix="$"
+          formatDisplay={(v) => Number(v).toLocaleString()}
+          editable
+          inputType="number"
+          onChange={(v) => setData({ ...data, currentSavings: Number(v) || 0 })}
+        />
         <Metric
           theme={theme}
           label="Target 20% Down Payment"
@@ -1798,6 +1825,12 @@ function FinancialSection({ theme, data, setData }) {
           onChange={(v) => setData({ ...data, timelineHigh: Number(v) || data.timelineHigh })}
         />
       </MetricGrid>
+      {target > 0 && <ProgressBar theme={theme} from={0} to={target} current={currentSavings} />}
+      {target > 0 && (
+        <div style={{ fontSize: "12px", color: theme.textMuted, marginTop: "8px" }}>
+          ${remaining.toLocaleString()} to go
+        </div>
+      )}
     </Card>
   );
 }
@@ -3494,6 +3527,7 @@ function sanitizeBackup(parsed) {
       targetDownPayment: Number(fi.targetDownPayment) || DEFAULT_FINANCIAL.targetDownPayment,
       timelineLow: Number(fi.timelineLow) || DEFAULT_FINANCIAL.timelineLow,
       timelineHigh: Number(fi.timelineHigh) || DEFAULT_FINANCIAL.timelineHigh,
+      currentSavings: Number.isFinite(Number(fi.currentSavings)) ? Number(fi.currentSavings) : DEFAULT_FINANCIAL.currentSavings,
     };
   }
   if (Array.isArray(parsed.events)) {
@@ -4131,7 +4165,14 @@ function Sidebar({
     { id: "section-fitness", label: "Fitness", icon: <IconDumbbell />, value: fitness.currentWeight },
     { id: "section-golf", label: "Golf", icon: <IconGolf />, value: golf.handicap },
     { id: "section-upcoming", label: "Upcoming", icon: <IconCalendar />, value: upcomingCount || null },
-    { id: "section-financial", label: "Financial", icon: <IconTrendingUp />, value: null },
+    {
+      id: "section-financial",
+      label: "Financial",
+      icon: <IconTrendingUp />,
+      value: financial.targetDownPayment
+        ? `${Math.min(100, Math.round(((financial.currentSavings || 0) / financial.targetDownPayment) * 100))}%`
+        : null,
+    },
     { id: "section-profile", label: "About Me", icon: <IconUser />, value: profile.interests.length || null },
     { id: "section-trackers", label: "Trackers", icon: <IconChecklist size={14} />, value: trackers.length || null },
     { id: "section-videos", label: "Videos", icon: <IconVideo size={14} />, value: null },
@@ -4141,11 +4182,8 @@ function Sidebar({
     <div
       className="v-rail"
       style={{
-        background: theme.themeBarBg,
-        borderRight: `1px solid ${theme.themeBarBorder}`,
-        borderBottom: `1px solid ${theme.themeBarBorder}`,
-        backdropFilter: "blur(12px)",
-        WebkitBackdropFilter: "blur(12px)",
+        "--rail-bg": theme.themeBarBg,
+        "--rail-border": theme.themeBarBorder,
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "0 6px", flexShrink: 0 }}>
