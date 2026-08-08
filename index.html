@@ -4254,6 +4254,47 @@ function sanitizeBackup(parsed) {
         : {},
     };
   }
+  if (Array.isArray(parsed.watchlist)) {
+    const validStatuses = new Set(["queued", "watching", "done"]);
+    out.watchlist = parsed.watchlist
+      .filter((w) => isPlainObject(w) && typeof w.title === "string" && w.title.trim())
+      .map((w, i) => ({
+        id: typeof w.id === "string" && w.id ? w.id : "w" + Date.now() + i,
+        title: String(w.title),
+        type: w.type === "show" ? "show" : "movie",
+        status: validStatuses.has(w.status) ? w.status : "queued",
+      }));
+  }
+  if (isPlainObject(parsed.budget)) {
+    const b = parsed.budget;
+    out.budget = {
+      month: typeof b.month === "string" && b.month.trim() ? b.month : currentMonthLabel(),
+      categories: Array.isArray(b.categories)
+        ? b.categories
+            .filter((c) => isPlainObject(c) && typeof c.label === "string" && c.label.trim())
+            .map((c, i) => ({
+              id: typeof c.id === "string" && c.id ? c.id : "b" + Date.now() + i,
+              label: String(c.label),
+              budgeted: Number(c.budgeted) || 0,
+              actual: Number(c.actual) || 0,
+            }))
+        : [],
+    };
+  }
+  if (Array.isArray(parsed.journal)) {
+    out.journal = parsed.journal
+      .filter((e) => isPlainObject(e) && typeof e.date === "string" && e.date.trim())
+      .map((e) => ({ date: String(e.date), text: typeof e.text === "string" ? e.text : "" }));
+  }
+  if (Array.isArray(parsed.goals)) {
+    out.goals = parsed.goals
+      .filter((g) => isPlainObject(g) && typeof g.label === "string" && g.label.trim())
+      .map((g, i) => ({
+        id: typeof g.id === "string" && g.id ? g.id : "g" + Date.now() + i,
+        label: String(g.label),
+        status: GOAL_STATUSES.includes(g.status) ? g.status : "not-started",
+      }));
+  }
   return out;
 }
 
@@ -4277,6 +4318,10 @@ function BackupMenu({
   financial,
   events,
   history,
+  watchlist,
+  budget,
+  journal,
+  goals,
   setThemeKey,
   setFitness,
   setGolf,
@@ -4285,6 +4330,10 @@ function BackupMenu({
   setFinancial,
   setEvents,
   setHistory,
+  setWatchlist,
+  setBudget,
+  setJournal,
+  setGoals,
 }) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState(null);
@@ -4314,6 +4363,10 @@ function BackupMenu({
       financial,
       events,
       history,
+      watchlist,
+      budget,
+      journal,
+      goals,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -4353,6 +4406,10 @@ function BackupMenu({
         if (sanitized.financial) setFinancial(sanitized.financial);
         if (sanitized.events) setEvents(sanitized.events);
         if (sanitized.history) setHistory(sanitized.history);
+        if (sanitized.watchlist) setWatchlist(sanitized.watchlist);
+        if (sanitized.budget) setBudget(sanitized.budget);
+        if (sanitized.journal) setJournal(sanitized.journal);
+        if (sanitized.goals) setGoals(sanitized.goals);
         setStatus({ type: "success", message: "Backup restored." });
       } catch (err) {
         setStatus({ type: "error", message: "Couldn't parse that file as JSON." });
@@ -4867,6 +4924,10 @@ function Sidebar({
   setFinancial,
   setEvents,
   setHistory,
+  setWatchlist,
+  setBudget,
+  setJournal,
+  setGoals,
   onEvents,
 }) {
   const doneGoals = goals.filter((g) => g.status === "done").length;
@@ -4961,6 +5022,10 @@ function Sidebar({
           financial={financial}
           events={events}
           history={history}
+          watchlist={watchlist}
+          budget={budget}
+          journal={journal}
+          goals={goals}
           setThemeKey={setThemeKey}
           setFitness={setFitness}
           setGolf={setGolf}
@@ -4969,6 +5034,10 @@ function Sidebar({
           setFinancial={setFinancial}
           setEvents={setEvents}
           setHistory={setHistory}
+          setWatchlist={setWatchlist}
+          setBudget={setBudget}
+          setJournal={setJournal}
+          setGoals={setGoals}
         />
         <ThemePicker theme={theme} themeKey={themeKey} setThemeKey={setThemeKey} />
       </div>
@@ -5119,6 +5188,10 @@ function App() {
         setFinancial={setFinancial}
         setEvents={setEvents}
         setHistory={setHistory}
+        setWatchlist={setWatchlist}
+        setBudget={setBudget}
+        setJournal={setJournal}
+        setGoals={setGoals}
         onEvents={handleCalendarEvents}
       />
 
