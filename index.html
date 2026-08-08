@@ -68,6 +68,88 @@
   .v-swatch:hover .v-swatch-box { transform: scale(1.08); }
 
   .v-tabular { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+
+  /* ---- Command Rail ---- */
+  .v-rail {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: 232px;
+    display: flex;
+    flex-direction: column;
+    padding: 20px 14px;
+    gap: 22px;
+    overflow-y: auto;
+    z-index: 20;
+  }
+  .v-rail-nav { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .v-rail-utilities { display: flex; flex-direction: column; gap: 8px; }
+  .v-main { margin-left: 232px; }
+
+  .v-navitem {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    border: none;
+    background: transparent;
+    text-align: left;
+    padding: 9px 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .v-navitem:hover { background: var(--navitem-hover, rgba(128,128,128,0.1)); }
+
+  @media (max-width: 900px) {
+    .v-rail {
+      position: sticky;
+      top: 0; left: auto; bottom: auto;
+      width: 100%;
+      height: auto;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      gap: 12px;
+      overflow: visible;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .v-rail-nav { display: none; }
+    .v-rail-utilities { flex-direction: row; align-items: center; }
+    .v-main { margin-left: 0; }
+  }
+
+  /* ---- Priority Stream ---- */
+  .v-stream-item {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 14px 4px;
+    border-bottom: 1px solid var(--stream-divider, rgba(128,128,128,0.14));
+  }
+  .v-stream-item:last-child { border-bottom: none; }
+
+  /* ---- Bento grid ---- */
+  .v-bento {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    align-items: stretch;
+  }
+  .v-bento > * { min-width: 0; }
+  .v-bento-fitness { grid-column: span 2; }
+  .v-bento-golf { grid-column: span 1; }
+  .v-bento-financial { grid-column: span 1; }
+  .v-bento-upcoming { grid-column: span 2; }
+  .v-bento-profile { grid-column: span 2; }
+  .v-bento-trackers { grid-column: span 2; }
+  .v-bento-videos { grid-column: span 2; }
+
+  @media (max-width: 860px) {
+    .v-bento { grid-template-columns: 1fr; }
+    .v-bento > * { grid-column: 1 / -1 !important; }
+  }
 </style>
 </head>
 <body>
@@ -867,6 +949,9 @@ function Card({ theme, children, style, delay = 0 }) {
         padding: "22px",
         animationDelay: `${delay}ms`,
         "--accent-line": theme.accent,
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
         ...style,
       }}
     >
@@ -1316,23 +1401,27 @@ function generateSuggestions({ fitness, golf, trackers, profile, events, history
         if (info.outdoor) {
           suggestions.push({
             id: "s-freeday",
+            priority: "info",
             text: `You're free ${free.label} and it's looking ${info.label.toLowerCase()} (${dayWeather.tempMax}°) — good day for ${pick.toLowerCase()}, your top pick from the quiz.`,
           });
         } else {
           suggestions.push({
             id: "s-freeday",
+            priority: "info",
             text: `You're free ${free.label}, but ${info.label.toLowerCase()} is expected (${dayWeather.tempMax}°) — might be worth an indoor alternative to ${pick.toLowerCase()}.`,
           });
         }
       } else {
         suggestions.push({
           id: "s-freeday",
+          priority: "info",
           text: `You're free ${free.label} — good day for ${pick.toLowerCase()}, your top pick from the quiz.`,
         });
       }
     } else {
       suggestions.push({
         id: "s-toppick",
+        priority: "info",
         text: `You ranked ${pick.toLowerCase()} as a top pick in the quiz — worth making time for it this week.`,
       });
     }
@@ -1344,11 +1433,13 @@ function generateSuggestions({ fitness, golf, trackers, profile, events, history
     if (progress !== null && trend && trend.status === "flat") {
       suggestions.push({
         id: `s-tracker-${t.id}`,
+        priority: "attention",
         text: `${t.label} has held at ${trend.last} for ${trend.spanDays} days (goal ${t.target}) — a push this week would help.`,
       });
     } else if (progress !== null && progress < 50) {
       suggestions.push({
         id: `s-tracker-${t.id}`,
+        priority: "attention",
         text: `${t.label} is at ${progress}% of your goal (${t.value}/${t.target}) — a push this week would help.`,
       });
     }
@@ -1359,6 +1450,7 @@ function generateSuggestions({ fitness, golf, trackers, profile, events, history
     if (days >= 0 && days <= 10) {
       suggestions.push({
         id: `s-event-${ev.id}`,
+        priority: days <= 3 ? "urgent" : "attention",
         text: `${ev.title} is in ${days} day${days === 1 ? "" : "s"} (${ev.detail}) — good time to start prepping.`,
       });
     }
@@ -1370,22 +1462,26 @@ function generateSuggestions({ fitness, golf, trackers, profile, events, history
     if (weightTrend && weightTrend.status === "flat") {
       suggestions.push({
         id: "s-fitness",
+        priority: "attention",
         text: `Weight's held steady around ${fitness.currentWeight} lbs for ${weightTrend.spanDays} days — might be worth mixing up your routine.`,
       });
     } else if (weightTrend && weightTrend.status === "down") {
       suggestions.push({
         id: "s-fitness",
+        priority: "positive",
         text: `Down ${Math.abs(weightTrend.delta)} lbs over the last ${weightTrend.spanDays} days — keep it up, ${diff} lbs to go.`,
       });
     } else {
       suggestions.push({
         id: "s-fitness",
+        priority: "attention",
         text: `You're ${diff} lbs from your target weight — a cardio session this week would help close the gap.`,
       });
     }
   } else {
     suggestions.push({
       id: "s-fitness",
+      priority: "positive",
       text: `You've hit your target weight — nice work. Consider setting a new one.`,
     });
   }
@@ -1395,16 +1491,19 @@ function generateSuggestions({ fitness, golf, trackers, profile, events, history
     if (handicapTrend && handicapTrend.status === "flat") {
       suggestions.push({
         id: "s-golf",
+        priority: "attention",
         text: `Handicap's been steady at ${golf.handicap} for ${handicapTrend.spanDays} days — a lesson or range session could break the plateau.`,
       });
     } else if (handicapTrend && handicapTrend.status === "down") {
       suggestions.push({
         id: "s-golf",
+        priority: "positive",
         text: `Handicap's down ${Math.abs(handicapTrend.delta)} over the last ${handicapTrend.spanDays} days, now at ${golf.handicap} — booking another round would keep the momentum.`,
       });
     } else {
       suggestions.push({
         id: "s-golf",
+        priority: "info",
         text: `Handicap is sitting at ${golf.handicap} — booking a round would keep it sharp.`,
       });
     }
@@ -1414,6 +1513,7 @@ function generateSuggestions({ fitness, golf, trackers, profile, events, history
     const top = profile.genres.slice(0, 2).join(" and ");
     suggestions.push({
       id: "s-genre",
+      priority: "info",
       text: `You're into ${top} — worth checking what's new to watch there this week.`,
     });
   }
@@ -1424,6 +1524,7 @@ function generateSuggestions({ fitness, golf, trackers, profile, events, history
     if (!hasTracker && !["golf", "fitness"].includes(interest.toLowerCase())) {
       suggestions.push({
         id: `s-interest-${interest}`,
+        priority: "info",
         text: `You listed "${interest}" as an interest — want to add a tracker for it?`,
       });
     }
@@ -1743,7 +1844,7 @@ function CustomTrackersSection({ theme, trackers, setTrackers, trackerHistory, o
   };
 
   return (
-    <Card theme={theme} style={{ gridColumn: "1 / -1" }} delay={240}>
+    <Card theme={theme} delay={240}>
       <SectionLabel theme={theme} icon={<IconSparkles />}>Custom Trackers</SectionLabel>
 
       {trackers.length > 0 ? (
@@ -2231,7 +2332,7 @@ function VideoLibrarySection({ theme, integrations, setIntegrations }) {
   }
 
   return (
-    <Card theme={theme} style={{ gridColumn: "1 / -1" }} delay={260}>
+    <Card theme={theme} delay={260}>
       <SectionLabel theme={theme} icon={<IconVideo />}>Fitness Videos</SectionLabel>
       <div style={{ fontSize: "12px", color: theme.textMuted, marginBottom: "16px", lineHeight: 1.4 }}>
         Stored locally in this browser only — not backed up or synced.
@@ -2990,17 +3091,26 @@ function BriefingModal({ theme, suggestions, weather, onClose }) {
   );
 }
 
+const PRIORITY_AMBER = "#e8a33d";
+
+function priorityDotColor(theme, priority) {
+  if (priority === "urgent") return theme.danger;
+  if (priority === "attention") return PRIORITY_AMBER;
+  if (priority === "positive") return theme.positive;
+  return theme.accent;
+}
+
 function SuggestionsSection({ theme, suggestions, onOpenBriefing, weather, weatherStatus, onEnableWeather }) {
   const weatherEnabled = weather && weather.lat != null;
   return (
-    <Card theme={theme} style={{ gridColumn: "1 / -1" }} delay={0}>
+    <Card theme={theme} delay={0}>
       <div
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           gap: "12px",
-          marginBottom: "18px",
+          marginBottom: "6px",
           flexWrap: "wrap",
         }}
       >
@@ -3047,24 +3157,21 @@ function SuggestionsSection({ theme, suggestions, onOpenBriefing, weather, weath
         <div style={{ fontSize: "12px", color: theme.danger, marginBottom: "14px" }}>{weatherStatus.message}</div>
       )}
       {suggestions.length > 0 ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "14px" }}>
+        <div style={{ "--stream-divider": theme.divider }}>
           {suggestions.map((s) => (
-            <div
-              key={s.id}
-              style={{
-                display: "flex",
-                gap: "14px",
-                alignItems: "flex-start",
-                background: theme.accentSoft,
-                border: `1px solid ${theme.divider}`,
-                borderRadius: "14px",
-                padding: "18px 20px",
-              }}
-            >
-              <span style={{ color: theme.accent, flexShrink: 0, marginTop: "2px" }}>
-                <IconBulb size={20} />
-              </span>
-              <span style={{ fontSize: "15.5px", color: theme.text, lineHeight: 1.55 }}>{s.text}</span>
+            <div key={s.id} className="v-stream-item">
+              <span
+                style={{
+                  flexShrink: 0,
+                  marginTop: "7px",
+                  width: "8px",
+                  height: "8px",
+                  borderRadius: "50%",
+                  background: priorityDotColor(theme, s.priority),
+                  boxShadow: `0 0 0 3px ${theme.accentSoft}`,
+                }}
+              />
+              <span style={{ fontSize: "15px", color: theme.text, lineHeight: 1.55 }}>{s.text}</span>
             </div>
           ))}
         </div>
@@ -3955,7 +4062,46 @@ function CalendarMenu({ theme, integrations, setIntegrations, onEvents, connecte
   );
 }
 
-function Header({
+function scrollToSection(id) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function NavItem({ theme, icon, label, value, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="v-btn v-navitem"
+      style={{ color: theme.text, "--navitem-hover": theme.accentSoft }}
+    >
+      <span style={{ color: theme.textMuted, flexShrink: 0, display: "inline-flex" }}>{icon}</span>
+      <span
+        style={{
+          fontSize: "13.5px",
+          fontWeight: 600,
+          flex: 1,
+          minWidth: 0,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          textAlign: "left",
+        }}
+      >
+        {label}
+      </span>
+      {value !== null && value !== undefined && value !== "" && (
+        <span
+          className="v-tabular"
+          style={{ fontSize: "12px", fontWeight: 700, color: theme.textMuted, flexShrink: 0 }}
+        >
+          {value}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function Sidebar({
   theme,
   themeKey,
   fitness,
@@ -3967,6 +4113,8 @@ function Header({
   financial,
   events,
   history,
+  suggestionsCount,
+  upcomingCount,
   setThemeKey,
   setFitness,
   setGolf,
@@ -3978,24 +4126,29 @@ function Header({
   setHistory,
   onEvents,
 }) {
+  const navItems = [
+    { id: "section-suggestions", label: "For You", icon: <IconBulb size={14} />, value: suggestionsCount || null },
+    { id: "section-fitness", label: "Fitness", icon: <IconDumbbell />, value: fitness.currentWeight },
+    { id: "section-golf", label: "Golf", icon: <IconGolf />, value: golf.handicap },
+    { id: "section-upcoming", label: "Upcoming", icon: <IconCalendar />, value: upcomingCount || null },
+    { id: "section-financial", label: "Financial", icon: <IconTrendingUp />, value: null },
+    { id: "section-profile", label: "About Me", icon: <IconUser />, value: profile.interests.length || null },
+    { id: "section-trackers", label: "Trackers", icon: <IconChecklist size={14} />, value: trackers.length || null },
+    { id: "section-videos", label: "Videos", icon: <IconVideo size={14} />, value: null },
+  ];
+
   return (
     <div
+      className="v-rail"
       style={{
-        position: "sticky",
-        top: 0,
-        zIndex: 10,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: "12px",
-        padding: "14px 20px",
         background: theme.themeBarBg,
+        borderRight: `1px solid ${theme.themeBarBorder}`,
         borderBottom: `1px solid ${theme.themeBarBorder}`,
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "0 6px", flexShrink: 0 }}>
         <span
           style={{
             width: "30px",
@@ -4024,7 +4177,20 @@ function Header({
         </span>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+      <div className="v-rail-nav">
+        {navItems.map((item) => (
+          <NavItem
+            key={item.id}
+            theme={theme}
+            icon={item.icon}
+            label={item.label}
+            value={item.value}
+            onClick={() => scrollToSection(item.id)}
+          />
+        ))}
+      </div>
+
+      <div className="v-rail-utilities">
         <CalendarMenu
           theme={theme}
           integrations={integrations}
@@ -4159,7 +4325,7 @@ function App() {
         transition: "background 0.25s ease, color 0.25s ease",
       }}
     >
-      <Header
+      <Sidebar
         theme={theme}
         themeKey={themeKey}
         fitness={fitness}
@@ -4171,6 +4337,8 @@ function App() {
         financial={financial}
         events={events}
         history={history}
+        suggestionsCount={suggestions.length}
+        upcomingCount={allEvents.length}
         setThemeKey={setThemeKey}
         setFitness={setFitness}
         setGolf={setGolf}
@@ -4183,53 +4351,74 @@ function App() {
         onEvents={handleCalendarEvents}
       />
 
-      <div
-        style={{
-          maxWidth: "1100px",
-          margin: "0 auto",
-          padding: "32px 20px 64px",
-        }}
-      >
+      <div className="v-main">
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            maxWidth: "1200px",
+            margin: "0 auto",
+            padding: "32px 20px 64px",
+            display: "flex",
+            flexDirection: "column",
             gap: "20px",
           }}
         >
-          <SuggestionsSection
-            theme={theme}
-            suggestions={suggestions}
-            onOpenBriefing={() => setBriefingOpen(true)}
-            weather={weather}
-            weatherStatus={weatherStatus}
-            onEnableWeather={enableWeather}
-          />
-          <FitnessSection
-            theme={theme}
-            data={fitness}
-            setData={setFitness}
-            history={history.fitness}
-            onRecordWeight={recordWeight}
-          />
-          <GolfSection
-            theme={theme}
-            data={golf}
-            setData={setGolf}
-            history={history.golf}
-            onRecordHandicap={recordHandicap}
-          />
-          <UpcomingSection theme={theme} events={events} setEvents={setEvents} connectedEvents={allConnectedEvents} />
-          <FinancialSection theme={theme} data={financial} setData={setFinancial} />
-          <ProfileSection theme={theme} profile={profile} setProfile={setProfile} />
-          <CustomTrackersSection
-            theme={theme}
-            trackers={trackers}
-            setTrackers={setTrackers}
-            trackerHistory={history.trackers}
-            onRecordTracker={recordTracker}
-          />
-          <VideoLibrarySection theme={theme} integrations={integrations} setIntegrations={setIntegrations} />
+          <div id="section-suggestions" style={{ scrollMarginTop: "24px" }}>
+            <SuggestionsSection
+              theme={theme}
+              suggestions={suggestions}
+              onOpenBriefing={() => setBriefingOpen(true)}
+              weather={weather}
+              weatherStatus={weatherStatus}
+              onEnableWeather={enableWeather}
+            />
+          </div>
+
+          <div className="v-bento">
+            <div id="section-fitness" className="v-bento-fitness" style={{ scrollMarginTop: "24px" }}>
+              <FitnessSection
+                theme={theme}
+                data={fitness}
+                setData={setFitness}
+                history={history.fitness}
+                onRecordWeight={recordWeight}
+              />
+            </div>
+            <div id="section-golf" className="v-bento-golf" style={{ scrollMarginTop: "24px" }}>
+              <GolfSection
+                theme={theme}
+                data={golf}
+                setData={setGolf}
+                history={history.golf}
+                onRecordHandicap={recordHandicap}
+              />
+            </div>
+            <div id="section-financial" className="v-bento-financial" style={{ scrollMarginTop: "24px" }}>
+              <FinancialSection theme={theme} data={financial} setData={setFinancial} />
+            </div>
+            <div id="section-upcoming" className="v-bento-upcoming" style={{ scrollMarginTop: "24px" }}>
+              <UpcomingSection
+                theme={theme}
+                events={events}
+                setEvents={setEvents}
+                connectedEvents={allConnectedEvents}
+              />
+            </div>
+            <div id="section-profile" className="v-bento-profile" style={{ scrollMarginTop: "24px" }}>
+              <ProfileSection theme={theme} profile={profile} setProfile={setProfile} />
+            </div>
+            <div id="section-trackers" className="v-bento-trackers" style={{ scrollMarginTop: "24px" }}>
+              <CustomTrackersSection
+                theme={theme}
+                trackers={trackers}
+                setTrackers={setTrackers}
+                trackerHistory={history.trackers}
+                onRecordTracker={recordTracker}
+              />
+            </div>
+            <div id="section-videos" className="v-bento-videos" style={{ scrollMarginTop: "24px" }}>
+              <VideoLibrarySection theme={theme} integrations={integrations} setIntegrations={setIntegrations} />
+            </div>
+          </div>
         </div>
       </div>
 
