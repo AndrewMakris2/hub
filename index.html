@@ -2999,7 +2999,20 @@ function VideoLibrarySection({ theme, integrations, setIntegrations }) {
   const [dbError, setDbError] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [statusById, setStatusById] = useState({});
+  const [storageEstimate, setStorageEstimate] = useState(null);
+  const [storageSupported, setStorageSupported] = useState(true);
   const fileInputRef = useRef(null);
+
+  function refreshStorageEstimate() {
+    if (!navigator.storage || !navigator.storage.estimate) {
+      setStorageSupported(false);
+      return;
+    }
+    navigator.storage
+      .estimate()
+      .then((est) => setStorageEstimate({ usage: est.usage || 0, quota: est.quota || 0 }))
+      .catch(() => setStorageSupported(false));
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -3017,6 +3030,7 @@ function VideoLibrarySection({ theme, integrations, setIntegrations }) {
         setDbError(err.message || "Couldn't open local video storage.");
         setLoading(false);
       });
+    refreshStorageEstimate();
     return () => {
       cancelled = true;
     };
@@ -3046,6 +3060,7 @@ function VideoLibrarySection({ theme, integrations, setIntegrations }) {
       const record = { id, title: file.name.replace(/\.[^.]+$/, ""), type: file.type, size: file.size, createdAt: Date.now(), blob: file };
       await dbPutVideo(record);
       setVideos((prev) => [{ ...record, url: URL.createObjectURL(file) }, ...prev]);
+      refreshStorageEstimate();
     } catch (err) {
       setDbError(err.message || "Couldn't save that video.");
     } finally {
@@ -3066,7 +3081,14 @@ function VideoLibrarySection({ theme, integrations, setIntegrations }) {
     if (video) URL.revokeObjectURL(video.url);
     setVideos((prev) => prev.filter((v) => v.id !== id));
     await dbDeleteVideo(id);
+    refreshStorageEstimate();
   }
+
+  const totalVideoBytes = videos.reduce((s, v) => s + (v.size || 0), 0);
+  const avgVideoBytes = videos.length > 0 ? totalVideoBytes / videos.length : 75 * 1024 * 1024;
+  const usagePct = storageEstimate && storageEstimate.quota ? Math.min(100, Math.round((storageEstimate.usage / storageEstimate.quota) * 100)) : null;
+  const remainingBytes = storageEstimate ? Math.max(0, storageEstimate.quota - storageEstimate.usage) : null;
+  const estRemainingVideos = remainingBytes !== null ? Math.floor(remainingBytes / avgVideoBytes) : null;
 
   return (
     <Card theme={theme} delay={260}>
@@ -3074,6 +3096,43 @@ function VideoLibrarySection({ theme, integrations, setIntegrations }) {
       <div style={{ fontSize: "12px", color: theme.textMuted, marginBottom: "16px", lineHeight: 1.4 }}>
         Stored locally in this browser only — not backed up or synced.
       </div>
+
+      {storageSupported && storageEstimate && (
+        <div style={{ marginBottom: "18px" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "baseline",
+              fontSize: "11.5px",
+              color: theme.textMuted,
+              marginBottom: "6px",
+              gap: "8px",
+            }}
+          >
+            <span>
+              {formatBytes(storageEstimate.usage)} used of {formatBytes(storageEstimate.quota)}
+            </span>
+            {estRemainingVideos !== null && (
+              <span style={{ color: theme.textFaint, flexShrink: 0 }}>
+                ~{estRemainingVideos.toLocaleString()} more 1-min video{estRemainingVideos === 1 ? "" : "s"}
+              </span>
+            )}
+          </div>
+          <div style={{ height: "6px", borderRadius: "999px", background: theme.progressTrack, overflow: "hidden" }}>
+            <div
+              style={{
+                height: "100%",
+                width: `${usagePct || 0}%`,
+                borderRadius: "999px",
+                background: theme.progressFill,
+                backgroundImage: typeof theme.progressFill === "string" && theme.progressFill.includes("gradient") ? theme.progressFill : undefined,
+                transition: "width 0.3s ease",
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       <TikTokConnect theme={theme} integrations={integrations} setIntegrations={setIntegrations} />
 
