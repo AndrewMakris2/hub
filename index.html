@@ -158,6 +158,11 @@
   .v-bento-profile { grid-column: span 2; }
   .v-bento-trackers { grid-column: span 2; }
   .v-bento-videos { grid-column: span 2; }
+  .v-bento-budget { grid-column: span 2; }
+  .v-bento-agenda { grid-column: span 4; }
+  .v-bento-watchlist { grid-column: span 2; }
+  .v-bento-goals { grid-column: span 2; }
+  .v-bento-journal { grid-column: span 2; }
 
   @media (max-width: 860px) {
     .v-bento { grid-template-columns: 1fr; }
@@ -701,6 +706,10 @@ const STORAGE_KEYS = {
   history: "dash.history",
   briefingLastShown: "dash.briefingLastShown",
   weather: "dash.weather",
+  watchlist: "dash.watchlist",
+  budget: "dash.budget",
+  journal: "dash.journal",
+  goals: "dash.goals",
 };
 
 function isMergeablePlainObject(v) {
@@ -822,6 +831,77 @@ const DEFAULT_INTEGRATIONS = {
   tiktokClientKey: "",
   tiktokBackendUrl: "",
 };
+
+const DEFAULT_WATCHLIST = [];
+
+function currentMonthLabel() {
+  return new Date().toLocaleDateString(undefined, { month: "long", year: "numeric" });
+}
+
+const DEFAULT_BUDGET = { month: currentMonthLabel(), categories: [] };
+
+const DEFAULT_JOURNAL = [];
+
+const DEFAULT_GOALS = [];
+
+const GOAL_STATUSES = ["not-started", "in-progress", "done"];
+const GOAL_STATUS_LABELS = { "not-started": "Not Started", "in-progress": "In Progress", done: "Done" };
+
+const TITLE_CATALOG = [
+  { title: "Mad Max: Fury Road", type: "movie", genres: ["Action"], popular: true },
+  { title: "John Wick", type: "movie", genres: ["Action", "Thriller"] },
+  { title: "The Bourne Identity", type: "movie", genres: ["Action", "Thriller"] },
+  { title: "Brooklyn Nine-Nine", type: "show", genres: ["Comedy"], popular: true },
+  { title: "Superbad", type: "movie", genres: ["Comedy"] },
+  { title: "Parks and Recreation", type: "show", genres: ["Comedy"] },
+  { title: "The Wire", type: "show", genres: ["Drama", "Crime"] },
+  { title: "Succession", type: "show", genres: ["Drama"], popular: true },
+  { title: "Manchester by the Sea", type: "movie", genres: ["Drama"] },
+  { title: "Interstellar", type: "movie", genres: ["Sci-Fi"], popular: true },
+  { title: "The Expanse", type: "show", genres: ["Sci-Fi"] },
+  { title: "Arrival", type: "movie", genres: ["Sci-Fi"] },
+  { title: "Hereditary", type: "movie", genres: ["Horror"] },
+  { title: "The Haunting of Hill House", type: "show", genres: ["Horror"] },
+  { title: "Get Out", type: "movie", genres: ["Horror", "Thriller"] },
+  { title: "Free Solo", type: "movie", genres: ["Documentary"], popular: true },
+  { title: "Chef's Table", type: "show", genres: ["Documentary"] },
+  { title: "Won't You Be My Neighbor?", type: "movie", genres: ["Documentary"] },
+  { title: "The Notebook", type: "movie", genres: ["Romance"] },
+  { title: "Normal People", type: "show", genres: ["Romance", "Drama"] },
+  { title: "Pride & Prejudice", type: "movie", genres: ["Romance"] },
+  { title: "Gone Girl", type: "movie", genres: ["Thriller"] },
+  { title: "Mindhunter", type: "show", genres: ["Thriller", "Crime"] },
+  { title: "Prisoners", type: "movie", genres: ["Thriller"] },
+  { title: "Spider-Man: Into the Spider-Verse", type: "movie", genres: ["Animation", "Action"], popular: true },
+  { title: "Arcane", type: "show", genres: ["Animation", "Fantasy"] },
+  { title: "Spirited Away", type: "movie", genres: ["Animation", "Fantasy"] },
+  { title: "The Lord of the Rings: The Fellowship of the Ring", type: "movie", genres: ["Fantasy"], popular: true },
+  { title: "The Witcher", type: "show", genres: ["Fantasy"] },
+  { title: "Pan's Labyrinth", type: "movie", genres: ["Fantasy"] },
+  { title: "Breaking Bad", type: "show", genres: ["Crime", "Drama"], popular: true },
+  { title: "The Godfather", type: "movie", genres: ["Crime", "Drama"] },
+  { title: "Narcos", type: "show", genres: ["Crime"] },
+  { title: "The Great British Bake Off", type: "show", genres: ["Reality TV"] },
+  { title: "Survivor", type: "show", genres: ["Reality TV"] },
+  { title: "Queer Eye", type: "show", genres: ["Reality TV"] },
+];
+
+function suggestTitles(genres, queue, count) {
+  const n = count || 4;
+  const queuedTitles = new Set((queue || []).map((q) => q.title.toLowerCase()));
+  const candidates = TITLE_CATALOG.filter((c) => !queuedTitles.has(c.title.toLowerCase()));
+  if (genres && genres.length > 0) {
+    const scored = candidates
+      .map((c) => ({ ...c, score: c.genres.filter((g) => genres.includes(g)).length }))
+      .filter((c) => c.score > 0)
+      .sort((a, b) => b.score - a.score);
+    if (scored.length >= n) return scored.slice(0, n);
+    const rest = candidates.filter((c) => !scored.some((s) => s.title === c.title));
+    return [...scored, ...rest.filter((c) => c.popular)].slice(0, n);
+  }
+  const popular = candidates.filter((c) => c.popular);
+  return (popular.length >= n ? popular : candidates).slice(0, n);
+}
 
 const QUIZ_GENRES = [
   "Action",
@@ -1301,6 +1381,42 @@ function IconUpload({ size = 14 }) {
   );
 }
 
+function IconFilm({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M3 9h18M3 15h18M8 4v16M16 4v16" />
+    </svg>
+  );
+}
+
+function IconWallet({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v3" />
+      <path d="M3 7v11a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1h-5a2 2 0 0 0 0 4h5" />
+    </svg>
+  );
+}
+
+function IconBookOpen({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 6c-2-1.5-5-2-8-1v13c3-1 6-.5 8 1 2-1.5 5-2 8-1V5c-3-1-6-.5-8 1z" />
+      <path d="M12 6v13" />
+    </svg>
+  );
+}
+
+function IconFlag({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 21V4" />
+      <path d="M5 4h13l-3 4.5L18 13H5" />
+    </svg>
+  );
+}
+
 /* ----------------------------------------------------------------------
    VIDEO LIBRARY STORAGE
    Video files are stored in IndexedDB (localStorage caps out around
@@ -1402,7 +1518,7 @@ async function shareVideoFile(video, onStatus) {
    goal progress, and event dates to produce a short list of nudges.
 ---------------------------------------------------------------------- */
 
-function generateSuggestions({ fitness, golf, trackers, profile, events, history, weather }) {
+function generateSuggestions({ fitness, golf, trackers, profile, events, history, weather, watchlist }) {
   const suggestions = [];
 
   if (profile.topPicks && profile.topPicks.length > 0) {
@@ -1525,10 +1641,13 @@ function generateSuggestions({ fitness, golf, trackers, profile, events, history
 
   if (profile.genres && profile.genres.length > 0) {
     const top = profile.genres.slice(0, 2).join(" and ");
+    const pick = suggestTitles(profile.genres, watchlist || [], 1)[0];
     suggestions.push({
       id: "s-genre",
       priority: "info",
-      text: `You're into ${top} — worth checking what's new to watch there this week.`,
+      text: pick
+        ? `You're into ${top} — "${pick.title}" (${pick.type}) could be a good pick this week.`
+        : `You're into ${top} — worth checking what's new to watch there this week.`,
     });
   }
 
@@ -2286,6 +2405,591 @@ function TikTokConnect({ theme, integrations, setIntegrations }) {
         </div>
       )}
     </div>
+  );
+}
+
+function WatchQueueSection({ theme, watchlist, setWatchlist, genres, delay }) {
+  const [title, setTitle] = useState("");
+  const [type, setType] = useState("movie");
+
+  const suggestions = suggestTitles(genres, watchlist, 4);
+
+  function addTitle(t, ty) {
+    const trimmed = t.trim();
+    if (!trimmed) return;
+    if (watchlist.some((w) => w.title.toLowerCase() === trimmed.toLowerCase())) return;
+    const id = "w" + Date.now() + Math.random().toString(36).slice(2, 6);
+    setWatchlist([...watchlist, { id, title: trimmed, type: ty, status: "queued" }]);
+  }
+
+  function removeTitle(id) {
+    setWatchlist(watchlist.filter((w) => w.id !== id));
+  }
+
+  function cycleStatus(id) {
+    const order = ["queued", "watching", "done"];
+    setWatchlist(
+      watchlist.map((w) =>
+        w.id === id ? { ...w, status: order[(order.indexOf(w.status) + 1) % order.length] } : w
+      )
+    );
+  }
+
+  const statusMeta = {
+    queued: { label: "Queued", bg: theme.chip, color: theme.chipText },
+    watching: { label: "Watching", bg: theme.accentSoft, color: theme.accent },
+    done: { label: "Done", bg: theme.accentSoft, color: theme.positive },
+  };
+
+  const inputStyle = {
+    background: theme.inputBg,
+    border: `1px solid ${theme.inputBorder}`,
+    borderRadius: "8px",
+    color: theme.inputText,
+    padding: "9px 12px",
+    fontSize: "14px",
+    minWidth: 0,
+    "--focus-ring": theme.accentSoft,
+    "--focus-border": theme.accent,
+  };
+
+  return (
+    <Card theme={theme} delay={delay}>
+      <SectionLabel theme={theme} icon={<IconFilm />}>Watch List</SectionLabel>
+
+      {suggestions.length > 0 && (
+        <div style={{ marginBottom: "18px" }}>
+          <div
+            style={{
+              fontSize: "11px",
+              fontWeight: 700,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+              color: theme.textMuted,
+              marginBottom: "8px",
+            }}
+          >
+            Suggested for you
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+            {suggestions.map((s) => (
+              <button
+                key={s.title}
+                onClick={() => addTitle(s.title, s.type)}
+                className="v-btn"
+                title={`Add "${s.title}" to your queue`}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  fontSize: "12.5px",
+                  fontWeight: 600,
+                  color: theme.text,
+                  background: theme.accentSoft,
+                  border: `1px solid ${theme.divider}`,
+                  borderRadius: "999px",
+                  padding: "6px 12px 6px 10px",
+                }}
+              >
+                <span style={{ color: theme.accent }}>+</span>
+                {s.title}
+                <span style={{ color: theme.textFaint, fontWeight: 500 }}>{s.type === "show" ? "show" : "movie"}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {watchlist.length > 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "18px" }}>
+          {watchlist.map((w) => (
+            <div
+              key={w.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                background: theme.accentSoft,
+                border: `1px solid ${theme.divider}`,
+                borderRadius: "10px",
+                padding: "10px 12px",
+              }}
+            >
+              <span style={{ flex: 1, minWidth: 0, fontSize: "14px", color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {w.title}
+              </span>
+              <span style={{ fontSize: "11px", color: theme.textFaint, flexShrink: 0 }}>{w.type === "show" ? "Show" : "Movie"}</span>
+              <button
+                onClick={() => cycleStatus(w.id)}
+                className="v-btn"
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  color: statusMeta[w.status].color,
+                  background: statusMeta[w.status].bg,
+                  border: "none",
+                  borderRadius: "999px",
+                  padding: "5px 10px",
+                  flexShrink: 0,
+                }}
+              >
+                {statusMeta[w.status].label}
+              </button>
+              <button
+                onClick={() => removeTitle(w.id)}
+                title="Remove"
+                className="v-btn"
+                style={{
+                  width: "20px",
+                  height: "20px",
+                  borderRadius: "50%",
+                  border: "none",
+                  background: theme.dangerSoft,
+                  color: theme.danger,
+                  fontSize: "12px",
+                  lineHeight: "20px",
+                  textAlign: "center",
+                  padding: 0,
+                  flexShrink: 0,
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ fontSize: "13px", color: theme.textFaint, marginBottom: "18px" }}>
+          Your queue is empty — add a suggestion above or your own pick below.
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+        <input
+          placeholder="Title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              addTitle(title, type);
+              setTitle("");
+            }
+          }}
+          className="v-input"
+          style={{ ...inputStyle, flex: "2 1 140px" }}
+        />
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          className="v-input"
+          style={{ ...inputStyle, flex: "1 1 90px" }}
+        >
+          <option value="movie">Movie</option>
+          <option value="show">Show</option>
+        </select>
+        <button
+          onClick={() => {
+            addTitle(title, type);
+            setTitle("");
+          }}
+          className="v-btn"
+          style={{
+            padding: "9px 16px",
+            borderRadius: "8px",
+            border: "none",
+            background: theme.accent,
+            color: theme.accentText,
+            fontSize: "13px",
+            fontWeight: 700,
+            flexShrink: 0,
+          }}
+        >
+          Add
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+function AgendaStripSection({ theme, events, delay }) {
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    const iso = d.toISOString().slice(0, 10);
+    days.push({
+      iso,
+      isToday: i === 0,
+      label: d.toLocaleDateString(undefined, { weekday: "short" }),
+      dateLabel: d.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+      items: events.filter((e) => e.date === iso),
+    });
+  }
+
+  return (
+    <Card theme={theme} delay={delay}>
+      <SectionLabel theme={theme} icon={<IconCalendar />}>7-Day Agenda</SectionLabel>
+      <div
+        className="v-scroll"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(7, minmax(100px, 1fr))",
+          gap: "10px",
+          overflowX: "auto",
+          paddingBottom: "4px",
+          "--scroll-thumb": theme.divider,
+        }}
+      >
+        {days.map((d) => (
+          <div
+            key={d.iso}
+            style={{
+              background: d.isToday ? theme.accentSoft : "transparent",
+              border: `1px solid ${d.isToday ? theme.accent : theme.divider}`,
+              borderRadius: "10px",
+              padding: "10px 10px",
+              minHeight: "90px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "6px",
+            }}
+          >
+            <div>
+              <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: d.isToday ? theme.accent : theme.textMuted }}>
+                {d.label}
+              </div>
+              <div style={{ fontSize: "12px", color: theme.textFaint }}>{d.dateLabel}</div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+              {d.items.length > 0 ? (
+                d.items.map((it, i) => (
+                  <div
+                    key={i}
+                    title={it.title}
+                    style={{ fontSize: "11.5px", color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                  >
+                    {it.title}
+                  </div>
+                ))
+              ) : (
+                <div style={{ fontSize: "11.5px", color: theme.textFaint }}>—</div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function BudgetSnapshotSection({ theme, data, setData, delay }) {
+  const [label, setLabel] = useState("");
+  const [budgeted, setBudgeted] = useState("");
+
+  function addCategory() {
+    const trimmed = label.trim();
+    if (!trimmed || !budgeted) return;
+    const id = "b" + Date.now() + Math.random().toString(36).slice(2, 6);
+    setData({
+      ...data,
+      categories: [...data.categories, { id, label: trimmed, budgeted: Number(budgeted) || 0, actual: 0 }],
+    });
+    setLabel("");
+    setBudgeted("");
+  }
+
+  function removeCategory(id) {
+    setData({ ...data, categories: data.categories.filter((c) => c.id !== id) });
+  }
+
+  function updateActual(id, value) {
+    setData({ ...data, categories: data.categories.map((c) => (c.id === id ? { ...c, actual: Number(value) || 0 } : c)) });
+  }
+
+  function resetActuals() {
+    setData({ ...data, categories: data.categories.map((c) => ({ ...c, actual: 0 })), month: currentMonthLabel() });
+  }
+
+  const totalBudgeted = data.categories.reduce((s, c) => s + c.budgeted, 0);
+  const totalActual = data.categories.reduce((s, c) => s + c.actual, 0);
+
+  const inputStyle = {
+    background: theme.inputBg,
+    border: `1px solid ${theme.inputBorder}`,
+    borderRadius: "8px",
+    color: theme.inputText,
+    padding: "9px 12px",
+    fontSize: "14px",
+    minWidth: 0,
+    "--focus-ring": theme.accentSoft,
+    "--focus-border": theme.accent,
+  };
+
+  return (
+    <Card theme={theme} delay={delay}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
+        <SectionLabel theme={theme} icon={<IconWallet />} style={{ marginBottom: 0 }}>Monthly Budget</SectionLabel>
+        <button
+          onClick={resetActuals}
+          className="v-btn"
+          style={{ fontSize: "11.5px", fontWeight: 700, color: theme.textMuted, background: "transparent", border: `1px solid ${theme.divider}`, borderRadius: "999px", padding: "4px 10px" }}
+        >
+          Start new month
+        </button>
+      </div>
+      <div style={{ fontSize: "12px", color: theme.textFaint, marginBottom: "16px" }}>{data.month}</div>
+
+      {data.categories.length > 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginBottom: "18px" }}>
+          {data.categories.map((c) => {
+            const over = c.actual > c.budgeted;
+            const pct = Math.min(100, Math.round((c.actual / (c.budgeted || 1)) * 100));
+            return (
+              <div key={c.id}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px", gap: "8px" }}>
+                  <span style={{ fontSize: "13px", fontWeight: 600, color: theme.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {c.label}
+                  </span>
+                  <input
+                    type="number"
+                    value={c.actual || ""}
+                    onChange={(e) => updateActual(c.id, e.target.value)}
+                    placeholder="0"
+                    className="v-input v-tabular"
+                    style={{ width: "70px", fontSize: "13px", fontWeight: 700, color: over ? theme.danger : theme.text, background: "transparent", border: "none", textAlign: "right", padding: 0, "--focus-ring": theme.accentSoft, "--focus-border": "transparent" }}
+                  />
+                  <span style={{ fontSize: "12px", color: theme.textFaint, flexShrink: 0 }}>/ ${c.budgeted.toLocaleString()}</span>
+                  <button
+                    onClick={() => removeCategory(c.id)}
+                    title="Remove"
+                    className="v-btn"
+                    style={{ width: "18px", height: "18px", borderRadius: "50%", border: "none", background: theme.dangerSoft, color: theme.danger, fontSize: "11px", lineHeight: "18px", textAlign: "center", padding: 0, flexShrink: 0 }}
+                  >
+                    ×
+                  </button>
+                </div>
+                <div style={{ height: "6px", borderRadius: "999px", background: theme.progressTrack, overflow: "hidden" }}>
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${pct}%`,
+                      borderRadius: "999px",
+                      background: over ? theme.danger : theme.progressFill,
+                      backgroundImage: !over && typeof theme.progressFill === "string" && theme.progressFill.includes("gradient") ? theme.progressFill : undefined,
+                      transition: "width 0.3s ease",
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12.5px", fontWeight: 700, color: theme.textMuted, paddingTop: "4px", borderTop: `1px solid ${theme.divider}` }}>
+            <span>Total</span>
+            <span className="v-tabular">${totalActual.toLocaleString()} / ${totalBudgeted.toLocaleString()}</span>
+          </div>
+        </div>
+      ) : (
+        <div style={{ fontSize: "13px", color: theme.textFaint, marginBottom: "18px" }}>
+          No categories yet — add one below.
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+        <input
+          placeholder="Category (e.g. Groceries)"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && addCategory()}
+          className="v-input"
+          style={{ ...inputStyle, flex: "2 1 140px" }}
+        />
+        <input
+          placeholder="Budget $"
+          type="number"
+          value={budgeted}
+          onChange={(e) => setBudgeted(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && addCategory()}
+          className="v-input"
+          style={{ ...inputStyle, flex: "1 1 90px" }}
+        />
+        <button
+          onClick={addCategory}
+          className="v-btn"
+          style={{ padding: "9px 16px", borderRadius: "8px", border: "none", background: theme.accent, color: theme.accentText, fontSize: "13px", fontWeight: 700, flexShrink: 0 }}
+        >
+          Add
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+function JournalSection({ theme, data, setData, delay }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const todayEntry = data.find((e) => e.date === today);
+  const past = data.filter((e) => e.date !== today).sort((a, b) => b.date.localeCompare(a.date));
+
+  function updateToday(text) {
+    const idx = data.findIndex((e) => e.date === today);
+    if (idx === -1) {
+      setData([...data, { date: today, text }]);
+    } else {
+      setData(data.map((e) => (e.date === today ? { ...e, text } : e)));
+    }
+  }
+
+  function removeEntry(date) {
+    setData(data.filter((e) => e.date !== date));
+  }
+
+  return (
+    <Card theme={theme} delay={delay}>
+      <SectionLabel theme={theme} icon={<IconBookOpen />}>Journal</SectionLabel>
+      <div style={{ fontSize: "12px", color: theme.textMuted, marginBottom: "8px" }}>
+        {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
+      </div>
+      <textarea
+        value={todayEntry ? todayEntry.text : ""}
+        onChange={(e) => updateToday(e.target.value)}
+        placeholder="What's on your mind today?"
+        className="v-input"
+        style={{
+          width: "100%",
+          minHeight: "80px",
+          resize: "vertical",
+          background: theme.inputBg,
+          border: `1px solid ${theme.inputBorder}`,
+          borderRadius: "10px",
+          color: theme.inputText,
+          padding: "12px",
+          fontSize: "13.5px",
+          lineHeight: 1.5,
+          marginBottom: "16px",
+          "--focus-ring": theme.accentSoft,
+          "--focus-border": theme.accent,
+        }}
+      />
+
+      {past.length > 0 ? (
+        <div className="v-scroll" style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "220px", overflowY: "auto" }}>
+          {past.map((e) => (
+            <div key={e.date} style={{ background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "10px", padding: "10px 12px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+                <span style={{ fontSize: "11px", fontWeight: 700, color: theme.textMuted }}>
+                  {new Date(e.date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                </span>
+                <button
+                  onClick={() => removeEntry(e.date)}
+                  title="Delete entry"
+                  className="v-btn"
+                  style={{ width: "18px", height: "18px", borderRadius: "50%", border: "none", background: theme.dangerSoft, color: theme.danger, fontSize: "11px", lineHeight: "18px", textAlign: "center", padding: 0 }}
+                >
+                  ×
+                </button>
+              </div>
+              <div style={{ fontSize: "13px", color: theme.text, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{e.text}</div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ fontSize: "12.5px", color: theme.textFaint }}>Past entries will show up here.</div>
+      )}
+    </Card>
+  );
+}
+
+function GoalsBoardSection({ theme, data, setData, delay }) {
+  const [label, setLabel] = useState("");
+
+  function addGoal() {
+    const trimmed = label.trim();
+    if (!trimmed) return;
+    const id = "g" + Date.now() + Math.random().toString(36).slice(2, 6);
+    setData([...data, { id, label: trimmed, status: "not-started" }]);
+    setLabel("");
+  }
+
+  function advanceStatus(id) {
+    setData(
+      data.map((g) =>
+        g.id === id ? { ...g, status: GOAL_STATUSES[(GOAL_STATUSES.indexOf(g.status) + 1) % GOAL_STATUSES.length] } : g
+      )
+    );
+  }
+
+  function removeGoal(id) {
+    setData(data.filter((g) => g.id !== id));
+  }
+
+  return (
+    <Card theme={theme} delay={delay}>
+      <SectionLabel theme={theme} icon={<IconFlag />}>Life Goals</SectionLabel>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "10px", marginBottom: "16px" }}>
+        {GOAL_STATUSES.map((status) => (
+          <div key={status}>
+            <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: theme.textMuted, marginBottom: "8px" }}>
+              {GOAL_STATUS_LABELS[status]}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {data.filter((g) => g.status === status).map((g) => (
+                <div
+                  key={g.id}
+                  style={{ background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "8px", padding: "8px 8px" }}
+                >
+                  <div style={{ fontSize: "12px", color: theme.text, lineHeight: 1.4, wordBreak: "break-word", marginBottom: "6px" }}>{g.label}</div>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <button
+                      onClick={() => advanceStatus(g.id)}
+                      title="Advance status"
+                      className="v-btn"
+                      style={{ fontSize: "10.5px", fontWeight: 700, color: theme.accent, background: "transparent", border: `1px solid ${theme.divider}`, borderRadius: "999px", padding: "2px 8px" }}
+                    >
+                      &rarr;
+                    </button>
+                    <button
+                      onClick={() => removeGoal(g.id)}
+                      title="Remove"
+                      className="v-btn"
+                      style={{ fontSize: "10.5px", fontWeight: 700, color: theme.danger, background: "transparent", border: "none", padding: "2px 4px" }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: "10px" }}>
+        <input
+          placeholder="New goal (e.g. Run a marathon)"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && addGoal()}
+          className="v-input"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            background: theme.inputBg,
+            border: `1px solid ${theme.inputBorder}`,
+            borderRadius: "8px",
+            color: theme.inputText,
+            padding: "9px 12px",
+            fontSize: "14px",
+            "--focus-ring": theme.accentSoft,
+            "--focus-border": theme.accent,
+          }}
+        />
+        <button
+          onClick={addGoal}
+          className="v-btn"
+          style={{ padding: "9px 16px", borderRadius: "8px", border: "none", background: theme.accent, color: theme.accentText, fontSize: "13px", fontWeight: 700, flexShrink: 0 }}
+        >
+          Add
+        </button>
+      </div>
+    </Card>
   );
 }
 
@@ -4149,6 +4853,11 @@ function Sidebar({
   history,
   suggestionsCount,
   upcomingCount,
+  weekAgendaCount,
+  watchlist,
+  budget,
+  journal,
+  goals,
   setThemeKey,
   setFitness,
   setGolf,
@@ -4160,11 +4869,11 @@ function Sidebar({
   setHistory,
   onEvents,
 }) {
+  const doneGoals = goals.filter((g) => g.status === "done").length;
   const navItems = [
     { id: "section-suggestions", label: "For You", icon: <IconBulb size={14} />, value: suggestionsCount || null },
     { id: "section-fitness", label: "Fitness", icon: <IconDumbbell />, value: fitness.currentWeight },
     { id: "section-golf", label: "Golf", icon: <IconGolf />, value: golf.handicap },
-    { id: "section-upcoming", label: "Upcoming", icon: <IconCalendar />, value: upcomingCount || null },
     {
       id: "section-financial",
       label: "Financial",
@@ -4173,9 +4882,15 @@ function Sidebar({
         ? `${Math.min(100, Math.round(((financial.currentSavings || 0) / financial.targetDownPayment) * 100))}%`
         : null,
     },
+    { id: "section-budget", label: "Budget", icon: <IconWallet size={14} />, value: budget.categories.length || null },
+    { id: "section-upcoming", label: "Upcoming", icon: <IconCalendar />, value: upcomingCount || null },
+    { id: "section-agenda", label: "Agenda", icon: <IconCalendar />, value: weekAgendaCount || null },
     { id: "section-profile", label: "About Me", icon: <IconUser />, value: profile.interests.length || null },
+    { id: "section-watchlist", label: "Watch List", icon: <IconFilm size={14} />, value: watchlist.length || null },
     { id: "section-trackers", label: "Trackers", icon: <IconChecklist size={14} />, value: trackers.length || null },
+    { id: "section-goals", label: "Life Goals", icon: <IconFlag size={14} />, value: goals.length ? `${doneGoals}/${goals.length}` : null },
     { id: "section-videos", label: "Videos", icon: <IconVideo size={14} />, value: null },
+    { id: "section-journal", label: "Journal", icon: <IconBookOpen size={14} />, value: journal.length || null },
   ];
 
   return (
@@ -4286,6 +5001,10 @@ function App() {
   }
   const [profile, setProfile] = usePersistentState(STORAGE_KEYS.profile, DEFAULT_PROFILE);
   const [integrations, setIntegrations] = usePersistentState(STORAGE_KEYS.integrations, DEFAULT_INTEGRATIONS);
+  const [watchlist, setWatchlist] = usePersistentState(STORAGE_KEYS.watchlist, DEFAULT_WATCHLIST);
+  const [budget, setBudget] = usePersistentState(STORAGE_KEYS.budget, DEFAULT_BUDGET);
+  const [journal, setJournal] = usePersistentState(STORAGE_KEYS.journal, DEFAULT_JOURNAL);
+  const [goals, setGoals] = usePersistentState(STORAGE_KEYS.goals, DEFAULT_GOALS);
 
   const [connectedEvents, setConnectedEvents] = useState({ google: [], microsoft: [] });
   function handleCalendarEvents(source, events) {
@@ -4331,9 +5050,18 @@ function App() {
   }, []);
 
   const allEvents = useMemo(() => [...events, ...allConnectedEvents], [events, allConnectedEvents]);
+  const weekAgendaCount = useMemo(() => {
+    const isoSet = new Set();
+    for (let i = 0; i < 7; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      isoSet.add(d.toISOString().slice(0, 10));
+    }
+    return allEvents.filter((e) => isoSet.has(e.date)).length;
+  }, [allEvents]);
   const suggestions = useMemo(
-    () => generateSuggestions({ fitness, golf, trackers, profile, events: allEvents, history, weather }),
-    [fitness, golf, trackers, profile, allEvents, history, weather]
+    () => generateSuggestions({ fitness, golf, trackers, profile, events: allEvents, history, weather, watchlist }),
+    [fitness, golf, trackers, profile, allEvents, history, weather, watchlist]
   );
 
   const [briefingOpen, setBriefingOpen] = useState(() => {
@@ -4377,6 +5105,11 @@ function App() {
         history={history}
         suggestionsCount={suggestions.length}
         upcomingCount={allEvents.length}
+        weekAgendaCount={weekAgendaCount}
+        watchlist={watchlist}
+        budget={budget}
+        journal={journal}
+        goals={goals}
         setThemeKey={setThemeKey}
         setFitness={setFitness}
         setGolf={setGolf}
@@ -4433,6 +5166,9 @@ function App() {
             <div id="section-financial" className="v-bento-financial" style={{ scrollMarginTop: "24px" }}>
               <FinancialSection theme={theme} data={financial} setData={setFinancial} />
             </div>
+            <div id="section-budget" className="v-bento-budget" style={{ scrollMarginTop: "24px" }}>
+              <BudgetSnapshotSection theme={theme} data={budget} setData={setBudget} delay={200} />
+            </div>
             <div id="section-upcoming" className="v-bento-upcoming" style={{ scrollMarginTop: "24px" }}>
               <UpcomingSection
                 theme={theme}
@@ -4441,8 +5177,20 @@ function App() {
                 connectedEvents={allConnectedEvents}
               />
             </div>
+            <div id="section-agenda" className="v-bento-agenda" style={{ scrollMarginTop: "24px" }}>
+              <AgendaStripSection theme={theme} events={allEvents} delay={220} />
+            </div>
             <div id="section-profile" className="v-bento-profile" style={{ scrollMarginTop: "24px" }}>
               <ProfileSection theme={theme} profile={profile} setProfile={setProfile} />
+            </div>
+            <div id="section-watchlist" className="v-bento-watchlist" style={{ scrollMarginTop: "24px" }}>
+              <WatchQueueSection
+                theme={theme}
+                watchlist={watchlist}
+                setWatchlist={setWatchlist}
+                genres={profile.genres}
+                delay={240}
+              />
             </div>
             <div id="section-trackers" className="v-bento-trackers" style={{ scrollMarginTop: "24px" }}>
               <CustomTrackersSection
@@ -4453,8 +5201,14 @@ function App() {
                 onRecordTracker={recordTracker}
               />
             </div>
+            <div id="section-goals" className="v-bento-goals" style={{ scrollMarginTop: "24px" }}>
+              <GoalsBoardSection theme={theme} data={goals} setData={setGoals} delay={260} />
+            </div>
             <div id="section-videos" className="v-bento-videos" style={{ scrollMarginTop: "24px" }}>
               <VideoLibrarySection theme={theme} integrations={integrations} setIntegrations={setIntegrations} />
+            </div>
+            <div id="section-journal" className="v-bento-journal" style={{ scrollMarginTop: "24px" }}>
+              <JournalSection theme={theme} data={journal} setData={setJournal} delay={280} />
             </div>
           </div>
         </div>
