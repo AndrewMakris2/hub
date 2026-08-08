@@ -605,6 +605,7 @@ const STORAGE_KEYS = {
   upcoming: "dash.upcoming",
   history: "dash.history",
   briefingLastShown: "dash.briefingLastShown",
+  weather: "dash.weather",
 };
 
 function isMergeablePlainObject(v) {
@@ -771,6 +772,36 @@ function findFreeWeekendDay(events) {
     }
   }
   return null;
+}
+
+const DEFAULT_WEATHER = { lat: null, lon: null, fetchedAt: null, days: [] };
+
+function weatherInfo(code) {
+  if (code === 0) return { label: "Clear", icon: "☀️", outdoor: true };
+  if (code >= 1 && code <= 3) return { label: "Partly cloudy", icon: "⛅", outdoor: true };
+  if (code === 45 || code === 48) return { label: "Foggy", icon: "🌫️", outdoor: false };
+  if (code >= 51 && code <= 67) return { label: "Rain", icon: "🌧️", outdoor: false };
+  if (code >= 71 && code <= 77) return { label: "Snow", icon: "❄️", outdoor: false };
+  if (code >= 80 && code <= 82) return { label: "Showers", icon: "🌦️", outdoor: false };
+  if (code >= 95) return { label: "Storms", icon: "⛈️", outdoor: false };
+  return { label: "Mixed", icon: "🌤️", outdoor: true };
+}
+
+async function fetchWeatherDays(lat, lon) {
+  const url =
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+    "&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max" +
+    "&temperature_unit=fahrenheit&timezone=auto&forecast_days=10";
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Weather request failed (${res.status})`);
+  const data = await res.json();
+  return data.daily.time.map((date, i) => ({
+    date,
+    code: data.daily.weathercode[i],
+    tempMax: Math.round(data.daily.temperature_2m_max[i]),
+    tempMin: Math.round(data.daily.temperature_2m_min[i]),
+    precipProb: data.daily.precipitation_probability_max[i],
+  }));
 }
 
 function daysUntil(dateStr) {
@@ -1270,17 +1301,33 @@ async function shareVideoFile(video, onStatus) {
    goal progress, and event dates to produce a short list of nudges.
 ---------------------------------------------------------------------- */
 
-function generateSuggestions({ fitness, golf, trackers, profile, events, history }) {
+function generateSuggestions({ fitness, golf, trackers, profile, events, history, weather }) {
   const suggestions = [];
 
   if (profile.topPicks && profile.topPicks.length > 0) {
     const pick = profile.topPicks[0];
     const free = findFreeWeekendDay(events);
     if (free) {
-      suggestions.push({
-        id: "s-freeday",
-        text: `You're free ${free.label} — good day for ${pick.toLowerCase()}, your top pick from the quiz.`,
-      });
+      const dayWeather = weather && weather.days ? weather.days.find((d) => d.date === free.date) : null;
+      if (dayWeather) {
+        const info = weatherInfo(dayWeather.code);
+        if (info.outdoor) {
+          suggestions.push({
+            id: "s-freeday",
+            text: `You're free ${free.label} and it's looking ${info.label.toLowerCase()} (${dayWeather.tempMax}°) — good day for ${pick.toLowerCase()}, your top pick from the quiz.`,
+          });
+        } else {
+          suggestions.push({
+            id: "s-freeday",
+            text: `You're free ${free.label}, but ${info.label.toLowerCase()} is expected (${dayWeather.tempMax}°) — might be worth an indoor alternative to ${pick.toLowerCase()}.`,
+          });
+        }
+      } else {
+        suggestions.push({
+          id: "s-freeday",
+          text: `You're free ${free.label} — good day for ${pick.toLowerCase()}, your top pick from the quiz.`,
+        });
+      }
     } else {
       suggestions.push({
         id: "s-toppick",
@@ -2601,8 +2648,11 @@ function greetingForNow() {
   return "Good evening";
 }
 
-function BriefingModal({ theme, suggestions, onClose }) {
+function BriefingModal({ theme, suggestions, weather, onClose }) {
   const dateLabel = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayWeather = weather && weather.days ? weather.days.find((d) => d.date === todayIso) : null;
+  const todayInfo = todayWeather ? weatherInfo(todayWeather.code) : null;
 
   return ReactDOM.createPortal(
     <div
@@ -2641,8 +2691,34 @@ function BriefingModal({ theme, suggestions, onClose }) {
         >
           {dateLabel}
         </div>
-        <div style={{ fontSize: "26px", fontWeight: 800, color: theme.text, marginBottom: "6px" }}>
-          {greetingForNow()}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            marginBottom: "6px",
+          }}
+        >
+          <div style={{ fontSize: "26px", fontWeight: 800, color: theme.text }}>{greetingForNow()}</div>
+          {todayInfo && (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "13px",
+                fontWeight: 700,
+                color: theme.textMuted,
+                background: theme.accentSoft,
+                border: `1px solid ${theme.divider}`,
+                borderRadius: "999px",
+                padding: "4px 12px",
+              }}
+            >
+              <span>{todayInfo.icon}</span>
+              {todayWeather.tempMax}&deg;/{todayWeather.tempMin}&deg; {todayInfo.label}
+            </span>
+          )}
         </div>
         <div style={{ fontSize: "14px", color: theme.textMuted, marginBottom: "24px" }}>
           {suggestions.length > 0
@@ -2696,7 +2772,8 @@ function BriefingModal({ theme, suggestions, onClose }) {
   );
 }
 
-function SuggestionsSection({ theme, suggestions, onOpenBriefing }) {
+function SuggestionsSection({ theme, suggestions, onOpenBriefing, weather, weatherStatus, onEnableWeather }) {
+  const weatherEnabled = weather && weather.lat != null;
   return (
     <Card theme={theme} style={{ gridColumn: "1 / -1" }} delay={0}>
       <div
@@ -2706,27 +2783,51 @@ function SuggestionsSection({ theme, suggestions, onOpenBriefing }) {
           justifyContent: "space-between",
           gap: "12px",
           marginBottom: "18px",
+          flexWrap: "wrap",
         }}
       >
         <SectionLabel theme={theme} icon={<IconBulb size={16} />} style={{ marginBottom: 0 }}>
           For You
         </SectionLabel>
-        <button
-          onClick={onOpenBriefing}
-          className="v-btn"
-          style={{
-            fontSize: "12px",
-            fontWeight: 700,
-            color: theme.accent,
-            background: "transparent",
-            border: "none",
-            padding: "4px 6px",
-            flexShrink: 0,
-          }}
-        >
-          View briefing
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap" }}>
+          {!weatherEnabled && (
+            <button
+              onClick={onEnableWeather}
+              className="v-btn"
+              style={{
+                fontSize: "12px",
+                fontWeight: 700,
+                color: theme.textMuted,
+                background: "transparent",
+                border: `1px solid ${theme.divider}`,
+                borderRadius: "999px",
+                padding: "4px 12px",
+                flexShrink: 0,
+              }}
+            >
+              {weatherStatus && weatherStatus.type === "loading" ? weatherStatus.message : "Add local weather"}
+            </button>
+          )}
+          <button
+            onClick={onOpenBriefing}
+            className="v-btn"
+            style={{
+              fontSize: "12px",
+              fontWeight: 700,
+              color: theme.accent,
+              background: "transparent",
+              border: "none",
+              padding: "4px 6px",
+              flexShrink: 0,
+            }}
+          >
+            View briefing
+          </button>
+        </div>
       </div>
+      {weatherStatus && weatherStatus.type === "error" && (
+        <div style={{ fontSize: "12px", color: theme.danger, marginBottom: "14px" }}>{weatherStatus.message}</div>
+      )}
       {suggestions.length > 0 ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "14px" }}>
           {suggestions.map((s) => (
@@ -3774,10 +3875,43 @@ function App() {
   );
   const connectedCounts = { google: connectedEvents.google.length, microsoft: connectedEvents.microsoft.length };
 
+  const [weather, setWeather] = usePersistentState(STORAGE_KEYS.weather, DEFAULT_WEATHER);
+  const [weatherStatus, setWeatherStatus] = useState(null);
+
+  async function loadWeather(lat, lon) {
+    try {
+      const days = await fetchWeatherDays(lat, lon);
+      setWeather({ lat, lon, fetchedAt: Date.now(), days });
+      setWeatherStatus(null);
+    } catch (err) {
+      setWeatherStatus({ type: "error", message: "Couldn't load weather right now." });
+    }
+  }
+
+  function enableWeather() {
+    if (!navigator.geolocation) {
+      setWeatherStatus({ type: "error", message: "Location isn't available in this browser." });
+      return;
+    }
+    setWeatherStatus({ type: "loading", message: "Getting your location…" });
+    navigator.geolocation.getCurrentPosition(
+      (pos) => loadWeather(pos.coords.latitude, pos.coords.longitude),
+      () => setWeatherStatus({ type: "error", message: "Location permission denied." })
+    );
+  }
+
+  useEffect(() => {
+    const staleAfter = 3 * 60 * 60 * 1000;
+    if (weather.lat != null && (!weather.fetchedAt || Date.now() - weather.fetchedAt > staleAfter)) {
+      loadWeather(weather.lat, weather.lon);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const allEvents = useMemo(() => [...events, ...allConnectedEvents], [events, allConnectedEvents]);
   const suggestions = useMemo(
-    () => generateSuggestions({ fitness, golf, trackers, profile, events: allEvents, history }),
-    [fitness, golf, trackers, profile, allEvents, history]
+    () => generateSuggestions({ fitness, golf, trackers, profile, events: allEvents, history, weather }),
+    [fitness, golf, trackers, profile, allEvents, history, weather]
   );
 
   const [briefingOpen, setBriefingOpen] = useState(() => {
@@ -3845,7 +3979,14 @@ function App() {
             gap: "20px",
           }}
         >
-          <SuggestionsSection theme={theme} suggestions={suggestions} onOpenBriefing={() => setBriefingOpen(true)} />
+          <SuggestionsSection
+            theme={theme}
+            suggestions={suggestions}
+            onOpenBriefing={() => setBriefingOpen(true)}
+            weather={weather}
+            weatherStatus={weatherStatus}
+            onEnableWeather={enableWeather}
+          />
           <FitnessSection
             theme={theme}
             data={fitness}
@@ -3875,7 +4016,7 @@ function App() {
       </div>
 
       {briefingOpen && suggestions.length > 0 && (
-        <BriefingModal theme={theme} suggestions={suggestions} onClose={dismissBriefing} />
+        <BriefingModal theme={theme} suggestions={suggestions} weather={weather} onClose={dismissBriefing} />
       )}
     </div>
   );
