@@ -1,0 +1,8 @@
+{
+  "name": "vantage-tiktok-backend",
+  "private": true,
+  "description": "Netlify Functions backend for Vantage's TikTok posting integration. The Vantage frontend itself has no build step and lives entirely in index.html — this package.json exists only so Netlify can install dependencies for the functions in netlify/functions/.",
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}
