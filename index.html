@@ -163,6 +163,7 @@
   .v-bento-watchlist { grid-column: span 2; }
   .v-bento-goals { grid-column: span 2; }
   .v-bento-journal { grid-column: span 2; }
+  .v-bento-transactions { grid-column: span 2; }
 
   @media (max-width: 860px) {
     .v-bento { grid-template-columns: 1fr; }
@@ -710,6 +711,7 @@ const STORAGE_KEYS = {
   budget: "dash.budget",
   journal: "dash.journal",
   goals: "dash.goals",
+  transactions: "dash.transactions",
 };
 
 function isMergeablePlainObject(v) {
@@ -839,6 +841,86 @@ function currentMonthLabel() {
 }
 
 const DEFAULT_BUDGET = { month: currentMonthLabel(), categories: [] };
+
+const DEFAULT_TRANSACTIONS = [];
+
+const CATEGORY_KEYWORDS = [
+  { category: "Groceries", pattern: /whole foods|trader joe|kroger|safeway|grocery|grocer|aldi|publix/i },
+  { category: "Dining", pattern: /starbucks|coffee|restaurant|cafe|chipotle|mcdonald|doordash|uber eats|ubereats|grubhub|pizza/i },
+  { category: "Transportation", pattern: /shell|chevron|exxon|gas station|uber|lyft|parking|transit/i },
+  { category: "Shopping", pattern: /amazon|target|walmart|best buy|costco|ebay/i },
+  { category: "Subscriptions", pattern: /netflix|spotify|hulu|disney\+|apple\.com\/bill|patreon|subscription/i },
+  { category: "Housing", pattern: /\brent\b|mortgage|\bhoa\b/i },
+  { category: "Utilities", pattern: /electric|water bill|utility|comcast|internet|verizon|at&t|xfinity/i },
+  { category: "Health", pattern: /pharmacy|\bcvs\b|walgreens|doctor|clinic|dental/i },
+];
+
+function guessCategory(description) {
+  const found = CATEGORY_KEYWORDS.find((k) => k.pattern.test(description));
+  return found ? found.category : "Uncategorized";
+}
+
+function normalizeStatementDate(raw) {
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const m = raw.match(/^(\d{1,4})[\/\-](\d{1,2})[\/\-](\d{1,4})$/);
+  if (!m) return null;
+  const a = Number(m[1]);
+  const b = Number(m[2]);
+  const c = Number(m[3]);
+  let year, month, day;
+  if (a > 31) {
+    year = a;
+    month = b;
+    day = c;
+  } else {
+    month = a;
+    day = b;
+    year = c < 100 ? 2000 + c : c;
+  }
+  if (!year || !month || !day || month > 12 || day > 31) return null;
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function parseStatementText(text) {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const results = [];
+  lines.forEach((line, lineIdx) => {
+    const parts = (line.includes("\t") ? line.split("\t") : line.split(",")).map((p) => p.replace(/^"|"$/g, "").trim());
+    if (parts.length < 2) return;
+    let amountIdx = -1;
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const cleaned = parts[i].replace(/[\s$,]/g, "");
+      if (/^\(?-?\d+\.?\d*\)?$/.test(cleaned) && cleaned.replace(/[()\-]/g, "") !== "") {
+        amountIdx = i;
+        break;
+      }
+    }
+    if (amountIdx === -1) return;
+    const rawAmount = parts[amountIdx].replace(/[\s$,]/g, "").replace(/[()]/g, "").replace(/^-/, "");
+    const amount = Math.abs(Number(rawAmount));
+    if (!Number.isFinite(amount) || amount === 0) return;
+    let dateIdx = -1;
+    let date = null;
+    parts.forEach((p, i) => {
+      if (i === amountIdx || date) return;
+      const normalized = normalizeStatementDate(p);
+      if (normalized) {
+        date = normalized;
+        dateIdx = i;
+      }
+    });
+    const description = parts.filter((_, i) => i !== amountIdx && i !== dateIdx).join(" ").trim() || "Transaction";
+    results.push({
+      id: "tx" + Date.now() + lineIdx + Math.random().toString(36).slice(2, 6),
+      date: date || new Date().toISOString().slice(0, 10),
+      merchant: description,
+      amount,
+      category: guessCategory(description),
+    });
+  });
+  return results;
+}
 
 const DEFAULT_JOURNAL = [];
 
@@ -1413,6 +1495,15 @@ function IconFlag({ size = 14 }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M5 21V4" />
       <path d="M5 4h13l-3 4.5L18 13H5" />
+    </svg>
+  );
+}
+
+function IconReceipt({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 2h12v20l-3-2-3 2-3-2-3 2V2z" />
+      <path d="M9 8h6M9 12h6M9 16h3" />
     </svg>
   );
 }
@@ -2682,7 +2773,7 @@ function AgendaStripSection({ theme, events, delay }) {
   );
 }
 
-function BudgetSnapshotSection({ theme, data, setData, delay }) {
+function BudgetSnapshotSection({ theme, data, setData, transactions, delay }) {
   const [label, setLabel] = useState("");
   const [budgeted, setBudgeted] = useState("");
 
@@ -2710,8 +2801,19 @@ function BudgetSnapshotSection({ theme, data, setData, delay }) {
     setData({ ...data, categories: data.categories.map((c) => ({ ...c, actual: 0 })), month: currentMonthLabel() });
   }
 
+  const monthPrefix = new Date().toISOString().slice(0, 7);
+  const monthTx = (transactions || []).filter((t) => t.date.startsWith(monthPrefix));
+  function linkedActual(categoryLabel) {
+    const matches = monthTx.filter((t) => t.category.trim().toLowerCase() === categoryLabel.trim().toLowerCase());
+    if (matches.length === 0) return null;
+    return { total: matches.reduce((s, t) => s + t.amount, 0), count: matches.length };
+  }
+
   const totalBudgeted = data.categories.reduce((s, c) => s + c.budgeted, 0);
-  const totalActual = data.categories.reduce((s, c) => s + c.actual, 0);
+  const totalActual = data.categories.reduce((s, c) => {
+    const linked = linkedActual(c.label);
+    return s + (linked ? linked.total : c.actual);
+  }, 0);
 
   const inputStyle = {
     background: theme.inputBg,
@@ -2742,22 +2844,34 @@ function BudgetSnapshotSection({ theme, data, setData, delay }) {
       {data.categories.length > 0 ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginBottom: "18px" }}>
           {data.categories.map((c) => {
-            const over = c.actual > c.budgeted;
-            const pct = Math.min(100, Math.round((c.actual / (c.budgeted || 1)) * 100));
+            const linked = linkedActual(c.label);
+            const effectiveActual = linked ? linked.total : c.actual;
+            const over = effectiveActual > c.budgeted;
+            const pct = Math.min(100, Math.round((effectiveActual / (c.budgeted || 1)) * 100));
             return (
               <div key={c.id}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px", gap: "8px" }}>
                   <span style={{ fontSize: "13px", fontWeight: 600, color: theme.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {c.label}
                   </span>
-                  <input
-                    type="number"
-                    value={c.actual || ""}
-                    onChange={(e) => updateActual(c.id, e.target.value)}
-                    placeholder="0"
-                    className="v-input v-tabular"
-                    style={{ width: "70px", fontSize: "13px", fontWeight: 700, color: over ? theme.danger : theme.text, background: "transparent", border: "none", textAlign: "right", padding: 0, "--focus-ring": theme.accentSoft, "--focus-border": "transparent" }}
-                  />
+                  {linked ? (
+                    <span
+                      title={`From ${linked.count} transaction${linked.count === 1 ? "" : "s"} this month`}
+                      className="v-tabular"
+                      style={{ fontSize: "13px", fontWeight: 700, color: over ? theme.danger : theme.text, flexShrink: 0 }}
+                    >
+                      {linked.total.toLocaleString()}
+                    </span>
+                  ) : (
+                    <input
+                      type="number"
+                      value={c.actual || ""}
+                      onChange={(e) => updateActual(c.id, e.target.value)}
+                      placeholder="0"
+                      className="v-input v-tabular"
+                      style={{ width: "70px", fontSize: "13px", fontWeight: 700, color: over ? theme.danger : theme.text, background: "transparent", border: "none", textAlign: "right", padding: 0, "--focus-ring": theme.accentSoft, "--focus-border": "transparent" }}
+                    />
+                  )}
                   <span style={{ fontSize: "12px", color: theme.textFaint, flexShrink: 0 }}>/ ${c.budgeted.toLocaleString()}</span>
                   <button
                     onClick={() => removeCategory(c.id)}
@@ -2814,6 +2928,255 @@ function BudgetSnapshotSection({ theme, data, setData, delay }) {
         />
         <button
           onClick={addCategory}
+          className="v-btn"
+          style={{ padding: "9px 16px", borderRadius: "8px", border: "none", background: theme.accent, color: theme.accentText, fontSize: "13px", fontWeight: 700, flexShrink: 0 }}
+        >
+          Add
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+function TransactionsSection({ theme, transactions, setTransactions, categoryOptions, delay }) {
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [merchant, setMerchant] = useState("");
+  const [amount, setAmount] = useState("");
+  const [category, setCategory] = useState("");
+  const [showPaste, setShowPaste] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const [importStatus, setImportStatus] = useState(null);
+
+  function addTransaction() {
+    const trimmedMerchant = merchant.trim();
+    if (!trimmedMerchant || !amount) return;
+    const tx = {
+      id: "tx" + Date.now() + Math.random().toString(36).slice(2, 8),
+      date: date || new Date().toISOString().slice(0, 10),
+      merchant: trimmedMerchant,
+      amount: Math.abs(Number(amount)) || 0,
+      category: category.trim() || guessCategory(trimmedMerchant),
+    };
+    setTransactions([tx, ...transactions]);
+    setMerchant("");
+    setAmount("");
+    setCategory("");
+  }
+
+  function removeTransaction(id) {
+    setTransactions(transactions.filter((t) => t.id !== id));
+  }
+
+  function updateTransactionCategory(id, value) {
+    setTransactions(transactions.map((t) => (t.id === id ? { ...t, category: value } : t)));
+  }
+
+  function importPasted() {
+    const parsed = parseStatementText(pasteText);
+    if (parsed.length === 0) {
+      setImportStatus({ type: "error", message: "Couldn't find any transactions in that text — expecting a date, description, and amount per line." });
+      return;
+    }
+    setTransactions([...parsed, ...transactions]);
+    setPasteText("");
+    setShowPaste(false);
+    setImportStatus({
+      type: "success",
+      message: `Imported ${parsed.length} transaction${parsed.length === 1 ? "" : "s"} — double-check the guessed categories below.`,
+    });
+    setTimeout(() => setImportStatus(null), 7000);
+  }
+
+  const monthPrefix = new Date().toISOString().slice(0, 7);
+  const monthTransactions = transactions.filter((t) => t.date.startsWith(monthPrefix));
+  const totalThisMonth = monthTransactions.reduce((s, t) => s + t.amount, 0);
+
+  const byCategory = {};
+  monthTransactions.forEach((t) => {
+    byCategory[t.category] = (byCategory[t.category] || 0) + t.amount;
+  });
+  const categoryBreakdown = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
+  const maxCategorySpend = categoryBreakdown.length > 0 ? categoryBreakdown[0][1] : 0;
+
+  const sorted = transactions.slice().sort((a, b) => b.date.localeCompare(a.date));
+  const allCategoryOptions = Array.from(new Set([...(categoryOptions || []), ...transactions.map((t) => t.category)]));
+
+  const inputStyle = {
+    background: theme.inputBg,
+    border: `1px solid ${theme.inputBorder}`,
+    borderRadius: "8px",
+    color: theme.inputText,
+    padding: "9px 12px",
+    fontSize: "14px",
+    minWidth: 0,
+    "--focus-ring": theme.accentSoft,
+    "--focus-border": theme.accent,
+  };
+
+  return (
+    <Card theme={theme} delay={delay}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px", flexWrap: "wrap", gap: "8px" }}>
+        <SectionLabel theme={theme} icon={<IconReceipt />} style={{ marginBottom: 0 }}>Transactions</SectionLabel>
+        <button
+          onClick={() => setShowPaste((s) => !s)}
+          className="v-btn"
+          style={{ fontSize: "11.5px", fontWeight: 700, color: theme.textMuted, background: "transparent", border: `1px solid ${theme.divider}`, borderRadius: "999px", padding: "4px 10px" }}
+        >
+          {showPaste ? "Cancel" : "Paste statement"}
+        </button>
+      </div>
+      <div style={{ display: "flex", gap: "14px", fontSize: "12px", color: theme.textFaint, marginBottom: "16px" }}>
+        <span>
+          <span className="v-tabular" style={{ color: theme.text, fontWeight: 700 }}>${totalThisMonth.toLocaleString()}</span> this month
+        </span>
+        <span>{monthTransactions.length} transaction{monthTransactions.length === 1 ? "" : "s"}</span>
+      </div>
+
+      {showPaste && (
+        <div style={{ marginBottom: "16px" }}>
+          <textarea
+            value={pasteText}
+            onChange={(e) => setPasteText(e.target.value)}
+            placeholder={"Paste rows copied from your bank or card statement export — one transaction per line, e.g.\n08/03/2026, STARBUCKS #4521, 5.40\n08/04/2026, AMAZON.COM, 32.10"}
+            className="v-input"
+            style={{
+              width: "100%",
+              minHeight: "90px",
+              resize: "vertical",
+              background: theme.inputBg,
+              border: `1px solid ${theme.inputBorder}`,
+              borderRadius: "10px",
+              color: theme.inputText,
+              padding: "12px",
+              fontSize: "12.5px",
+              lineHeight: 1.5,
+              fontFamily: "monospace",
+              marginBottom: "10px",
+              "--focus-ring": theme.accentSoft,
+              "--focus-border": theme.accent,
+            }}
+          />
+          <button
+            onClick={importPasted}
+            className="v-btn"
+            style={{ padding: "8px 16px", borderRadius: "8px", border: "none", background: theme.accent, color: theme.accentText, fontSize: "13px", fontWeight: 700 }}
+          >
+            Import
+          </button>
+        </div>
+      )}
+      {importStatus && (
+        <div style={{ fontSize: "12px", fontWeight: 600, color: importStatus.type === "error" ? theme.danger : theme.positive, marginBottom: "14px" }}>
+          {importStatus.message}
+        </div>
+      )}
+
+      {categoryBreakdown.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "18px" }}>
+          {categoryBreakdown.map(([cat, amt]) => (
+            <div key={cat}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: theme.textMuted, marginBottom: "3px" }}>
+                <span>{cat}</span>
+                <span className="v-tabular">${amt.toLocaleString()}</span>
+              </div>
+              <div style={{ height: "5px", borderRadius: "999px", background: theme.progressTrack, overflow: "hidden" }}>
+                <div
+                  style={{
+                    height: "100%",
+                    width: `${maxCategorySpend ? Math.round((amt / maxCategorySpend) * 100) : 0}%`,
+                    borderRadius: "999px",
+                    background: theme.progressFill,
+                    backgroundImage: typeof theme.progressFill === "string" && theme.progressFill.includes("gradient") ? theme.progressFill : undefined,
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {sorted.length > 0 ? (
+        <div className="v-scroll" style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "220px", overflowY: "auto", marginBottom: "18px" }}>
+          {sorted.map((t) => (
+            <div
+              key={t.id}
+              style={{ display: "flex", alignItems: "center", gap: "8px", background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "8px", padding: "8px 10px" }}
+            >
+              <span style={{ fontSize: "11px", color: theme.textFaint, flexShrink: 0, width: "44px" }}>
+                {t.date.slice(5).replace("-", "/")}
+              </span>
+              <span style={{ flex: 1, minWidth: 0, fontSize: "13px", color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {t.merchant}
+              </span>
+              <input
+                value={t.category}
+                onChange={(e) => updateTransactionCategory(t.id, e.target.value)}
+                list="v-tx-categories"
+                className="v-input"
+                style={{ width: "100px", fontSize: "11.5px", color: theme.textMuted, background: "transparent", border: "none", padding: "2px 0", flexShrink: 0, "--focus-ring": theme.accentSoft, "--focus-border": "transparent" }}
+              />
+              <span className="v-tabular" style={{ fontSize: "13px", fontWeight: 700, color: theme.text, flexShrink: 0 }}>
+                ${t.amount.toLocaleString()}
+              </span>
+              <button
+                onClick={() => removeTransaction(t.id)}
+                title="Remove"
+                className="v-btn"
+                style={{ width: "18px", height: "18px", borderRadius: "50%", border: "none", background: theme.dangerSoft, color: theme.danger, fontSize: "11px", lineHeight: "18px", textAlign: "center", padding: 0, flexShrink: 0 }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ fontSize: "13px", color: theme.textFaint, marginBottom: "18px" }}>
+          No transactions yet — add one below or paste in a statement.
+        </div>
+      )}
+
+      <datalist id="v-tx-categories">
+        {allCategoryOptions.map((c) => (
+          <option key={c} value={c} />
+        ))}
+      </datalist>
+
+      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="v-input"
+          style={{ ...inputStyle, flex: "1 1 130px" }}
+        />
+        <input
+          placeholder="Merchant"
+          value={merchant}
+          onChange={(e) => setMerchant(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && addTransaction()}
+          className="v-input"
+          style={{ ...inputStyle, flex: "2 1 140px" }}
+        />
+        <input
+          placeholder="Amount $"
+          type="number"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && addTransaction()}
+          className="v-input"
+          style={{ ...inputStyle, flex: "1 1 90px" }}
+        />
+        <input
+          placeholder="Category (optional)"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && addTransaction()}
+          list="v-tx-categories"
+          className="v-input"
+          style={{ ...inputStyle, flex: "1 1 130px" }}
+        />
+        <button
+          onClick={addTransaction}
           className="v-btn"
           style={{ padding: "9px 16px", borderRadius: "8px", border: "none", background: theme.accent, color: theme.accentText, fontSize: "13px", fontWeight: 700, flexShrink: 0 }}
         >
@@ -4354,6 +4717,17 @@ function sanitizeBackup(parsed) {
         status: GOAL_STATUSES.includes(g.status) ? g.status : "not-started",
       }));
   }
+  if (Array.isArray(parsed.transactions)) {
+    out.transactions = parsed.transactions
+      .filter((t) => isPlainObject(t) && typeof t.merchant === "string" && t.merchant.trim() && Number.isFinite(Number(t.amount)))
+      .map((t, i) => ({
+        id: typeof t.id === "string" && t.id ? t.id : "tx" + Date.now() + i,
+        date: typeof t.date === "string" && t.date.trim() ? t.date : new Date().toISOString().slice(0, 10),
+        merchant: String(t.merchant),
+        amount: Math.abs(Number(t.amount)) || 0,
+        category: typeof t.category === "string" && t.category.trim() ? t.category : "Uncategorized",
+      }));
+  }
   return out;
 }
 
@@ -4381,6 +4755,7 @@ function BackupMenu({
   budget,
   journal,
   goals,
+  transactions,
   setThemeKey,
   setFitness,
   setGolf,
@@ -4393,6 +4768,7 @@ function BackupMenu({
   setBudget,
   setJournal,
   setGoals,
+  setTransactions,
 }) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState(null);
@@ -4426,6 +4802,7 @@ function BackupMenu({
       budget,
       journal,
       goals,
+      transactions,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -4469,6 +4846,7 @@ function BackupMenu({
         if (sanitized.budget) setBudget(sanitized.budget);
         if (sanitized.journal) setJournal(sanitized.journal);
         if (sanitized.goals) setGoals(sanitized.goals);
+        if (sanitized.transactions) setTransactions(sanitized.transactions);
         setStatus({ type: "success", message: "Backup restored." });
       } catch (err) {
         setStatus({ type: "error", message: "Couldn't parse that file as JSON." });
@@ -4974,6 +5352,7 @@ function Sidebar({
   budget,
   journal,
   goals,
+  transactions,
   setThemeKey,
   setFitness,
   setGolf,
@@ -4987,6 +5366,7 @@ function Sidebar({
   setBudget,
   setJournal,
   setGoals,
+  setTransactions,
   onEvents,
 }) {
   const doneGoals = goals.filter((g) => g.status === "done").length;
@@ -5003,6 +5383,7 @@ function Sidebar({
         : null,
     },
     { id: "section-budget", label: "Budget", icon: <IconWallet size={14} />, value: budget.categories.length || null },
+    { id: "section-transactions", label: "Transactions", icon: <IconReceipt size={14} />, value: transactions.length || null },
     { id: "section-upcoming", label: "Upcoming", icon: <IconCalendar />, value: upcomingCount || null },
     { id: "section-agenda", label: "Agenda", icon: <IconCalendar />, value: weekAgendaCount || null },
     { id: "section-profile", label: "About Me", icon: <IconUser />, value: profile.interests.length || null },
@@ -5085,6 +5466,7 @@ function Sidebar({
           budget={budget}
           journal={journal}
           goals={goals}
+          transactions={transactions}
           setThemeKey={setThemeKey}
           setFitness={setFitness}
           setGolf={setGolf}
@@ -5097,6 +5479,7 @@ function Sidebar({
           setBudget={setBudget}
           setJournal={setJournal}
           setGoals={setGoals}
+          setTransactions={setTransactions}
         />
         <ThemePicker theme={theme} themeKey={themeKey} setThemeKey={setThemeKey} />
       </div>
@@ -5133,6 +5516,7 @@ function App() {
   const [budget, setBudget] = usePersistentState(STORAGE_KEYS.budget, DEFAULT_BUDGET);
   const [journal, setJournal] = usePersistentState(STORAGE_KEYS.journal, DEFAULT_JOURNAL);
   const [goals, setGoals] = usePersistentState(STORAGE_KEYS.goals, DEFAULT_GOALS);
+  const [transactions, setTransactions] = usePersistentState(STORAGE_KEYS.transactions, DEFAULT_TRANSACTIONS);
 
   const [connectedEvents, setConnectedEvents] = useState({ google: [], microsoft: [] });
   function handleCalendarEvents(source, events) {
@@ -5238,6 +5622,7 @@ function App() {
         budget={budget}
         journal={journal}
         goals={goals}
+        transactions={transactions}
         setThemeKey={setThemeKey}
         setFitness={setFitness}
         setGolf={setGolf}
@@ -5251,6 +5636,7 @@ function App() {
         setBudget={setBudget}
         setJournal={setJournal}
         setGoals={setGoals}
+        setTransactions={setTransactions}
         onEvents={handleCalendarEvents}
       />
 
@@ -5299,7 +5685,16 @@ function App() {
               <FinancialSection theme={theme} data={financial} setData={setFinancial} />
             </div>
             <div id="section-budget" className="v-bento-budget" style={{ scrollMarginTop: "24px" }}>
-              <BudgetSnapshotSection theme={theme} data={budget} setData={setBudget} delay={200} />
+              <BudgetSnapshotSection theme={theme} data={budget} setData={setBudget} transactions={transactions} delay={200} />
+            </div>
+            <div id="section-transactions" className="v-bento-transactions" style={{ scrollMarginTop: "24px" }}>
+              <TransactionsSection
+                theme={theme}
+                transactions={transactions}
+                setTransactions={setTransactions}
+                categoryOptions={budget.categories.map((c) => c.label)}
+                delay={210}
+              />
             </div>
             <div id="section-upcoming" className="v-bento-upcoming" style={{ scrollMarginTop: "24px" }}>
               <UpcomingSection
