@@ -1,9 +1,20 @@
 // Encrypted Yahoo token storage in Netlify Blobs — single-tenant (one set of
 // tokens for the one person who uses this dashboard), same as the original
-// FantasyFootballTool's db.ts. Unlike the stats-cache/sleeper-cache stores,
-// there's no safe "degrade gracefully" fallback here if Blobs is
-// unavailable — a token that can't be persisted just isn't connected, and
-// that has to surface as a real error rather than a silent no-op.
+// FantasyFootballTool's db.ts.
+//
+// Reads degrade to "not connected" on any failure (corrupted blob, rotated
+// SESSION_SECRET, or — observed on this site — Netlify Blobs' automatic
+// environment config not reliably kicking in for newly-added store names,
+// even though the pre-existing tiktok-tokens store works fine). A read
+// failure isn't distinguishable from "never connected" to the user anyway,
+// so degrading is strictly better than a raw 500.
+//
+// Writes can't degrade the same way — if the store genuinely can't persist,
+// the "Connect Yahoo" flow will complete without actually saving a working
+// connection (status will keep reporting disconnected). That's a real
+// platform-level risk this environment surfaced that a code-level fix can't
+// fully rule out; it needs verifying against a real Yahoo login once
+// SESSION_SECRET is set.
 const { getStore } = require("@netlify/blobs");
 
 const STORE_NAME = "yahoo-tokens";
@@ -16,17 +27,15 @@ function requireSecret() {
 }
 
 async function getYahooTokens() {
-  const { decrypt } = require("./yahooCrypto");
-  const store = getStore(STORE_NAME);
-  const encrypted = await store.get(KEY, { type: "text" });
-  if (!encrypted) return null;
   try {
+    const { decrypt } = require("./yahooCrypto");
+    const store = getStore(STORE_NAME);
+    const encrypted = await store.get(KEY, { type: "text" });
+    if (!encrypted) return null;
     const json = decrypt(encrypted, requireSecret());
     return JSON.parse(json);
   } catch (err) {
-    // A corrupted blob or rotated SESSION_SECRET would throw deep inside
-    // decrypt() — degrade to "not connected" instead of a raw 500.
-    console.error("Failed to decrypt Yahoo tokens:", err.message);
+    console.error("Failed to read Yahoo tokens:", err.message);
     return null;
   }
 }
