@@ -5047,7 +5047,7 @@ async function fetchYoutubeUploads(accessToken) {
   return videos.slice(0, 40);
 }
 
-function CalendarMenu({ theme, integrations, setIntegrations, onEvents, connectedCounts }) {
+function CalendarMenu({ theme, integrations, setIntegrations, googleAccounts, onAddGoogleAccount, onRemoveGoogleAccount, microsoftEvents, onMicrosoftEvents }) {
   const [open, setOpen] = useState(false);
   const [googleStatus, setGoogleStatus] = useState(null);
   const [msStatus, setMsStatus] = useState(null);
@@ -5080,7 +5080,13 @@ function CalendarMenu({ theme, integrations, setIntegrations, onEvents, connecte
     try {
       const tokenClient = window.google.accounts.oauth2.initTokenClient({
         client_id: clientId,
-        scope: "https://www.googleapis.com/auth/calendar.readonly",
+        // "email" is a basic (non-sensitive) scope, just used to label which
+        // account got connected — doesn't add any extra consent friction.
+        scope: "https://www.googleapis.com/auth/calendar.readonly email",
+        // Explicit even though this is already the default: always show the
+        // account chooser so connecting "another" account doesn't silently
+        // re-auth whichever one is already signed in.
+        prompt: "select_account",
         callback: async (resp) => {
           setGoogleBusy(false);
           if (resp.error) {
@@ -5095,12 +5101,26 @@ function CalendarMenu({ theme, integrations, setIntegrations, onEvents, connecte
               `?timeMin=${encodeURIComponent(now.toISOString())}` +
               `&timeMax=${encodeURIComponent(in30.toISOString())}` +
               "&singleEvents=true&orderBy=startTime&maxResults=15";
-            const r = await fetch(url, { headers: { Authorization: `Bearer ${resp.access_token}` } });
-            if (!r.ok) throw new Error(`Google Calendar API returned ${r.status}`);
-            const data = await r.json();
+            const [eventsRes, profileRes] = await Promise.all([
+              fetch(url, { headers: { Authorization: `Bearer ${resp.access_token}` } }),
+              fetch("https://www.googleapis.com/oauth2/v3/userinfo", { headers: { Authorization: `Bearer ${resp.access_token}` } }).catch(
+                () => null
+              ),
+            ]);
+            if (!eventsRes.ok) throw new Error(`Google Calendar API returned ${eventsRes.status}`);
+            const data = await eventsRes.json();
             const events = normalizeGoogleEvents(data.items);
-            onEvents("google", events);
-            setGoogleStatus({ type: "success", message: `Connected — pulled ${events.length} events.` });
+            let label = `Google account ${googleAccounts.length + 1}`;
+            if (profileRes && profileRes.ok) {
+              const profileData = await profileRes.json();
+              if (profileData.email) label = profileData.email;
+            }
+            if (googleAccounts.some((a) => a.label === label)) {
+              setGoogleStatus({ type: "error", message: `${label} is already connected.` });
+              return;
+            }
+            onAddGoogleAccount({ id: "ga" + Date.now(), label, events });
+            setGoogleStatus({ type: "success", message: `Connected ${label} — pulled ${events.length} events.` });
           } catch (err) {
             setGoogleStatus({ type: "error", message: err.message || "Failed to fetch Google Calendar events." });
           }
@@ -5111,11 +5131,6 @@ function CalendarMenu({ theme, integrations, setIntegrations, onEvents, connecte
       setGoogleBusy(false);
       setGoogleStatus({ type: "error", message: err.message || "Couldn't start Google sign-in." });
     }
-  }
-
-  function disconnectGoogle() {
-    onEvents("google", []);
-    setGoogleStatus({ type: "success", message: "Disconnected." });
   }
 
   async function connectMicrosoft() {
@@ -5153,7 +5168,7 @@ function CalendarMenu({ theme, integrations, setIntegrations, onEvents, connecte
       if (!r.ok) throw new Error(`Microsoft Graph API returned ${r.status}`);
       const data = await r.json();
       const events = normalizeMicrosoftEvents(data.value);
-      onEvents("microsoft", events);
+      onMicrosoftEvents(events);
       setMsStatus({ type: "success", message: `Connected — pulled ${events.length} events.` });
     } catch (err) {
       setMsStatus({ type: "error", message: err.message || "Failed to connect to Outlook." });
@@ -5163,7 +5178,7 @@ function CalendarMenu({ theme, integrations, setIntegrations, onEvents, connecte
   }
 
   function disconnectMicrosoft() {
-    onEvents("microsoft", []);
+    onMicrosoftEvents([]);
     setMsStatus({ type: "success", message: "Disconnected." });
   }
 
@@ -5257,9 +5272,35 @@ function CalendarMenu({ theme, integrations, setIntegrations, onEvents, connecte
             setup steps if you haven't done this yet.
           </div>
 
-          <div style={{ fontSize: "12px", fontWeight: 700, color: theme.text, marginBottom: "6px" }}>
-            Google Calendar {connectedCounts.google > 0 ? `(${connectedCounts.google} events)` : ""}
-          </div>
+          <div style={{ fontSize: "12px", fontWeight: 700, color: theme.text, marginBottom: "6px" }}>Google Calendar</div>
+          {googleAccounts.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "10px" }}>
+              {googleAccounts.map((a) => (
+                <div
+                  key={a.id}
+                  style={{ display: "flex", alignItems: "center", gap: "8px", background: theme.accentSoft, borderRadius: "8px", padding: "6px 8px" }}
+                >
+                  <span
+                    title={a.label}
+                    style={{ flex: 1, minWidth: 0, fontSize: "11.5px", color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                  >
+                    {a.label}
+                  </span>
+                  <span className="v-tabular" style={{ fontSize: "10.5px", color: theme.textFaint, flexShrink: 0 }}>
+                    {a.events.length}
+                  </span>
+                  <button
+                    onClick={() => onRemoveGoogleAccount(a.id)}
+                    title="Disconnect"
+                    className="v-btn"
+                    style={{ width: "16px", height: "16px", borderRadius: "50%", border: "none", background: theme.dangerSoft, color: theme.danger, fontSize: "10px", lineHeight: "16px", textAlign: "center", padding: 0, flexShrink: 0 }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <input
             placeholder="Google Client ID"
             value={integrations.googleClientId}
@@ -5268,16 +5309,16 @@ function CalendarMenu({ theme, integrations, setIntegrations, onEvents, connecte
             style={smallInputStyle}
           />
           <button
-            onClick={connectedCounts.google > 0 ? disconnectGoogle : connectGoogle}
+            onClick={connectGoogle}
             disabled={googleBusy}
             className="v-btn"
             style={{
-              ...(connectedCounts.google > 0 ? disconnectBtnStyle : connectBtnStyle),
+              ...connectBtnStyle,
               opacity: googleBusy ? 0.6 : 1,
               marginBottom: "6px",
             }}
           >
-            {googleBusy ? "Connecting…" : connectedCounts.google > 0 ? "Disconnect Google" : "Connect Google Calendar"}
+            {googleBusy ? "Connecting…" : googleAccounts.length > 0 ? "Connect another Google account" : "Connect Google Calendar"}
           </button>
           {googleStatus && (
             <div
@@ -5301,7 +5342,7 @@ function CalendarMenu({ theme, integrations, setIntegrations, onEvents, connecte
           />
 
           <div style={{ fontSize: "12px", fontWeight: 700, color: theme.text, marginBottom: "6px" }}>
-            Outlook Calendar {connectedCounts.microsoft > 0 ? `(${connectedCounts.microsoft} events)` : ""}
+            Outlook Calendar {microsoftEvents.length > 0 ? `(${microsoftEvents.length} events)` : ""}
           </div>
           <input
             placeholder="Microsoft Client ID"
@@ -5311,15 +5352,15 @@ function CalendarMenu({ theme, integrations, setIntegrations, onEvents, connecte
             style={smallInputStyle}
           />
           <button
-            onClick={connectedCounts.microsoft > 0 ? disconnectMicrosoft : connectMicrosoft}
+            onClick={microsoftEvents.length > 0 ? disconnectMicrosoft : connectMicrosoft}
             disabled={msBusy}
             className="v-btn"
             style={{
-              ...(connectedCounts.microsoft > 0 ? disconnectBtnStyle : connectBtnStyle),
+              ...(microsoftEvents.length > 0 ? disconnectBtnStyle : connectBtnStyle),
               opacity: msBusy ? 0.6 : 1,
             }}
           >
-            {msBusy ? "Connecting…" : connectedCounts.microsoft > 0 ? "Disconnect Outlook" : "Connect Outlook"}
+            {msBusy ? "Connecting…" : microsoftEvents.length > 0 ? "Disconnect Outlook" : "Connect Outlook"}
           </button>
           {msStatus && (
             <div
@@ -5570,7 +5611,11 @@ function Sidebar({
   trackers,
   profile,
   integrations,
-  connectedCounts,
+  googleAccounts,
+  onAddGoogleAccount,
+  onRemoveGoogleAccount,
+  microsoftEvents,
+  onMicrosoftEvents,
   financial,
   events,
   history,
@@ -5599,7 +5644,6 @@ function Sidebar({
   setGoals,
   setTransactions,
   setYoutube,
-  onEvents,
 }) {
   const doneGoals = goals.filter((g) => g.status === "done").length;
   const valueByPage = {
@@ -5688,8 +5732,11 @@ function Sidebar({
           theme={theme}
           integrations={integrations}
           setIntegrations={setIntegrations}
-          onEvents={onEvents}
-          connectedCounts={connectedCounts}
+          googleAccounts={googleAccounts}
+          onAddGoogleAccount={onAddGoogleAccount}
+          onRemoveGoogleAccount={onRemoveGoogleAccount}
+          microsoftEvents={microsoftEvents}
+          onMicrosoftEvents={onMicrosoftEvents}
         />
         <BackupMenu
           theme={theme}
@@ -5811,15 +5858,18 @@ function App() {
     [youtubeVideos, youtube.lastSeenAt]
   );
 
-  const [connectedEvents, setConnectedEvents] = useState({ google: [], microsoft: [] });
-  function handleCalendarEvents(source, events) {
-    setConnectedEvents((prev) => ({ ...prev, [source]: events }));
+  const [googleAccounts, setGoogleAccounts] = useState([]);
+  function addGoogleAccount(account) {
+    setGoogleAccounts((prev) => [...prev, account]);
   }
+  function removeGoogleAccount(id) {
+    setGoogleAccounts((prev) => prev.filter((a) => a.id !== id));
+  }
+  const [microsoftEvents, setMicrosoftEvents] = useState([]);
   const allConnectedEvents = useMemo(
-    () => [...connectedEvents.google, ...connectedEvents.microsoft],
-    [connectedEvents]
+    () => [...googleAccounts.flatMap((a) => a.events), ...microsoftEvents],
+    [googleAccounts, microsoftEvents]
   );
-  const connectedCounts = { google: connectedEvents.google.length, microsoft: connectedEvents.microsoft.length };
 
   const [weather, setWeather] = usePersistentState(STORAGE_KEYS.weather, DEFAULT_WEATHER);
   const [weatherStatus, setWeatherStatus] = useState(null);
@@ -5926,7 +5976,11 @@ function App() {
         trackers={trackers}
         profile={profile}
         integrations={integrations}
-        connectedCounts={connectedCounts}
+        googleAccounts={googleAccounts}
+        onAddGoogleAccount={addGoogleAccount}
+        onRemoveGoogleAccount={removeGoogleAccount}
+        microsoftEvents={microsoftEvents}
+        onMicrosoftEvents={setMicrosoftEvents}
         financial={financial}
         events={events}
         history={history}
@@ -5955,7 +6009,6 @@ function App() {
         setGoals={setGoals}
         setTransactions={setTransactions}
         setYoutube={setYoutube}
-        onEvents={handleCalendarEvents}
       />
 
       <div className="v-main">
