@@ -5265,6 +5265,72 @@ function sanitizeBackup(parsed) {
     const sanitized = sanitizeGolfRounds(parsed.golfOutdoorRounds);
     if (sanitized) out.golfOutdoorRounds = sanitized;
   }
+  // Fantasy tab — cheat sheets, custom rankings, watchlist, and linked
+  // league IDs/keys are all localStorage-backed (see STORAGE_KEYS.fantasy*);
+  // Yahoo's actual OAuth tokens never touch the browser, so there's nothing
+  // Yahoo-specific to sanitize beyond the league keys themselves.
+  if (isPlainObject(parsed.fantasyCheatSheets)) {
+    const sheets = {};
+    for (const [id, sheet] of Object.entries(parsed.fantasyCheatSheets)) {
+      if (!isPlainObject(sheet) || typeof sheet.id !== "string" || !sheet.id.trim()) continue;
+      const players = Array.isArray(sheet.players)
+        ? sheet.players
+            .filter((p) => isPlainObject(p) && typeof p.playerId === "string" && p.playerId.trim())
+            .map((p) => ({
+              playerId: p.playerId,
+              round: Number.isFinite(Number(p.round)) ? Number(p.round) : null,
+              note: typeof p.note === "string" ? p.note : "",
+              drafted: Boolean(p.drafted),
+            }))
+        : [];
+      sheets[id] = {
+        id: sheet.id,
+        name: typeof sheet.name === "string" ? sheet.name : "",
+        scoringFormat: FF_FORMAT_PARAMS[sheet.scoringFormat] ? sheet.scoringFormat : "full",
+        numTeams: Number(sheet.numTeams) || 12,
+        notes: typeof sheet.notes === "string" ? sheet.notes : "",
+        players,
+        updatedAt: Number.isFinite(Number(sheet.updatedAt)) ? Number(sheet.updatedAt) : Date.now(),
+      };
+    }
+    out.fantasyCheatSheets = sheets;
+  }
+  if (isPlainObject(parsed.fantasyCustomRankings)) {
+    const sets = {};
+    for (const [name, set] of Object.entries(parsed.fantasyCustomRankings)) {
+      if (!isPlainObject(set) || !isPlainObject(set.entries)) continue;
+      const entries = {};
+      for (const [playerId, entry] of Object.entries(set.entries)) {
+        if (!isPlainObject(entry)) continue;
+        entries[playerId] = {
+          sleeperId: typeof entry.sleeperId === "string" ? entry.sleeperId : playerId,
+          value: Number(entry.value) || 0,
+          overallRank: Number(entry.overallRank) || 0,
+          positionRank: Number(entry.positionRank) || 0,
+          trend30Day: Number(entry.trend30Day) || 0,
+        };
+      }
+      sets[name] = { name, entries, createdAt: Number.isFinite(Number(set.createdAt)) ? Number(set.createdAt) : Date.now() };
+    }
+    out.fantasyCustomRankings = sets;
+  }
+  if (Array.isArray(parsed.fantasyWatchlist)) {
+    out.fantasyWatchlist = parsed.fantasyWatchlist.filter((id) => typeof id === "string" && id.trim());
+  }
+  if (isPlainObject(parsed.fantasySleeper)) {
+    const s = parsed.fantasySleeper;
+    out.fantasySleeper = {
+      username: typeof s.username === "string" ? s.username : "",
+      userId: typeof s.userId === "string" ? s.userId : "",
+      linkedLeagueIds: Array.isArray(s.linkedLeagueIds) ? s.linkedLeagueIds.filter((id) => typeof id === "string" && id.trim()) : [],
+    };
+  }
+  if (isPlainObject(parsed.fantasyYahoo)) {
+    const y = parsed.fantasyYahoo;
+    out.fantasyYahoo = {
+      linkedLeagueKeys: Array.isArray(y.linkedLeagueKeys) ? y.linkedLeagueKeys.filter((k) => typeof k === "string" && k.trim()) : [],
+    };
+  }
   return out;
 }
 
@@ -5295,6 +5361,11 @@ function BackupMenu({
   youtube,
   golfSimRounds,
   golfOutdoorRounds,
+  fantasyCheatSheets,
+  fantasyCustomRankings,
+  fantasyWatchlist,
+  fantasySleeper,
+  fantasyYahoo,
   setThemeKey,
   setFitness,
   setGolf,
@@ -5310,6 +5381,11 @@ function BackupMenu({
   setYoutube,
   setGolfSimRounds,
   setGolfOutdoorRounds,
+  setFantasyCheatSheets,
+  setFantasyCustomRankings,
+  setFantasyWatchlist,
+  setFantasySleeper,
+  setFantasyYahoo,
 }) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState(null);
@@ -5346,6 +5422,11 @@ function BackupMenu({
       youtube,
       golfSimRounds,
       golfOutdoorRounds,
+      fantasyCheatSheets,
+      fantasyCustomRankings,
+      fantasyWatchlist,
+      fantasySleeper,
+      fantasyYahoo,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -5392,6 +5473,11 @@ function BackupMenu({
         if (sanitized.youtube) setYoutube(sanitized.youtube);
         if (sanitized.golfSimRounds) setGolfSimRounds(sanitized.golfSimRounds);
         if (sanitized.golfOutdoorRounds) setGolfOutdoorRounds(sanitized.golfOutdoorRounds);
+        if (sanitized.fantasyCheatSheets) setFantasyCheatSheets(sanitized.fantasyCheatSheets);
+        if (sanitized.fantasyCustomRankings) setFantasyCustomRankings(sanitized.fantasyCustomRankings);
+        if (sanitized.fantasyWatchlist) setFantasyWatchlist(sanitized.fantasyWatchlist);
+        if (sanitized.fantasySleeper) setFantasySleeper(sanitized.fantasySleeper);
+        if (sanitized.fantasyYahoo) setFantasyYahoo(sanitized.fantasyYahoo);
         setStatus({ type: "success", message: "Backup restored." });
       } catch (err) {
         setStatus({ type: "error", message: "Couldn't parse that file as JSON." });
@@ -6207,7 +6293,11 @@ function Sidebar({
   youtube,
   golfSimRounds,
   golfOutdoorRounds,
+  fantasyCheatSheets,
+  fantasyCustomRankings,
   fantasyWatchlist,
+  fantasySleeper,
+  fantasyYahoo,
   page,
   onNavigate,
   setThemeKey,
@@ -6226,6 +6316,11 @@ function Sidebar({
   setYoutube,
   setGolfSimRounds,
   setGolfOutdoorRounds,
+  setFantasyCheatSheets,
+  setFantasyCustomRankings,
+  setFantasyWatchlist,
+  setFantasySleeper,
+  setFantasyYahoo,
 }) {
   const doneGoals = goals.filter((g) => g.status === "done").length;
   const valueByPage = {
@@ -6338,6 +6433,11 @@ function Sidebar({
           youtube={youtube}
           golfSimRounds={golfSimRounds}
           golfOutdoorRounds={golfOutdoorRounds}
+          fantasyCheatSheets={fantasyCheatSheets}
+          fantasyCustomRankings={fantasyCustomRankings}
+          fantasyWatchlist={fantasyWatchlist}
+          fantasySleeper={fantasySleeper}
+          fantasyYahoo={fantasyYahoo}
           setThemeKey={setThemeKey}
           setFitness={setFitness}
           setGolf={setGolf}
@@ -6353,6 +6453,11 @@ function Sidebar({
           setYoutube={setYoutube}
           setGolfSimRounds={setGolfSimRounds}
           setGolfOutdoorRounds={setGolfOutdoorRounds}
+          setFantasyCheatSheets={setFantasyCheatSheets}
+          setFantasyCustomRankings={setFantasyCustomRankings}
+          setFantasyWatchlist={setFantasyWatchlist}
+          setFantasySleeper={setFantasySleeper}
+          setFantasyYahoo={setFantasyYahoo}
         />
         <ThemePicker theme={theme} themeKey={themeKey} setThemeKey={setThemeKey} />
       </div>
@@ -6590,7 +6695,11 @@ function App() {
         youtube={youtube}
         golfSimRounds={golfSimRounds}
         golfOutdoorRounds={golfOutdoorRounds}
+        fantasyCheatSheets={fantasyCheatSheets}
+        fantasyCustomRankings={fantasyCustomRankings}
         fantasyWatchlist={fantasyWatchlist}
+        fantasySleeper={fantasySleeper}
+        fantasyYahoo={fantasyYahoo}
         page={page}
         onNavigate={navigate}
         setThemeKey={setThemeKey}
@@ -6609,6 +6718,11 @@ function App() {
         setYoutube={setYoutube}
         setGolfSimRounds={setGolfSimRounds}
         setGolfOutdoorRounds={setGolfOutdoorRounds}
+        setFantasyCheatSheets={setFantasyCheatSheets}
+        setFantasyCustomRankings={setFantasyCustomRankings}
+        setFantasyWatchlist={setFantasyWatchlist}
+        setFantasySleeper={setFantasySleeper}
+        setFantasyYahoo={setFantasyYahoo}
       />
 
       <div className="v-main">
