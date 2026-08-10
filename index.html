@@ -9293,6 +9293,33 @@ async function ffGetTradeValues(isDynasty, ppr = 1) {
   }
 }
 
+// ---------- Yahoo (via backend — see netlify/functions/yahoo-*.js) ----------
+
+async function ffGetYahooStatus() {
+  const res = await fetch(`${FF_BACKEND_URL}/.netlify/functions/yahoo-status`);
+  if (!res.ok) throw new Error(`yahoo-status error ${res.status}`);
+  return res.json();
+}
+async function ffGetYahooPreview() {
+  const res = await fetch(`${FF_BACKEND_URL}/.netlify/functions/yahoo-preview`);
+  if (!res.ok) throw new Error(`yahoo-preview error ${res.status}`);
+  return res.json();
+}
+async function ffGetYahooLeagueDetail(leagueKey) {
+  const res = await fetch(`${FF_BACKEND_URL}/.netlify/functions/yahoo-league?leagueKey=${encodeURIComponent(leagueKey)}`);
+  if (!res.ok) throw new Error(`yahoo-league error ${res.status}`);
+  return res.json();
+}
+const FF_YAHOO_CONNECT_URL = `https://bearvantagehub.netlify.app/.netlify/functions/yahoo-auth-start`;
+
+// Dispatches to the right platform's league-detail fetcher — the one place
+// callers (LeagueDetail, Trade Analyzer's future league mode) need to know
+// about, instead of branching on platform everywhere.
+async function ffGetLeagueDetailByPlatform(platform, leagueId, sleeperUserId) {
+  if (platform === "yahoo") return ffGetYahooLeagueDetail(leagueId);
+  return ffGetLeagueDetail(leagueId, sleeperUserId);
+}
+
 // Backend origin for the two Netlify Functions that must stay server-side
 // (nflverse stats proxy, and Yahoo OAuth once that lands) — hardcoded since
 // Vantage only has one Netlify deploy; GitHub Pages visitors still reach it
@@ -9908,30 +9935,47 @@ function FFComingSoon({ title, note }) {
   );
 }
 
-// Sleeper-only for now (see plan) — merges into "leagues" the same shape a
-// future Yahoo half can be appended to once that lands (batch 5).
-async function ffGetLinkedLeagueSummaries(sleeper) {
-  const ids = (sleeper && sleeper.linkedLeagueIds) || [];
-  if (ids.length === 0) return { leagues: [], errors: [] };
-  const results = await Promise.allSettled(ids.map((id) => ffGetLeagueDetail(id, sleeper.userId)));
+// Merges Sleeper (client-fetched) + Yahoo (fetched via the backend, since
+// only it holds the access token) into one "leagues" list for the Dashboard.
+async function ffGetLinkedLeagueSummaries(sleeper, yahoo) {
+  const sleeperIds = (sleeper && sleeper.linkedLeagueIds) || [];
+  const yahooKeys = (yahoo && yahoo.linkedLeagueKeys) || [];
   const leagues = [];
   const errors = [];
-  results.forEach((r, i) => {
+
+  const sleeperResults = await Promise.allSettled(sleeperIds.map((id) => ffGetLeagueDetail(id, sleeper.userId)));
+  sleeperResults.forEach((r, i) => {
     if (r.status === "fulfilled") {
       const d = r.value;
-      leagues.push({ platform: "sleeper", leagueId: ids[i], name: d.name, season: d.season, teamName: d.myTeam.teamName, record: d.myTeam.record });
+      leagues.push({ platform: "sleeper", leagueId: sleeperIds[i], name: d.name, season: d.season, teamName: d.myTeam.teamName, record: d.myTeam.record });
     } else {
-      errors.push(`Couldn't load a league: ${r.reason && r.reason.message}`);
+      errors.push(`Couldn't load a Sleeper league: ${r.reason && r.reason.message}`);
     }
   });
+
+  const yahooResults = await Promise.allSettled(yahooKeys.map((key) => ffGetYahooLeagueDetail(key)));
+  yahooResults.forEach((r, i) => {
+    if (r.status === "fulfilled") {
+      const d = r.value;
+      leagues.push({ platform: "yahoo", leagueId: yahooKeys[i], name: d.name, season: d.season, teamName: d.myTeam.teamName, record: d.myTeam.record });
+    } else {
+      errors.push(`Couldn't load a Yahoo league: ${r.reason && r.reason.message}`);
+    }
+  });
+
   return { leagues, errors };
 }
 
-function FFDashboard({ watchlist, setWatchlist, sleeper }) {
+function FFDashboard({ watchlist, setWatchlist, sleeper, yahoo }) {
   const playersQuery = ffUseQuery("ff-players", ffGetFantasyRelevantPlayers);
   const tradeValuesQuery = ffUseQuery("ff-trade-values-false-1", () => ffGetTradeValues(false, 1));
   const linkedIds = (sleeper && sleeper.linkedLeagueIds) || [];
-  const leaguesQuery = ffUseQuery(`ff-leagues-${linkedIds.join(",")}`, () => ffGetLinkedLeagueSummaries(sleeper), [linkedIds.join(",")]);
+  const linkedYahooKeys = (yahoo && yahoo.linkedLeagueKeys) || [];
+  const leaguesQuery = ffUseQuery(
+    `ff-leagues-${linkedIds.join(",")}-${linkedYahooKeys.join(",")}`,
+    () => ffGetLinkedLeagueSummaries(sleeper, yahoo),
+    [linkedIds.join(","), linkedYahooKeys.join(",")]
+  );
 
   const players = playersQuery.data || [];
   const values = tradeValuesQuery.data || {};
@@ -11860,10 +11904,398 @@ function FFImportRankingsPage({ customRankings, setCustomRankings }) {
   );
 }
 
+/* ----------------------------------------------------------------------
+   FANTASY TAB — League linking (Onboarding) + League Detail
+   Ported from Onboarding.tsx and LeagueDetail.tsx + StandingsTable/
+   RosterTable/LeagueSettingsSummary/TransactionsFeed. Sleeper needs no
+   credentials (findUserByUsername + getLeaguesForUser, already in the data
+   layer) — linked league IDs/username live in fantasySleeper (localStorage).
+   Yahoo needs the OAuth backend from netlify/functions/yahoo-*.js — linked
+   league keys live in fantasyYahoo (localStorage), but the tokens themselves
+   never leave the server, so every Yahoo league READ also goes through the
+   backend (ffGetYahooLeagueDetail etc.), not just the initial connect.
+---------------------------------------------------------------------- */
+
+async function ffPreviewSleeperLeagues(username) {
+  const user = await ffFindUserByUsername(username);
+  const leagues = await ffGetLeaguesForUser(user.user_id);
+  return { userId: user.user_id, leagues };
+}
+
+function FFOnboardingPage({ sleeper, setSleeper, yahoo, setYahoo }) {
+  const [username, setUsername] = useState("");
+  const [lookupUsername, setLookupUsername] = useState(null);
+  const [selectedSleeperIds, setSelectedSleeperIds] = useState(new Set());
+  const [selectedYahooKeys, setSelectedYahooKeys] = useState(new Set());
+  const [linkError, setLinkError] = useState(null);
+  const [justAdded, setJustAdded] = useState(false);
+
+  const sleeperPreviewQuery = ffUseQuery(
+    lookupUsername ? `ff-sleeper-preview-${lookupUsername}` : "ff-sleeper-preview-none",
+    () => (lookupUsername ? ffPreviewSleeperLeagues(lookupUsername) : Promise.resolve(null)),
+    [lookupUsername]
+  );
+
+  const yahooStatusQuery = ffUseQuery("ff-yahoo-status", ffGetYahooStatus);
+  const yahooConnected = Boolean(yahooStatusQuery.data && yahooStatusQuery.data.connected);
+  const yahooPreviewQuery = ffUseQuery(
+    yahooConnected ? "ff-yahoo-preview" : "ff-yahoo-preview-none",
+    () => (yahooConnected ? ffGetYahooPreview() : Promise.resolve(null)),
+    [yahooConnected]
+  );
+
+  function toggle(set, setSet, id) {
+    const next = new Set(set);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSet(next);
+  }
+
+  function handleFinish() {
+    setLinkError(null);
+    try {
+      if (lookupUsername && selectedSleeperIds.size > 0) {
+        const userId = (sleeperPreviewQuery.data && sleeperPreviewQuery.data.userId) || sleeper.userId;
+        const merged = [...new Set([...(sleeper.linkedLeagueIds || []), ...selectedSleeperIds])];
+        setSleeper({ username: lookupUsername, userId, linkedLeagueIds: merged });
+      }
+      if (selectedYahooKeys.size > 0) {
+        const merged = [...new Set([...(yahoo.linkedLeagueKeys || []), ...selectedYahooKeys])];
+        setYahoo({ linkedLeagueKeys: merged });
+      }
+      setSelectedSleeperIds(new Set());
+      setSelectedYahooKeys(new Set());
+      setJustAdded(true);
+    } catch (err) {
+      setLinkError(err.message);
+    }
+  }
+
+  const hasSelections = selectedSleeperIds.size > 0 || selectedYahooKeys.size > 0;
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <h1>Connect your leagues</h1>
+      </div>
+
+      <section className="onboarding-section onboarding-section--sleeper">
+        <h2>Sleeper</h2>
+        {sleeper && sleeper.username && (
+          <p className="data-source-note">
+            Already connected as <strong>{sleeper.username}</strong> &middot; {(sleeper.linkedLeagueIds || []).length} league(s) linked. Search another username below to add more.
+          </p>
+        )}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            setLookupUsername(username.trim());
+          }}
+        >
+          <input type="text" placeholder="Sleeper username" value={username} onChange={(e) => setUsername(e.target.value)} />
+          <button type="submit">Find leagues</button>
+        </form>
+
+        {sleeperPreviewQuery.isLoading && lookupUsername && <p>Looking up leagues...</p>}
+        {sleeperPreviewQuery.isError && <p className="error-text">{sleeperPreviewQuery.error && sleeperPreviewQuery.error.message}</p>}
+        {sleeperPreviewQuery.data && (
+          <ul className="checklist">
+            {sleeperPreviewQuery.data.leagues.map((league) => (
+              <li key={league.league_id}>
+                <label>
+                  <input type="checkbox" checked={selectedSleeperIds.has(league.league_id)} onChange={() => toggle(selectedSleeperIds, setSelectedSleeperIds, league.league_id)} />
+                  {league.name} ({league.season})
+                </label>
+              </li>
+            ))}
+            {sleeperPreviewQuery.data.leagues.length === 0 && <li>No leagues found for this username.</li>}
+          </ul>
+        )}
+      </section>
+
+      <section className="onboarding-section onboarding-section--yahoo">
+        <h2>Yahoo</h2>
+        {!yahooConnected && (
+          <a className="button-link" href={FF_YAHOO_CONNECT_URL}>
+            Connect Yahoo
+          </a>
+        )}
+        {yahooConnected && (yahoo.linkedLeagueKeys || []).length > 0 && (
+          <p className="data-source-note">{yahoo.linkedLeagueKeys.length} league(s) linked already.</p>
+        )}
+        {yahooConnected && yahooPreviewQuery.data && (
+          <ul className="checklist">
+            {yahooPreviewQuery.data.leagues.map((league) => (
+              <li key={league.league_key}>
+                <label>
+                  <input type="checkbox" checked={selectedYahooKeys.has(league.league_key)} onChange={() => toggle(selectedYahooKeys, setSelectedYahooKeys, league.league_key)} />
+                  {league.name} ({league.season})
+                </label>
+              </li>
+            ))}
+            {yahooPreviewQuery.data.leagues.length === 0 && <li>No leagues found on this Yahoo account.</li>}
+          </ul>
+        )}
+        {yahooConnected && yahooPreviewQuery.isError && <p className="error-text">{yahooPreviewQuery.error && yahooPreviewQuery.error.message}</p>}
+      </section>
+
+      {linkError && <p className="error-text">{linkError}</p>}
+      {justAdded && !hasSelections && <p className="success-text">Added. Check the Dashboard to see your leagues.</p>}
+      <button disabled={!hasSelections} onClick={handleFinish}>
+        Add selected leagues to dashboard
+      </button>
+    </div>
+  );
+}
+
+function FFStandingsTable({ standings }) {
+  if (standings.length === 0) {
+    return <p className="empty-state">No standings data available.</p>;
+  }
+  return (
+    <table className="data-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Team</th>
+          <th>Record</th>
+          <th>PF</th>
+          <th>PA</th>
+        </tr>
+      </thead>
+      <tbody>
+        {standings.map((team) => (
+          <tr key={team.teamId}>
+            <td>{team.rank}</td>
+            <td>{team.teamName}</td>
+            <td>
+              {team.record.wins}-{team.record.losses}
+              {team.record.ties > 0 ? `-${team.record.ties}` : ""}
+            </td>
+            <td>{team.pointsFor.toFixed(1)}</td>
+            <td>{team.pointsAgainst.toFixed(1)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function FFRosterTable({ roster }) {
+  if (!roster || roster.length === 0) {
+    return (
+      <p className="empty-state">
+        No roster yet — this league likely hasn't drafted. Try a <a href="#fantasy/mock-draft">mock draft</a> while you wait.
+      </p>
+    );
+  }
+  return (
+    <table className="data-table">
+      <thead>
+        <tr>
+          <th>Player</th>
+          <th>Pos</th>
+          <th>Team</th>
+          <th>Bye</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {roster.map((player) => (
+          <tr key={player.playerId}>
+            <td>
+              <a href={`#fantasy/players/${player.playerId}`} className="table-player-link">
+                <FFPlayerAvatar playerId={player.playerId} name={player.name} position={player.position} team={player.team} size="sm" />
+                <span>{player.name}</span>
+              </a>
+            </td>
+            <td><FFPositionBadge position={player.position} /></td>
+            <td>{player.team || "FA"}</td>
+            <td>{ffByeWeekFor(player.team) ?? "—"}</td>
+            <td>{player.injuryStatus ? <span className="injury-badge">{player.injuryStatus}</span> : "Healthy"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function FFLeagueSettingsSummary({ settings }) {
+  return (
+    <div className="ranking-cards">
+      <div className="ranking-card">
+        <span className="ranking-card__label">Scoring</span>
+        <span className="ranking-card__value">{settings.scoringType}</span>
+      </div>
+      <div className="ranking-card">
+        <span className="ranking-card__label">Teams</span>
+        <span className="ranking-card__value">{settings.totalRosters}</span>
+      </div>
+      <div className="ranking-card">
+        <span className="ranking-card__label">Playoff Teams</span>
+        <span className="ranking-card__value">{settings.playoffTeams ?? "—"}</span>
+      </div>
+      {settings.rosterPositions.length > 0 && (
+        <div className="ranking-card">
+          <span className="ranking-card__label">Roster</span>
+          <span className="ranking-card__value league-settings__positions">
+            {settings.rosterPositions.map((pos, i) => (
+              <FFPositionBadge key={`${pos}-${i}`} position={pos} />
+            ))}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const FF_TX_TYPE_LABELS = { trade: "Trade", waiver: "Waiver Claim", free_agent: "Free Agent Move" };
+function ffFormatTxDate(ms) {
+  return new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+function FFTransactionsFeed({ transactions }) {
+  if (transactions.length === 0) {
+    return <p className="empty-state">No recent league activity.</p>;
+  }
+  return (
+    <ul className="transactions-feed">
+      {transactions.map((tx) => (
+        <li key={tx.id} className="transactions-feed__row">
+          <span className="transactions-feed__type">{FF_TX_TYPE_LABELS[tx.type] || tx.type}</span>
+          <div className="transactions-feed__body">
+            {tx.adds.map((ref) => (
+              <p key={`add-${ref.playerId}`}>
+                <strong>{ref.teamName}</strong> added {ref.playerName}
+              </p>
+            ))}
+            {tx.drops.map((ref) => (
+              <p key={`drop-${ref.playerId}`}>
+                <strong>{ref.teamName}</strong> dropped {ref.playerName}
+              </p>
+            ))}
+          </div>
+          <span className="transactions-feed__date">{ffFormatTxDate(tx.createdAt)}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function FFLeagueDetailPage({ platform, leagueId, sleeper }) {
+  const detailQuery = ffUseQuery(`ff-league-${platform}-${leagueId}`, () => ffGetLeagueDetailByPlatform(platform, leagueId, sleeper.userId), [platform, leagueId]);
+  const transactionsQuery = ffUseQuery(
+    `ff-league-tx-${platform}-${leagueId}`,
+    () => (platform === "sleeper" ? ffGetLeagueTransactions(leagueId) : Promise.resolve([])),
+    [platform, leagueId]
+  );
+  const draftQuery = ffUseQuery(
+    `ff-league-draft-${platform}-${leagueId}`,
+    () => (platform === "sleeper" ? ffGetLeagueDraft(leagueId) : Promise.resolve({ status: "not_started", numTeams: 0, rounds: 0, picks: [] })),
+    [platform, leagueId]
+  );
+
+  const [selectedTeamId, setSelectedTeamId] = useState("");
+  const data = detailQuery.data;
+
+  return (
+    <div className="page">
+      <a href="#fantasy" className="back-link">
+        &larr; Back to dashboard
+      </a>
+
+      {detailQuery.isLoading && <p>Loading league...</p>}
+      {detailQuery.isError && <p className="error-text">{detailQuery.error && detailQuery.error.message}</p>}
+
+      {data && (
+        <>
+          <div className="page-header">
+            <h1>
+              {data.name} <FFPlatformBadge platform={data.platform} />
+            </h1>
+          </div>
+
+          <div className="filter-bar">
+            <a href="#fantasy/trade-analyzer" className="back-link">
+              Analyze a trade for this league &rarr;
+            </a>
+            <a href="#fantasy/waiver-wire" className="back-link">
+              Check the waiver wire &rarr;
+            </a>
+          </div>
+
+          {data.currentMatchup && (
+            <section>
+              <h2>Week {data.currentMatchup.week} Matchup</h2>
+              <div className="matchup-card">
+                <div className={`matchup-card__team ${data.currentMatchup.myScore >= data.currentMatchup.opponentScore ? "matchup-card__team--leading" : ""}`}>
+                  <span className="matchup-card__name">{data.myTeam.teamName}</span>
+                  <span className="matchup-card__score">{data.currentMatchup.myScore.toFixed(1)}</span>
+                </div>
+                <span className="matchup-card__vs">VS</span>
+                <div className={`matchup-card__team ${data.currentMatchup.opponentScore > data.currentMatchup.myScore ? "matchup-card__team--leading" : ""}`}>
+                  <span className="matchup-card__name">{data.currentMatchup.opponentTeamName}</span>
+                  <span className="matchup-card__score">{data.currentMatchup.opponentScore.toFixed(1)}</span>
+                </div>
+              </div>
+            </section>
+          )}
+
+          <section>
+            <h2>League Settings</h2>
+            <FFLeagueSettingsSummary settings={data.settings} />
+          </section>
+
+          <section>
+            <h2>Rosters</h2>
+            <div className="filter-bar">
+              <select value={selectedTeamId || data.myTeam.teamId} onChange={(e) => setSelectedTeamId(e.target.value)}>
+                {data.teams.map((team) => (
+                  <option key={team.teamId} value={team.teamId}>
+                    {team.teamId === data.myTeam.teamId ? `${team.teamName} (Me)` : team.teamName}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <FFRosterTable roster={(data.teams.find((t) => t.teamId === (selectedTeamId || data.myTeam.teamId)) || {}).roster || data.myTeam.roster} />
+          </section>
+
+          <section>
+            <h2>Standings</h2>
+            <FFStandingsTable standings={data.standings} />
+          </section>
+
+          <section>
+            <h2>Draft Recap</h2>
+            {draftQuery.data && draftQuery.data.picks.length > 0 ? (
+              <FFDraftBoardGrid
+                numTeams={draftQuery.data.numTeams}
+                rounds={draftQuery.data.rounds}
+                picks={draftQuery.data.picks}
+                currentPick={undefined}
+                playersById={new Map(draftQuery.data.picks.map((p) => [p.playerId, { name: p.playerName, position: p.playerPosition }]))}
+                teamLabel={(teamIndex) => {
+                  const pick = draftQuery.data.picks.find((p) => p.teamIndex === teamIndex);
+                  return pick ? pick.teamName : `Team ${teamIndex + 1}`;
+                }}
+              />
+            ) : (
+              <p className="empty-state">{data.platform === "yahoo" ? "Draft recap isn't available for Yahoo leagues yet." : "This league hasn't drafted yet."}</p>
+            )}
+          </section>
+
+          <section>
+            <h2>Recent Activity</h2>
+            <FFTransactionsFeed transactions={transactionsQuery.data || []} />
+          </section>
+        </>
+      )}
+    </div>
+  );
+}
+
 function FFPage({ theme, cheatSheets, setCheatSheets, customRankings, setCustomRankings, watchlist, setWatchlist, sleeper, setSleeper, yahoo, setYahoo }) {
   const [segments, navigateFF] = useFantasySubRoute();
   const sub = segments[0] || "";
-  const activeMeta = FF_SUBPAGES.find((p) => p.id === sub) || FF_SUBPAGES[0];
 
   // "cheat-sheets/new" mints a real id and redirects, same as the original
   // app's crypto.randomUUID()-then-navigate — a bookmarked/shared URL always
@@ -11896,7 +12328,7 @@ function FFPage({ theme, cheatSheets, setCheatSheets, customRankings, setCustomR
       <FFSubNav theme={theme} active={sub} onNavigate={navigateFF} />
 
       <FFShadowRoot accent={theme.accent}>
-        {sub === "" && <FFDashboard watchlist={watchlist} setWatchlist={setWatchlist} sleeper={sleeper} />}
+        {sub === "" && <FFDashboard watchlist={watchlist} setWatchlist={setWatchlist} sleeper={sleeper} yahoo={yahoo} />}
         {sub === "players" && segments[1] && <FFPlayerProfilePage playerId={segments[1]} watchlist={watchlist} setWatchlist={setWatchlist} />}
         {sub === "players" && !segments[1] && <FFPlayersPage watchlist={watchlist} setWatchlist={setWatchlist} />}
         {sub === "compare" && <FFPlayerComparisonPage />}
@@ -11908,11 +12340,8 @@ function FFPage({ theme, cheatSheets, setCheatSheets, customRankings, setCustomR
           <FFCheatSheetEditorPage sheetId={segments[1]} cheatSheets={cheatSheets} setCheatSheets={setCheatSheets} />
         )}
         {sub === "import-rankings" && <FFImportRankingsPage customRankings={customRankings} setCustomRankings={setCustomRankings} />}
-        {sub === "onboarding" && (
-          <div className="page">
-            <FFComingSoon title="Connect Leagues" note="Sleeper + Yahoo account linking lands here next." />
-          </div>
-        )}
+        {sub === "onboarding" && <FFOnboardingPage sleeper={sleeper} setSleeper={setSleeper} yahoo={yahoo} setYahoo={setYahoo} />}
+        {sub === "leagues" && segments[1] && segments[2] && <FFLeagueDetailPage platform={segments[1]} leagueId={segments[2]} sleeper={sleeper} />}
       </FFShadowRoot>
     </div>
   );
