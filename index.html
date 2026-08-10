@@ -192,6 +192,14 @@
   window.pdfjsLib = pdfjsLib;
 </script>
 
+<!-- Golf scorecard photos: browsers (aside from patchy Safari support) can't
+     render .heic/.heif files in an <img> tag at all, and iPhones shoot HEIC
+     by default — so HEIC uploads get converted to JPEG client-side before
+     they're stored, entirely in the browser. heic-to (not the older/more
+     common heic2any) is used because it tracks current libheif releases —
+     heic2any's bundled decoder rejected real iPhone HEIC files in testing. -->
+<script src="https://unpkg.com/heic-to@1.5.2/dist/iife/heic-to.js"></script>
+
 <script type="text/babel" data-type="module">
 const { useState, useEffect, useMemo, useRef } = React;
 
@@ -1732,6 +1740,25 @@ async function dbDeletePhoto(id) {
   });
 }
 
+// iPhones shoot HEIC by default and browsers (Safari included, inconsistently)
+// largely can't render it in an <img> tag, so convert to JPEG before it's
+// ever staged or stored. MIME type detection for HEIC is unreliable across
+// browsers/OSes, so the file extension is checked too.
+function isHeicFile(file) {
+  return /image\/hei[cf]/i.test(file.type) || /\.(heic|heif)$/i.test(file.name || "");
+}
+
+async function convertHeicIfNeeded(file) {
+  if (!isHeicFile(file)) return file;
+  if (!window.HeicTo) return file;
+  try {
+    const blob = await window.HeicTo({ blob: file, type: "image/jpeg", quality: 0.85 });
+    return new File([blob], file.name.replace(/\.(heic|heif)$/i, ".jpg"), { type: "image/jpeg" });
+  } catch (err) {
+    return file;
+  }
+}
+
 function formatBytes(bytes) {
   if (!bytes) return "0 B";
   const units = ["B", "KB", "MB", "GB"];
@@ -2024,6 +2051,7 @@ function GolfRoundLog({ theme, title, rounds, setRounds, delay }) {
   const [form, setForm] = useState(emptyForm);
   const [photoFiles, setPhotoFiles] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [convertingPhotos, setConvertingPhotos] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
   const [roundPhotos, setRoundPhotos] = useState({});
   const photoInputRef = useRef(null);
@@ -2032,10 +2060,16 @@ function GolfRoundLog({ theme, title, rounds, setRounds, delay }) {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  function handlePhotoSelect(e) {
+  async function handlePhotoSelect(e) {
     const files = Array.from(e.target.files || []);
-    setPhotoFiles((prev) => [...prev, ...files].slice(0, 6));
     e.target.value = "";
+    setConvertingPhotos(true);
+    try {
+      const converted = await Promise.all(files.map(convertHeicIfNeeded));
+      setPhotoFiles((prev) => [...prev, ...converted].slice(0, 6));
+    } finally {
+      setConvertingPhotos(false);
+    }
   }
 
   function removeStagedPhoto(idx) {
@@ -2230,12 +2264,13 @@ function GolfRoundLog({ theme, title, rounds, setRounds, delay }) {
             ))}
             <button
               onClick={() => photoInputRef.current && photoInputRef.current.click()}
+              disabled={convertingPhotos}
               className="v-btn"
-              style={{ width: "52px", height: "52px", borderRadius: "8px", border: `1px dashed ${theme.inputBorder}`, background: "transparent", color: theme.textMuted, fontSize: "20px" }}
+              style={{ width: "52px", height: "52px", borderRadius: "8px", border: `1px dashed ${theme.inputBorder}`, background: "transparent", color: theme.textMuted, fontSize: convertingPhotos ? "9px" : "20px", fontWeight: convertingPhotos ? 700 : 400, opacity: convertingPhotos ? 0.7 : 1 }}
             >
-              +
+              {convertingPhotos ? "Loading…" : "+"}
             </button>
-            <input ref={photoInputRef} type="file" accept="image/*" multiple onChange={handlePhotoSelect} style={{ display: "none" }} />
+            <input ref={photoInputRef} type="file" accept="image/*,.heic,.heif" multiple onChange={handlePhotoSelect} style={{ display: "none" }} />
           </div>
 
           <button
