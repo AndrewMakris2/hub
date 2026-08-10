@@ -164,6 +164,7 @@
   .v-bento-goals { grid-column: span 2; }
   .v-bento-journal { grid-column: span 2; }
   .v-bento-transactions { grid-column: span 2; }
+  .v-bento-youtube { grid-column: span 2; }
 
   @media (max-width: 860px) {
     .v-bento { grid-template-columns: 1fr; }
@@ -721,6 +722,7 @@ const STORAGE_KEYS = {
   journal: "dash.journal",
   goals: "dash.goals",
   transactions: "dash.transactions",
+  youtube: "dash.youtube",
 };
 
 function isMergeablePlainObject(v) {
@@ -852,6 +854,8 @@ function currentMonthLabel() {
 const DEFAULT_BUDGET = { month: currentMonthLabel(), categories: [] };
 
 const DEFAULT_TRANSACTIONS = [];
+
+const DEFAULT_YOUTUBE = { lastSeenAt: null };
 
 const CATEGORY_KEYWORDS = [
   { category: "Groceries", pattern: /whole foods|trader joe|kroger|safeway|grocery|grocer|aldi|publix/i },
@@ -1493,6 +1497,15 @@ function IconLink() {
   );
 }
 
+function IconYoutube({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="5" width="20" height="14" rx="4" />
+      <path d="M10 9l6 3-6 3V9z" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 function IconChecklist({ size = 14 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1683,8 +1696,16 @@ async function shareVideoFile(video, onStatus) {
    goal progress, and event dates to produce a short list of nudges.
 ---------------------------------------------------------------------- */
 
-function generateSuggestions({ fitness, golf, trackers, profile, events, history, weather, watchlist }) {
+function generateSuggestions({ fitness, golf, trackers, profile, events, history, weather, watchlist, newYoutubeCount }) {
   const suggestions = [];
+
+  if (newYoutubeCount > 0) {
+    suggestions.push({
+      id: "s-youtube",
+      priority: "info",
+      text: `${newYoutubeCount} new video${newYoutubeCount === 1 ? "" : "s"} from channels you're subscribed to.`,
+    });
+  }
 
   if (profile.topPicks && profile.topPicks.length > 0) {
     const pick = profile.topPicks[0];
@@ -4837,6 +4858,11 @@ function sanitizeBackup(parsed) {
         category: typeof t.category === "string" && t.category.trim() ? t.category : "Uncategorized",
       }));
   }
+  if (isPlainObject(parsed.youtube)) {
+    out.youtube = {
+      lastSeenAt: Number.isFinite(Number(parsed.youtube.lastSeenAt)) ? Number(parsed.youtube.lastSeenAt) : null,
+    };
+  }
   return out;
 }
 
@@ -4865,6 +4891,7 @@ function BackupMenu({
   journal,
   goals,
   transactions,
+  youtube,
   setThemeKey,
   setFitness,
   setGolf,
@@ -4878,6 +4905,7 @@ function BackupMenu({
   setJournal,
   setGoals,
   setTransactions,
+  setYoutube,
 }) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState(null);
@@ -4912,6 +4940,7 @@ function BackupMenu({
       journal,
       goals,
       transactions,
+      youtube,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -4956,6 +4985,7 @@ function BackupMenu({
         if (sanitized.journal) setJournal(sanitized.journal);
         if (sanitized.goals) setGoals(sanitized.goals);
         if (sanitized.transactions) setTransactions(sanitized.transactions);
+        if (sanitized.youtube) setYoutube(sanitized.youtube);
         setStatus({ type: "success", message: "Backup restored." });
       } catch (err) {
         setStatus({ type: "error", message: "Couldn't parse that file as JSON." });
@@ -5109,6 +5139,82 @@ function normalizeMicrosoftEvents(items) {
       source: "Outlook",
     };
   });
+}
+
+// Fetches the latest upload from every channel the signed-in user is
+// subscribed to. subscriptions.list only returns the channel IDs, so this is
+// a 3-step pipeline: list subscriptions (paginated) -> batch-resolve each
+// channel's "uploads" playlist ID (up to 50 per call) -> pull the newest item
+// from each of those playlists. Kept quota-cheap (~1 unit per channel) and
+// capped so a very large subscription list can't run away.
+const YOUTUBE_MAX_CHANNELS = 150;
+const YOUTUBE_FETCH_CONCURRENCY = 8;
+
+async function fetchYoutubeUploads(accessToken) {
+  const headers = { Authorization: `Bearer ${accessToken}` };
+
+  let channelIds = [];
+  let pageToken = "";
+  do {
+    const url =
+      "https://www.googleapis.com/youtube/v3/subscriptions?part=snippet&mine=true&maxResults=50" +
+      (pageToken ? `&pageToken=${pageToken}` : "");
+    const r = await fetch(url, { headers });
+    if (!r.ok) throw new Error(`YouTube API returned ${r.status} while listing subscriptions`);
+    const data = await r.json();
+    channelIds.push(...(data.items || []).map((it) => it.snippet.resourceId.channelId));
+    pageToken = data.nextPageToken;
+  } while (pageToken && channelIds.length < YOUTUBE_MAX_CHANNELS);
+  channelIds = channelIds.slice(0, YOUTUBE_MAX_CHANNELS);
+  if (channelIds.length === 0) return [];
+
+  const channelInfo = {};
+  for (let i = 0; i < channelIds.length; i += 50) {
+    const batch = channelIds.slice(i, i + 50);
+    const url = `https://www.googleapis.com/youtube/v3/channels?part=contentDetails,snippet&id=${batch.join(",")}`;
+    const r = await fetch(url, { headers });
+    if (!r.ok) throw new Error(`YouTube API returned ${r.status} while looking up channels`);
+    const data = await r.json();
+    (data.items || []).forEach((ch) => {
+      const uploadsPlaylist = ch.contentDetails && ch.contentDetails.relatedPlaylists && ch.contentDetails.relatedPlaylists.uploads;
+      if (uploadsPlaylist) {
+        channelInfo[ch.id] = { playlistId: uploadsPlaylist, title: ch.snippet.title };
+      }
+    });
+  }
+
+  const entries = Object.entries(channelInfo);
+  const videos = [];
+  let cursor = 0;
+  async function worker() {
+    while (cursor < entries.length) {
+      const [channelId, info] = entries[cursor++];
+      try {
+        const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${info.playlistId}&maxResults=1`;
+        const r = await fetch(url, { headers });
+        if (!r.ok) continue;
+        const data = await r.json();
+        const item = data.items && data.items[0];
+        if (item) {
+          const thumb = item.snippet.thumbnails || {};
+          videos.push({
+            id: item.contentDetails.videoId,
+            title: item.snippet.title,
+            channelTitle: info.title,
+            channelId,
+            publishedAt: item.contentDetails.videoPublishedAt || item.snippet.publishedAt,
+            thumbnail: (thumb.medium || thumb.default || {}).url || "",
+          });
+        }
+      } catch (err) {
+        // Skip channels that fail (deleted/private/etc.) rather than failing the whole refresh.
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(YOUTUBE_FETCH_CONCURRENCY, entries.length) }, worker));
+
+  videos.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+  return videos.slice(0, 40);
 }
 
 function CalendarMenu({ theme, integrations, setIntegrations, onEvents, connectedCounts }) {
@@ -5403,6 +5509,173 @@ function CalendarMenu({ theme, integrations, setIntegrations, onEvents, connecte
   );
 }
 
+function timeAgo(iso) {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 60) return `${Math.max(mins, 0)}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function YouTubeSection({ theme, integrations, setIntegrations, videos, onVideos, youtubeState, setYoutubeState, delay }) {
+  const [connected, setConnected] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState(null);
+
+  function connectYoutube() {
+    const clientId = integrations.googleClientId.trim();
+    if (!clientId) {
+      setStatus({ type: "error", message: "Add your Google Client ID first (the same one used for Calendar)." });
+      return;
+    }
+    if (!window.google || !window.google.accounts || !window.google.accounts.oauth2) {
+      setStatus({ type: "error", message: "Google's sign-in script hasn't loaded yet — try again in a moment." });
+      return;
+    }
+    setBusy(true);
+    setStatus(null);
+    try {
+      const tokenClient = window.google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: "https://www.googleapis.com/auth/youtube.readonly",
+        callback: async (resp) => {
+          if (resp.error) {
+            setBusy(false);
+            setStatus({ type: "error", message: `Google sign-in failed: ${resp.error}` });
+            return;
+          }
+          try {
+            const fetched = await fetchYoutubeUploads(resp.access_token);
+            onVideos(fetched);
+            setConnected(true);
+            setStatus({ type: "success", message: `Connected — checked ${fetched.length ? "your subscriptions" : "0 subscriptions"}.` });
+            if (!youtubeState.lastSeenAt) {
+              setYoutubeState({ lastSeenAt: Date.now() });
+            }
+          } catch (err) {
+            setStatus({ type: "error", message: err.message || "Failed to fetch YouTube subscriptions." });
+          } finally {
+            setBusy(false);
+          }
+        },
+      });
+      tokenClient.requestAccessToken();
+    } catch (err) {
+      setBusy(false);
+      setStatus({ type: "error", message: err.message || "Couldn't start Google sign-in." });
+    }
+  }
+
+  function disconnectYoutube() {
+    onVideos([]);
+    setConnected(false);
+    setStatus({ type: "success", message: "Disconnected." });
+  }
+
+  function markAllSeen() {
+    setYoutubeState({ lastSeenAt: Date.now() });
+  }
+
+  const lastSeenAt = youtubeState.lastSeenAt;
+  const isNew = (v) => lastSeenAt != null && new Date(v.publishedAt).getTime() > lastSeenAt;
+  const newCount = videos.filter(isNew).length;
+
+  return (
+    <Card theme={theme} delay={delay}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
+        <SectionLabel theme={theme} icon={<IconYoutube />} style={{ marginBottom: 0 }}>YouTube Updates</SectionLabel>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          {videos.length > 0 && newCount > 0 && (
+            <button
+              onClick={markAllSeen}
+              className="v-btn"
+              style={{ fontSize: "11.5px", fontWeight: 700, color: theme.textMuted, background: "transparent", border: `1px solid ${theme.divider}`, borderRadius: "999px", padding: "4px 10px" }}
+            >
+              Mark all seen
+            </button>
+          )}
+          <button
+            onClick={connected ? disconnectYoutube : connectYoutube}
+            disabled={busy}
+            className="v-btn"
+            style={{
+              fontSize: "11.5px",
+              fontWeight: 700,
+              color: connected ? theme.text : theme.accent,
+              background: connected ? "transparent" : theme.accentSoft,
+              border: `1px solid ${connected ? theme.divider : "transparent"}`,
+              borderRadius: "999px",
+              padding: "4px 10px",
+            }}
+          >
+            {busy ? "Connecting…" : connected ? "Disconnect" : "Connect YouTube"}
+          </button>
+        </div>
+      </div>
+
+      {!connected && (
+        <div style={{ fontSize: "12px", color: theme.textMuted, marginBottom: "12px", lineHeight: 1.4 }}>
+          Connects with the same Google account as Calendar and checks the latest upload from every channel you're subscribed to.
+        </div>
+      )}
+      {status && (
+        <div style={{ fontSize: "12px", fontWeight: 600, color: status.type === "error" ? theme.danger : theme.positive, marginBottom: "14px" }}>
+          {status.message}
+        </div>
+      )}
+
+      {connected && videos.length === 0 && (
+        <div style={{ fontSize: "13px", color: theme.textFaint }}>No recent uploads found from your subscriptions.</div>
+      )}
+
+      {videos.length > 0 && (
+        <div className="v-scroll" style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "320px", overflowY: "auto" }}>
+          {videos.map((v) => (
+            <a
+              key={v.id}
+              href={`https://www.youtube.com/watch?v=${v.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: "flex",
+                gap: "10px",
+                alignItems: "center",
+                background: theme.accentSoft,
+                border: `1px solid ${isNew(v) ? theme.accent : theme.divider}`,
+                borderRadius: "10px",
+                padding: "8px 10px",
+                textDecoration: "none",
+              }}
+            >
+              {v.thumbnail ? (
+                <img src={v.thumbnail} alt="" style={{ width: "64px", height: "36px", objectFit: "cover", borderRadius: "6px", flexShrink: 0, display: "block" }} />
+              ) : (
+                <div style={{ width: "64px", height: "36px", borderRadius: "6px", background: theme.progressTrack, flexShrink: 0 }} />
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  {isNew(v) && (
+                    <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: theme.accent, flexShrink: 0 }} />
+                  )}
+                  <span style={{ fontSize: "13px", color: theme.text, fontWeight: isNew(v) ? 700 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {v.title}
+                  </span>
+                </div>
+                <div style={{ fontSize: "11.5px", color: theme.textFaint, marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {v.channelTitle} &middot; {timeAgo(v.publishedAt)}
+                </div>
+              </div>
+            </a>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function scrollToSection(id) {
   const el = document.getElementById(id);
   if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -5462,6 +5735,8 @@ function Sidebar({
   journal,
   goals,
   transactions,
+  newYoutubeCount,
+  youtube,
   setThemeKey,
   setFitness,
   setGolf,
@@ -5476,6 +5751,7 @@ function Sidebar({
   setJournal,
   setGoals,
   setTransactions,
+  setYoutube,
   onEvents,
 }) {
   const doneGoals = goals.filter((g) => g.status === "done").length;
@@ -5495,6 +5771,7 @@ function Sidebar({
     { id: "section-transactions", label: "Transactions", icon: <IconReceipt size={14} />, value: transactions.length || null },
     { id: "section-upcoming", label: "Upcoming", icon: <IconCalendar />, value: upcomingCount || null },
     { id: "section-agenda", label: "Agenda", icon: <IconCalendar />, value: weekAgendaCount || null },
+    { id: "section-youtube", label: "YouTube", icon: <IconYoutube size={14} />, value: newYoutubeCount || null },
     { id: "section-profile", label: "About Me", icon: <IconUser />, value: profile.interests.length || null },
     { id: "section-watchlist", label: "Watch List", icon: <IconFilm size={14} />, value: watchlist.length || null },
     { id: "section-trackers", label: "Trackers", icon: <IconChecklist size={14} />, value: trackers.length || null },
@@ -5576,6 +5853,7 @@ function Sidebar({
           journal={journal}
           goals={goals}
           transactions={transactions}
+          youtube={youtube}
           setThemeKey={setThemeKey}
           setFitness={setFitness}
           setGolf={setGolf}
@@ -5589,6 +5867,7 @@ function Sidebar({
           setJournal={setJournal}
           setGoals={setGoals}
           setTransactions={setTransactions}
+          setYoutube={setYoutube}
         />
         <ThemePicker theme={theme} themeKey={themeKey} setThemeKey={setThemeKey} />
       </div>
@@ -5626,6 +5905,12 @@ function App() {
   const [journal, setJournal] = usePersistentState(STORAGE_KEYS.journal, DEFAULT_JOURNAL);
   const [goals, setGoals] = usePersistentState(STORAGE_KEYS.goals, DEFAULT_GOALS);
   const [transactions, setTransactions] = usePersistentState(STORAGE_KEYS.transactions, DEFAULT_TRANSACTIONS);
+  const [youtube, setYoutube] = usePersistentState(STORAGE_KEYS.youtube, DEFAULT_YOUTUBE);
+  const [youtubeVideos, setYoutubeVideos] = useState([]);
+  const newYoutubeCount = useMemo(
+    () => (youtube.lastSeenAt ? youtubeVideos.filter((v) => new Date(v.publishedAt).getTime() > youtube.lastSeenAt).length : 0),
+    [youtubeVideos, youtube.lastSeenAt]
+  );
 
   const [connectedEvents, setConnectedEvents] = useState({ google: [], microsoft: [] });
   function handleCalendarEvents(source, events) {
@@ -5681,8 +5966,8 @@ function App() {
     return allEvents.filter((e) => isoSet.has(e.date)).length;
   }, [allEvents]);
   const suggestions = useMemo(
-    () => generateSuggestions({ fitness, golf, trackers, profile, events: allEvents, history, weather, watchlist }),
-    [fitness, golf, trackers, profile, allEvents, history, weather, watchlist]
+    () => generateSuggestions({ fitness, golf, trackers, profile, events: allEvents, history, weather, watchlist, newYoutubeCount }),
+    [fitness, golf, trackers, profile, allEvents, history, weather, watchlist, newYoutubeCount]
   );
 
   const [briefingOpen, setBriefingOpen] = useState(() => {
@@ -5732,6 +6017,8 @@ function App() {
         journal={journal}
         goals={goals}
         transactions={transactions}
+        newYoutubeCount={newYoutubeCount}
+        youtube={youtube}
         setThemeKey={setThemeKey}
         setFitness={setFitness}
         setGolf={setGolf}
@@ -5746,6 +6033,7 @@ function App() {
         setJournal={setJournal}
         setGoals={setGoals}
         setTransactions={setTransactions}
+        setYoutube={setYoutube}
         onEvents={handleCalendarEvents}
       />
 
@@ -5815,6 +6103,18 @@ function App() {
             </div>
             <div id="section-agenda" className="v-bento-agenda" style={{ scrollMarginTop: "24px" }}>
               <AgendaStripSection theme={theme} events={allEvents} delay={220} />
+            </div>
+            <div id="section-youtube" className="v-bento-youtube" style={{ scrollMarginTop: "24px" }}>
+              <YouTubeSection
+                theme={theme}
+                integrations={integrations}
+                setIntegrations={setIntegrations}
+                videos={youtubeVideos}
+                onVideos={setYoutubeVideos}
+                youtubeState={youtube}
+                setYoutubeState={setYoutube}
+                delay={230}
+              />
             </div>
             <div id="section-profile" className="v-bento-profile" style={{ scrollMarginTop: "24px" }}>
               <ProfileSection theme={theme} profile={profile} setProfile={setProfile} />
