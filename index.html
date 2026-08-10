@@ -13,6 +13,12 @@
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" href="icon-192.png" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<!-- Space Grotesk: only used inside the Fantasy tab's shadow-DOM-scoped stylesheet
+     (ported from "The War Room"), but fonts are a document-level resource so the
+     <link> has to live in the page's real <head>, not inside the shadow root. -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
@@ -732,7 +738,22 @@ const STORAGE_KEYS = {
   youtube: "dash.youtube",
   golfSimRounds: "dash.golfSimRounds",
   golfOutdoorRounds: "dash.golfOutdoorRounds",
+  fantasyCheatSheets: "dash.fantasyCheatSheets",
+  fantasyCustomRankings: "dash.fantasyCustomRankings",
+  fantasyWatchlist: "dash.fantasyWatchlist",
+  fantasySleeper: "dash.fantasySleeper",
+  fantasyYahoo: "dash.fantasyYahoo",
 };
+
+// "The War Room" fantasy-football port — defaults for the localStorage-backed
+// fields that replaced its server-side Netlify Blobs storage (cheat sheets,
+// custom rankings, watchlist, linked league IDs). Yahoo tokens are the one
+// exception and stay server-side (see netlify/functions/fantasy-yahoo.js).
+const DEFAULT_FANTASY_CHEAT_SHEETS = {};
+const DEFAULT_FANTASY_CUSTOM_RANKINGS = {};
+const DEFAULT_FANTASY_WATCHLIST = [];
+const DEFAULT_FANTASY_SLEEPER = { username: "", userId: "", linkedLeagueIds: [] };
+const DEFAULT_FANTASY_YAHOO = { linkedLeagueKeys: [] };
 
 function isMergeablePlainObject(v) {
   return v !== null && typeof v === "object" && !Array.isArray(v);
@@ -776,7 +797,11 @@ function usePersistentState(key, initial) {
 function useHashRoute(defaultRoute, validIds) {
   function resolve() {
     const raw = window.location.hash.replace(/^#/, "");
-    return raw && validIds.includes(raw) ? raw : defaultRoute;
+    // Only the first "/"-segment decides the top-level page, so a page that owns
+    // a deeper sub-path (e.g. the Fantasy tab's "fantasy/players/123") still
+    // resolves here instead of falling back to defaultRoute.
+    const top = raw.split("/")[0];
+    return top && validIds.includes(top) ? top : defaultRoute;
   }
   const [route, setRoute] = useState(resolve);
   useEffect(() => {
@@ -791,6 +816,32 @@ function useHashRoute(defaultRoute, validIds) {
     window.location.hash = next === defaultRoute ? "" : next;
   }
   return [route, navigate];
+}
+
+// Nested router for the Fantasy tab's own sub-pages (mirrors the original
+// app's react-router routes: /players, /players/:id, /trade-analyzer, ...).
+// Reads everything after "fantasy/" in the hash so sub-pages stay bookmarkable
+// and back/forward keeps working, same rationale as useHashRoute above.
+function useFantasySubRoute() {
+  function resolve() {
+    const raw = window.location.hash.replace(/^#/, "");
+    if (!raw.startsWith("fantasy")) return [];
+    const rest = raw.slice("fantasy".length).replace(/^\//, "");
+    return rest ? rest.split("/") : [];
+  }
+  const [segments, setSegments] = useState(resolve);
+  useEffect(() => {
+    function onHashChange() {
+      setSegments(resolve());
+    }
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  function navigate(path) {
+    window.location.hash = path ? `fantasy/${path}` : "fantasy";
+  }
+  return [segments, navigate];
 }
 
 /* ----------------------------------------------------------------------
@@ -1473,6 +1524,16 @@ function IconGolf() {
   );
 }
 
+function IconFootball({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <ellipse cx="12" cy="12" rx="9" ry="5.5" transform="rotate(-40 12 12)" />
+      <path d="M8.2 9.5l7.6 5" />
+      <path d="M10 8.7l-.7 1.4M12 10l-.7 1.4M14 11.3l-.7 1.4" />
+    </svg>
+  );
+}
+
 function IconCalendar() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1738,6 +1799,59 @@ async function dbDeletePhoto(id) {
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
+}
+
+// Generic TTL cache for the Fantasy tab's larger client-fetched payloads (the
+// ~14MB Sleeper player directory, FantasyCalc trade values per format) — same
+// "IndexedDB for anything too big/ephemeral for localStorage" rationale as the
+// golf photo store above, just keyed generically instead of one store per feature.
+const FF_CACHE_DB_NAME = "vantage-fantasy-cache";
+const FF_CACHE_STORE = "cache";
+
+function openFFCacheDB() {
+  return new Promise((resolve, reject) => {
+    if (!window.indexedDB) {
+      reject(new Error("This browser doesn't support local caching."));
+      return;
+    }
+    const req = indexedDB.open(FF_CACHE_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(FF_CACHE_STORE)) {
+        db.createObjectStore(FF_CACHE_STORE, { keyPath: "id" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function dbGetCache(id) {
+  const db = await openFFCacheDB();
+  return new Promise((resolve) => {
+    const req = db.transaction(FF_CACHE_STORE, "readonly").objectStore(FF_CACHE_STORE).get(id);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => resolve(null);
+  });
+}
+
+async function dbSetCache(id, data) {
+  const db = await openFFCacheDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(FF_CACHE_STORE, "readwrite");
+    tx.objectStore(FF_CACHE_STORE).put({ id, data, fetchedAt: Date.now() });
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+// Returns cached data if present and younger than maxAgeMs, else null — callers
+// decide what to do on a miss (fetch fresh, then dbSetCache the result).
+async function dbGetFreshCache(id, maxAgeMs) {
+  const record = await dbGetCache(id);
+  if (!record) return null;
+  if (Date.now() - record.fetchedAt > maxAgeMs) return null;
+  return record.data;
 }
 
 // iPhones shoot HEIC by default and browsers (Safari included, inconsistently)
@@ -6014,6 +6128,7 @@ function YouTubeSection({ theme, integrations, setIntegrations, videos, onVideos
 const PAGE_META = [
   { id: "fitness", label: "Fitness", icon: <IconDumbbell /> },
   { id: "golf", label: "Golf", icon: <IconGolf /> },
+  { id: "fantasy", label: "Fantasy", icon: <IconFootball size={14} /> },
   { id: "financial", label: "Financial", icon: <IconTrendingUp /> },
   { id: "transactions", label: "Transactions", icon: <IconReceipt size={14} /> },
   { id: "upcoming", label: "Upcoming", icon: <IconCalendar /> },
@@ -6092,6 +6207,7 @@ function Sidebar({
   youtube,
   golfSimRounds,
   golfOutdoorRounds,
+  fantasyWatchlist,
   page,
   onNavigate,
   setThemeKey,
@@ -6128,6 +6244,7 @@ function Sidebar({
     goals: goals.length ? `${doneGoals}/${goals.length}` : null,
     videos: null,
     journal: journal.length || null,
+    fantasy: fantasyWatchlist.length || null,
   };
 
   return (
@@ -6304,6 +6421,11 @@ function App() {
   const [golf, setGolf] = usePersistentState(STORAGE_KEYS.golf, DEFAULT_GOLF);
   const [golfSimRounds, setGolfSimRounds] = usePersistentState(STORAGE_KEYS.golfSimRounds, DEFAULT_GOLF_ROUNDS);
   const [golfOutdoorRounds, setGolfOutdoorRounds] = usePersistentState(STORAGE_KEYS.golfOutdoorRounds, DEFAULT_GOLF_ROUNDS);
+  const [fantasyCheatSheets, setFantasyCheatSheets] = usePersistentState(STORAGE_KEYS.fantasyCheatSheets, DEFAULT_FANTASY_CHEAT_SHEETS);
+  const [fantasyCustomRankings, setFantasyCustomRankings] = usePersistentState(STORAGE_KEYS.fantasyCustomRankings, DEFAULT_FANTASY_CUSTOM_RANKINGS);
+  const [fantasyWatchlist, setFantasyWatchlist] = usePersistentState(STORAGE_KEYS.fantasyWatchlist, DEFAULT_FANTASY_WATCHLIST);
+  const [fantasySleeper, setFantasySleeper] = usePersistentState(STORAGE_KEYS.fantasySleeper, DEFAULT_FANTASY_SLEEPER);
+  const [fantasyYahoo, setFantasyYahoo] = usePersistentState(STORAGE_KEYS.fantasyYahoo, DEFAULT_FANTASY_YAHOO);
   const [trackers, setTrackers] = usePersistentState(STORAGE_KEYS.trackers, DEFAULT_TRACKERS);
   const [financial, setFinancial] = usePersistentState(STORAGE_KEYS.financial, DEFAULT_FINANCIAL);
   const [events, setEvents] = usePersistentState(STORAGE_KEYS.upcoming, DEFAULT_UPCOMING_EVENTS);
@@ -6429,6 +6551,7 @@ function App() {
     goals: { value: goals.length ? `${doneGoals}/${goals.length}` : 0, detail: "done" },
     videos: { value: null, detail: "library" },
     journal: { value: journal.length || 0, detail: "entries" },
+    fantasy: { value: fantasyWatchlist.length || 0, detail: "watchlist" },
   };
 
   return (
@@ -6467,6 +6590,7 @@ function App() {
         youtube={youtube}
         golfSimRounds={golfSimRounds}
         golfOutdoorRounds={golfOutdoorRounds}
+        fantasyWatchlist={fantasyWatchlist}
         page={page}
         onNavigate={navigate}
         setThemeKey={setThemeKey}
@@ -6490,7 +6614,7 @@ function App() {
       <div className="v-main">
         <div
           style={{
-            maxWidth: page === "home" ? "1200px" : "760px",
+            maxWidth: page === "home" ? "1200px" : page === "fantasy" ? "1320px" : "760px",
             margin: "0 auto",
             padding: "32px 20px 64px",
           }}
@@ -6516,6 +6640,21 @@ function App() {
               <GolfRoundLog theme={theme} title="Simulator Rounds" rounds={golfSimRounds} setRounds={setGolfSimRounds} delay={0} />
               <GolfRoundLog theme={theme} title="Outdoor Rounds" rounds={golfOutdoorRounds} setRounds={setGolfOutdoorRounds} delay={0} />
             </div>
+          )}
+          {page === "fantasy" && (
+            <FFPage
+              theme={theme}
+              cheatSheets={fantasyCheatSheets}
+              setCheatSheets={setFantasyCheatSheets}
+              customRankings={fantasyCustomRankings}
+              setCustomRankings={setFantasyCustomRankings}
+              watchlist={fantasyWatchlist}
+              setWatchlist={setFantasyWatchlist}
+              sleeper={fantasySleeper}
+              setSleeper={setFantasySleeper}
+              yahoo={fantasyYahoo}
+              setYahoo={setFantasyYahoo}
+            />
           )}
           {page === "financial" && <FinancialSection theme={theme} data={financial} setData={setFinancial} />}
           {page === "transactions" && (
@@ -6559,6 +6698,2370 @@ function App() {
       {briefingOpen && suggestions.length > 0 && (
         <BriefingModal theme={theme} suggestions={suggestions} weather={weather} onClose={dismissBriefing} />
       )}
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------------
+   FANTASY TAB — ported from "The War Room" (a separate fantasy-football
+   dashboard app: react-router + react-query + Netlify Functions/Blobs).
+   Its own design system (FF_CSS below) is pasted in near-verbatim and
+   rendered inside a real Shadow DOM subtree (FFShadowRoot) so its ~300
+   classes never have to be reconciled with Vantage's theme system — style
+   isolation works in both directions for free. Only two seams change from
+   the original file: ":root" -> ":host" (a shadow tree has no document
+   root), and --accent reads from --ff-accent, which FFShadowRoot sets from
+   Vantage's active theme.accent — the one deliberate "both of the above"
+   hook between the two design systems the user asked for. The outer page
+   header/sub-nav around it is plain Vantage theme-driven JSX, same as every
+   other page.
+---------------------------------------------------------------------- */
+
+const FF_CSS = `
+:host {
+  /* Surfaces */
+  --bg: #0a0d12;
+  --surface: #131820;
+  --surface-2: #1a2029;
+  --surface-3: #222a36;
+  --border: #262e3a;
+  --border-strong: #37414f;
+
+  /* Text */
+  --text: #eef1f5;
+  --text-secondary: #b9c1cd;
+  --muted: #7c8798;
+
+  /* Brand / accent */
+  --accent: var(--ff-accent, #2f7dff);
+  --accent-strong: #1f63e6;
+  --accent-soft: rgba(47, 125, 255, 0.16);
+  --teal: #17d9c4;
+  --accent-gradient: linear-gradient(135deg, var(--accent), var(--teal));
+
+  /* Functional */
+  --success: #22c55e;
+  --success-soft: rgba(34, 197, 94, 0.14);
+  --danger: #ef4444;
+  --danger-soft: rgba(239, 68, 68, 0.14);
+  --warning: #f59e0b;
+  --warning-soft: rgba(245, 158, 11, 0.14);
+
+  /* Tiers */
+  --gold: #ffd166;
+  --silver: #cbd5e1;
+  --bronze: #d99a5b;
+
+  /* Positions */
+  --pos-qb: #ef5158;
+  --pos-rb: #2fbf71;
+  --pos-wr: #3b82f6;
+  --pos-te: #f0973b;
+  --pos-k: #a78bfa;
+  --pos-def: #6b7684;
+  --pos-pick: #d4a017;
+
+  /* Platforms */
+  --sleeper: #4c6ef5;
+  --yahoo: #6b21d8;
+
+  /* Shape */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+
+  /* Shadow */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5), 0 1px 1px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 0 1px var(--accent-soft), 0 8px 22px rgba(47, 125, 255, 0.28);
+
+  /* Base — ported from index.css's body{} rule; there's no <body> inside a
+     shadow tree, so these live on :host and inherit down instead. */
+  display: block;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- Reset ---------- */
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: var(--accent);
+}
+
+h1,
+h2,
+h3 {
+  margin: 0 0 0.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+h1 {
+  font-size: 1.9rem;
+}
+
+h2 {
+  font-size: 1.25rem;
+  margin-top: 0;
+}
+
+h3 {
+  font-size: 1rem;
+}
+
+p {
+  margin: 0 0 0.75rem;
+  color: var(--text-secondary);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-pill);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* ---------- Buttons, inputs, selects ---------- */
+
+button,
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  background: var(--accent-gradient);
+  color: #051220;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 0.55rem 1.1rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  box-shadow: var(--shadow-sm);
+  transition: filter 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+}
+
+button:hover,
+.button-link:hover {
+  filter: brightness(1.08);
+  box-shadow: var(--shadow-glow);
+}
+
+button:active,
+.button-link:active {
+  transform: translateY(1px);
+}
+
+button:disabled {
+  background: var(--surface-3);
+  color: var(--muted);
+  cursor: not-allowed;
+  box-shadow: none;
+  filter: none;
+}
+
+input[type="text"],
+input[type="number"],
+select {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 0.55rem 0.75rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 18px) center, calc(100% - 13px) center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 2rem;
+  cursor: pointer;
+}
+
+input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
+
+/* ---------- Layout ---------- */
+
+.page {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0.5rem 0 3.5rem;
+  width: 100%;
+  flex: 1;
+}
+
+.page--wide {
+  max-width: 1360px;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.page-header h1 {
+  font-size: 1.5rem;
+}
+
+section {
+  margin-bottom: 2rem;
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  align-items: center;
+}
+
+.filter-bar input[type="text"] {
+  flex: 1 1 220px;
+}
+
+.filter-bar--secondary {
+  margin-top: -0.25rem;
+}
+
+.filter-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0.5rem 0.8rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.filter-toggle:has(input:checked) {
+  color: var(--text);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.empty-state {
+  color: var(--muted);
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.pagination__status {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.pagination button {
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: none;
+}
+
+.pagination button:hover:not(:disabled) {
+  filter: none;
+  background: var(--surface-3);
+  box-shadow: none;
+}
+
+.pagination button:disabled {
+  opacity: 0.5;
+}
+
+.error-text {
+  color: var(--danger);
+}
+
+.success-text {
+  color: var(--success);
+}
+
+.data-source-note {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin: -0.4rem 0 1rem;
+}
+
+.warning-banner {
+  background: var(--warning-soft);
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  color: #ffd08a;
+}
+
+.back-link {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  color: var(--muted);
+  text-decoration: none;
+  display: inline-block;
+  margin-bottom: 1rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.back-link:hover {
+  color: var(--text);
+  filter: none;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ---------- Dashboard widget grid ---------- */
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.dashboard-widget {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.dashboard-widget--wide {
+  grid-column: 1 / -1;
+}
+
+.dashboard-widget__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.dashboard-widget__header h2 {
+  margin: 0;
+}
+
+.dashboard-widget__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+/* ---------- Tables ---------- */
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table th,
+.data-table td {
+  text-align: left;
+  padding: 0.6rem 0.85rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.data-table th {
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--surface-2);
+}
+
+.data-table tbody tr {
+  transition: background-color 0.1s ease;
+}
+
+.data-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.data-table tbody tr:hover {
+  background: var(--surface-3);
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table-scroll {
+  overflow-x: auto;
+  border-radius: var(--radius-lg);
+}
+
+.game-log-points {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.game-log-points__track {
+  width: 60px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.game-log-points__bar {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--accent-gradient);
+}
+
+.data-table-scroll--frozen-first .data-table th:first-child,
+.data-table-scroll--frozen-first .data-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: rgba(26, 32, 41, 0.75);
+}
+
+.data-table-scroll--frozen-first .data-table tbody td:first-child {
+  background: rgba(19, 24, 32, 0.75);
+}
+
+.data-table-scroll--frozen-first .data-table tbody tr:nth-child(even) td:first-child {
+  background: rgba(23, 29, 38, 0.75);
+}
+
+.table-player-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.table-player-link {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.table-player-link:hover {
+  color: var(--accent);
+}
+
+.players-table__number {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.trending-count {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.injury-badge {
+  color: var(--warning);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.checklist {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+}
+
+.checklist li {
+  padding: 0.35rem 0;
+}
+
+.checklist label {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+/* ---------- Badges ---------- */
+
+.position-badge {
+  display: inline-block;
+  padding: 0.18rem 0.55rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #071019;
+}
+
+.position-badge--QB {
+  background: var(--pos-qb);
+  color: white;
+}
+
+.position-badge--RB {
+  background: var(--pos-rb);
+}
+
+.position-badge--WR {
+  background: var(--pos-wr);
+  color: white;
+}
+
+.position-badge--TE {
+  background: var(--pos-te);
+}
+
+.position-badge--K {
+  background: var(--pos-k);
+  color: white;
+}
+
+.position-badge--DEF {
+  background: var(--pos-def);
+  color: white;
+}
+
+.position-badge--PICK {
+  background: var(--pos-pick);
+}
+
+.position-badge--UNK {
+  background: var(--border-strong);
+  color: var(--muted);
+}
+
+.platform-badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: white;
+  vertical-align: middle;
+}
+
+.platform-badge--sleeper {
+  background: var(--sleeper);
+}
+
+.platform-badge--yahoo {
+  background: var(--yahoo);
+}
+
+.team-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.team-tag__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.rank-medal {
+  font-weight: 800;
+}
+
+span.rank-medal--gold {
+  color: var(--gold);
+}
+
+span.rank-medal--silver {
+  color: var(--silver);
+}
+
+span.rank-medal--bronze {
+  color: var(--bronze);
+}
+
+/* ---------- Avatars ---------- */
+
+.player-avatar {
+  border-radius: 999px;
+  object-fit: cover;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.player-avatar--sm {
+  width: 30px;
+  height: 30px;
+}
+
+.player-avatar--md {
+  width: 52px;
+  height: 52px;
+}
+
+.player-avatar--lg {
+  width: 120px;
+  height: 120px;
+  border-width: 3px;
+  border-color: var(--accent);
+  box-shadow: var(--shadow-glow);
+}
+
+.player-avatar--logo {
+  object-fit: contain;
+  background: var(--surface);
+  padding: 4px;
+}
+
+.player-avatar--fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 0.8rem;
+}
+
+.player-avatar--lg.player-avatar--fallback {
+  font-size: 2.2rem;
+}
+
+/* ---------- Watchlist ---------- */
+
+.watchlist-button {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0.1rem 0.2rem;
+  color: var(--muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.watchlist-button:hover {
+  color: var(--gold);
+  filter: none;
+  transform: none;
+}
+
+.watchlist-button--active {
+  color: var(--gold);
+}
+
+h1 .watchlist-button {
+  font-size: 1.25rem;
+  vertical-align: middle;
+  margin-left: 0.4rem;
+}
+
+/* ---------- Top players list (Dashboard) ---------- */
+
+.top-players-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.top-player-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 0.75rem;
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.top-player-row:hover {
+  border-color: var(--accent);
+  background: var(--surface-3);
+}
+
+.top-player-row__rank {
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  width: 2rem;
+  flex-shrink: 0;
+}
+
+.top-player-row__name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.top-player-row__value {
+  color: var(--text-secondary);
+  font-weight: 700;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+}
+
+/* ---------- League cards / matchup ---------- */
+
+.league-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.league-card {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 0.9rem;
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.league-card:hover {
+  border-color: var(--accent);
+  background: var(--surface-3);
+}
+
+.league-card__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.league-card__body h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.league-card__team {
+  color: var(--text-secondary);
+  margin: 0.1rem 0 0;
+  font-size: 0.82rem;
+}
+
+.league-card__record {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin: 0;
+  text-align: right;
+  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.1rem;
+}
+
+.league-card__season {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.matchup-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.matchup-card__team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1;
+  padding: 0.75rem;
+  border-radius: var(--radius-md);
+}
+
+.matchup-card__team--leading {
+  background: var(--success-soft);
+}
+
+.matchup-card__name {
+  font-weight: 700;
+}
+
+.matchup-card__score {
+  font-size: 1.75rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.matchup-card__team--leading .matchup-card__score {
+  color: var(--success);
+}
+
+.matchup-card__vs {
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+
+.league-settings__positions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.3rem;
+}
+
+.transactions-feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.transactions-feed__row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+}
+
+.transactions-feed__type {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--accent);
+  min-width: 6.5rem;
+}
+
+.transactions-feed__body {
+  flex: 1;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+}
+
+.transactions-feed__body p {
+  margin: 0.15rem 0;
+}
+
+.transactions-feed__date {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+/* ---------- Player profile ---------- */
+
+.player-profile__banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.75rem;
+}
+
+.player-profile__identity {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+}
+
+.player-profile__identity h1 {
+  font-size: 1.55rem;
+  margin-bottom: 0.35rem;
+}
+
+.player-profile__number {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-left: 0.5rem;
+  font-weight: 500;
+}
+
+.player-profile__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.player-profile__stats {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.player-profile__stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.player-profile__bio-label {
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+
+.player-profile__stats span:last-child {
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ranking-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+}
+
+.ranking-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.1rem 1rem;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+}
+
+.ranking-card__label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+
+.ranking-card__rank {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.ranking-card__value {
+  color: var(--text);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ranking-card__unranked {
+  color: var(--muted);
+  font-weight: 600;
+  padding: 0.5rem 0;
+}
+
+/* ---------- Trade analyzer ---------- */
+
+.trade-grid {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.trade-vs {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  background: var(--accent-gradient);
+  color: #051220;
+  font-weight: 800;
+  font-size: 0.8rem;
+  letter-spacing: 0.03em;
+  box-shadow: var(--shadow-sm);
+  justify-self: center;
+}
+
+@media (max-width: 700px) {
+  .trade-grid {
+    grid-template-columns: 1fr;
+  }
+  .trade-vs {
+    margin: -0.25rem auto;
+  }
+}
+
+.trade-side {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.15rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.trade-side h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1.02rem;
+}
+
+.trade-side input[type="text"] {
+  width: 100%;
+  margin-right: 0;
+  margin-bottom: 0.5rem;
+  box-sizing: border-box;
+}
+
+.trade-side__matches {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.trade-side__matches button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  color: var(--text);
+  border-radius: 0;
+  padding: 0.55rem 0.85rem;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.trade-side__matches button:hover {
+  background: var(--surface-2);
+  filter: none;
+  transform: none;
+}
+
+.trade-side__selected {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.trade-side__selected li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.trade-side__value {
+  color: var(--accent);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.trade-side__remove {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0 0.3rem;
+  color: var(--muted);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.trade-side__remove:hover {
+  color: var(--danger);
+  filter: none;
+  transform: none;
+}
+
+.trade-side__total {
+  margin: 0.75rem 0 0;
+  font-weight: 700;
+}
+
+.trade-verdict {
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+  font-weight: 700;
+  text-align: center;
+  border: 1px solid var(--border);
+}
+
+.trade-verdict--neutral {
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.trade-verdict--even {
+  background: var(--success-soft);
+  border-color: color-mix(in srgb, var(--success) 45%, transparent);
+  color: #86efac;
+}
+
+.trade-verdict--lopsided {
+  background: var(--warning-soft);
+  border-color: color-mix(in srgb, var(--warning) 45%, transparent);
+  color: #fcd34d;
+}
+
+.trade-review-trigger {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+/* ---------- Comparison table ---------- */
+
+.comparison-scroll {
+  overflow-x: auto;
+  margin-top: 1rem;
+  border-radius: var(--radius-lg);
+}
+
+.comparison-table {
+  min-width: 100%;
+}
+
+.comparison-table th,
+.comparison-table td {
+  white-space: nowrap;
+}
+
+.comparison-table__label {
+  color: var(--muted);
+  font-weight: 800;
+  position: sticky;
+  left: 0;
+  background: var(--surface);
+}
+
+.comparison-table th:first-child {
+  position: sticky;
+  left: 0;
+  background: var(--surface-2);
+  z-index: 1;
+}
+
+.comparison-table__player {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.comparison-table__player a {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.comparison-table__player a:hover {
+  color: var(--accent);
+}
+
+.comparison-table__winner {
+  color: var(--success);
+  font-weight: 800;
+}
+
+/* ---------- Modal ---------- */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 6, 10, 0.78);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 4vh 1.5rem;
+  z-index: 100;
+  overflow-y: auto;
+}
+
+.modal-panel {
+  width: 100%;
+  max-width: 640px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.15rem 1.4rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-panel__header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.modal-panel__close {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0.2rem 0.5rem;
+  color: var(--muted);
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.modal-panel__close:hover {
+  color: var(--text);
+  filter: none;
+  transform: none;
+}
+
+.modal-panel__body {
+  padding: 1.4rem;
+  overflow-y: auto;
+}
+
+.comparison-modal__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.player-detail-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+}
+
+.player-detail-card__label {
+  display: inline-block;
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+}
+
+.player-detail-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 0.9rem;
+}
+
+.player-detail-card__name {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 800;
+  font-size: 1rem;
+}
+
+.player-detail-card__name:hover {
+  color: var(--accent);
+}
+
+.player-detail-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.35rem;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.player-detail-card__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(105px, 1fr));
+  gap: 0.8rem;
+}
+
+.player-detail-card__grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.player-detail-card__stat-label {
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+
+.trade-review-modal__verdict {
+  text-align: center;
+  font-weight: 700;
+  margin: 0 0 1.15rem;
+}
+
+.trade-review-modal__columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.15rem;
+}
+
+.trade-review-modal__columns h3 {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+}
+
+@media (max-width: 600px) {
+  .trade-review-modal__columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Onboarding ---------- */
+
+.onboarding-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.4rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.onboarding-section--sleeper {
+  border-left-color: var(--sleeper);
+}
+
+.onboarding-section--yahoo {
+  border-left-color: var(--yahoo);
+}
+
+/* ---------- Import rankings ---------- */
+
+.import-rankings__form,
+.import-rankings__review,
+.import-rankings__saved {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.4rem;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.import-rankings__form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.import-rankings__step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: var(--radius-pill);
+  background: var(--accent-gradient);
+  color: #051220;
+  font-size: 0.72rem;
+  font-weight: 800;
+  margin-right: 0.3rem;
+}
+
+.import-rankings__form input[type="text"],
+.import-rankings__form textarea {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.75rem;
+  color: var(--text);
+  font-size: 0.92rem;
+  font-family: inherit;
+}
+
+.import-rankings__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.import-rankings__line {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0.75rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.import-rankings__line-text {
+  flex: 1 1 240px;
+  color: var(--text);
+}
+
+.import-rankings__search {
+  position: relative;
+  flex: 1 1 220px;
+}
+
+.ranking-set-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.8rem;
+}
+
+.ranking-set-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  text-align: left;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.ranking-set-card:hover {
+  border-color: var(--accent);
+  background: var(--surface-3);
+}
+
+.ranking-set-card--active {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-glow);
+}
+
+.ranking-set-card__name {
+  font-weight: 800;
+  font-size: 0.92rem;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ranking-set-card__count {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.ranking-set-card__bar {
+  display: flex;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: var(--surface-3);
+}
+
+.ranking-set-card__bar-segment {
+  height: 100%;
+}
+
+.ranking-set-card__bar-segment--QB {
+  background: var(--pos-qb);
+}
+
+.ranking-set-card__bar-segment--RB {
+  background: var(--pos-rb);
+}
+
+.ranking-set-card__bar-segment--WR {
+  background: var(--pos-wr);
+}
+
+.ranking-set-card__bar-segment--TE {
+  background: var(--pos-te);
+}
+
+.ranking-set-card__bar-segment--K {
+  background: var(--pos-k);
+}
+
+.ranking-set-card__bar-segment--DEF {
+  background: var(--pos-def);
+}
+
+.ranking-set-viewer {
+  margin-top: 1.2rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--border);
+}
+
+.ranking-set-viewer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.ranking-set-viewer__header h3 {
+  margin: 0;
+}
+
+.ranking-set-viewer__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.ranking-set-viewer__filters {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.ranking-set-filter-chip {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  box-shadow: none;
+  color: var(--text-secondary);
+  padding: 0.3rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: var(--radius-pill);
+}
+
+.ranking-set-filter-chip:hover {
+  filter: none;
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.ranking-set-filter-chip--active {
+  background: var(--accent-gradient);
+  border-color: transparent;
+  color: #051220;
+}
+
+.ranking-set-viewer__delete {
+  background: none;
+  border: 1px solid var(--border);
+  box-shadow: none;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+}
+
+.ranking-set-viewer__delete:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+  filter: none;
+  transform: none;
+}
+
+.ranking-set-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 640px;
+  overflow-y: auto;
+}
+
+.ranking-set-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 0.75rem;
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.ranking-set-row:hover {
+  border-color: var(--accent);
+  background: var(--surface-3);
+}
+
+.ranking-set-row__rank {
+  width: 2.5rem;
+  flex-shrink: 0;
+  font-weight: 800;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+.ranking-set-row__name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ranking-set-row__pos-rank {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* ---------- Mock draft ---------- */
+
+.draft-settings {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.draft-settings__row {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.1rem;
+}
+
+.draft-settings__row label,
+.draft-settings__slot {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.draft-settings__row input,
+.draft-settings__row select,
+.draft-settings__slot input {
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.draft-settings__slots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.draft-settings input[type="number"] {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.65rem;
+  width: 100%;
+}
+
+.draft-clock {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 0.7rem 1.1rem;
+  margin-bottom: 1rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.draft-clock strong {
+  color: var(--accent);
+}
+
+.draft-clock--user {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-glow);
+}
+
+.draft-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(340px, 1.5fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .draft-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.draft-pick-controls {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.draft-roster-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.draft-roster-panel__group {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.6rem 0.85rem;
+}
+
+.draft-roster-panel__slot-label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 800;
+  margin-bottom: 0.4rem;
+}
+
+.draft-roster-panel__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+  font-weight: 600;
+}
+
+.draft-board-scroll {
+  overflow-x: auto;
+  margin-bottom: 1.1rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+}
+
+.draft-board {
+  border-collapse: collapse;
+  width: 100%;
+  background: var(--surface);
+  font-size: 0.88rem;
+}
+
+.draft-board th,
+.draft-board td {
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.55rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.draft-board th {
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  position: sticky;
+  top: 0;
+}
+
+.draft-board__corner {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+
+.draft-board__round {
+  position: sticky;
+  left: 0;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-weight: 800;
+  z-index: 1;
+}
+
+.draft-board__cell {
+  min-width: 112px;
+  vertical-align: top;
+}
+
+.draft-board__cell--current {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.draft-board__player-name {
+  display: block;
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-bottom: 0.2rem;
+}
+
+.draft-board__on-clock {
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 0.78rem;
+}
+
+.draft-board__empty {
+  color: var(--border-strong);
+}
+
+.available-players__tabs {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.available-players__tab {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  box-shadow: none;
+}
+
+.available-players__tab:hover {
+  color: var(--text);
+  transform: none;
+  box-shadow: none;
+}
+
+.available-players__tab--active {
+  background: var(--accent-gradient);
+  color: #051220;
+  border-color: transparent;
+}
+
+.available-players input[type="text"] {
+  width: 100%;
+  margin: 0.75rem 0;
+  box-sizing: border-box;
+}
+
+.available-players__scroll {
+  max-height: 520px;
+  overflow-y: auto;
+  border-radius: var(--radius-lg);
+}
+
+.available-players__scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface-2);
+}
+
+.available-players button {
+  padding: 0.35rem 0.85rem;
+  font-size: 0.8rem;
+}
+
+.draft-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.draft-summary-team h2 {
+  font-size: 1.02rem;
+  margin-bottom: 0.6rem;
+}
+
+/* ---------- Draft grades ---------- */
+
+.draft-grades-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.9rem;
+  margin-bottom: 2rem;
+}
+
+.draft-grade-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.draft-grade-card--you {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-glow);
+}
+
+.draft-grade-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.2rem;
+}
+
+.draft-grade-card__team {
+  font-weight: 800;
+  font-size: 0.92rem;
+}
+
+.draft-grade-card__letter {
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.draft-grade-card--A .draft-grade-card__letter {
+  color: var(--success);
+}
+
+.draft-grade-card--B .draft-grade-card__letter {
+  color: var(--accent);
+}
+
+.draft-grade-card--C .draft-grade-card__letter {
+  color: var(--warning);
+}
+
+.draft-grade-card--D .draft-grade-card__letter {
+  color: var(--bronze);
+}
+
+.draft-grade-card--F .draft-grade-card__letter {
+  color: var(--danger);
+}
+
+.draft-grade-card__surplus {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.draft-grade-card__line {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.draft-grade-card__line strong {
+  color: var(--text);
+}
+
+.draft-grade-card__notes {
+  margin: 0.2rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+/* ---------- Cheat sheets ---------- */
+
+.cheat-sheet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.9rem;
+}
+
+.cheat-sheet-card {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.9rem 1rem;
+  transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.cheat-sheet-card:hover {
+  border-color: var(--accent);
+  background: var(--surface-3);
+}
+
+.cheat-sheet-card__body {
+  flex: 1;
+  min-width: 0;
+  text-decoration: none;
+  color: var(--text);
+}
+
+.cheat-sheet-card__body h3 {
+  margin: 0 0 0.2rem;
+  font-size: 1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cheat-sheet-card__meta {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.cheat-sheet-card__delete {
+  background: none;
+  border: 1px solid var(--border);
+  box-shadow: none;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+}
+
+.cheat-sheet-card__delete:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+  filter: none;
+  transform: none;
+  box-shadow: none;
+}
+
+.cheat-sheet-editor__name {
+  width: 100%;
+  max-width: 480px;
+  font-size: 1.3rem;
+  font-weight: 800;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  padding: 0.2rem 0;
+  color: var(--text);
+}
+
+.cheat-sheet-editor__name:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+  box-shadow: none;
+}
+
+.cheat-sheet-editor__teams-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.cheat-sheet-editor__teams-field input {
+  width: 4.5rem;
+}
+
+.cheat-sheet-editor__notes {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  padding: 0.7rem 0.9rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+  margin-bottom: 1.5rem;
+}
+
+.cheat-sheet-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.cheat-sheet-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 0.75rem;
+}
+
+.cheat-sheet-row--drafted {
+  opacity: 0.5;
+}
+
+.cheat-sheet-row--drafted .cheat-sheet-row__name {
+  text-decoration: line-through;
+}
+
+.cheat-sheet-row__round {
+  width: 3rem;
+  flex-shrink: 0;
+  text-align: center;
+  padding: 0.4rem 0.3rem;
+}
+
+.cheat-sheet-row__name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--text);
+  text-decoration: none;
+  white-space: nowrap;
+  min-width: 6rem;
+}
+
+.cheat-sheet-row__name:hover {
+  color: var(--accent);
+}
+
+.cheat-sheet-row__rank {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  width: 2.5rem;
+}
+
+.cheat-sheet-row__note {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.6rem;
+}
+
+.cheat-sheet-row__drafted-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+`;
+
+// Renders children inside a real Shadow DOM subtree carrying FF_CSS — style
+// isolation works in both directions, so ~2,400 lines of a completely
+// different app's CSS (classes, bare h1/a/button selectors, the works) can
+// be pasted in near-verbatim without any risk of colliding with Vantage's
+// own styles, and without Vantage's styles leaking in either.
+function FFShadowRoot({ accent, children }) {
+  const hostRef = useRef(null);
+  const [shadowRoot, setShadowRoot] = useState(null);
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    setShadowRoot(host.shadowRoot || host.attachShadow({ mode: "open" }));
+  }, []);
+  return (
+    <div ref={hostRef} style={{ "--ff-accent": accent, display: "block" }}>
+      {shadowRoot &&
+        ReactDOM.createPortal(
+          <>
+            <style>{FF_CSS}</style>
+            {children}
+          </>,
+          shadowRoot
+        )}
+    </div>
+  );
+}
+
+// Top-level sub-pages the original app exposed in its sidebar nav (player
+// profile/comparison/league-detail are reached via links from these, same
+// as the original — not top-level tabs there either).
+const FF_SUBPAGES = [
+  { id: "", label: "Dashboard" },
+  { id: "players", label: "Players" },
+  { id: "waiver-wire", label: "Waiver Wire" },
+  { id: "trade-analyzer", label: "Trade Analyzer" },
+  { id: "mock-draft", label: "Mock Draft" },
+  { id: "cheat-sheets", label: "Cheat Sheets" },
+  { id: "import-rankings", label: "Import Rankings" },
+  { id: "onboarding", label: "Connect Leagues" },
+];
+
+// Outer sub-nav — plain Vantage theme-driven JSX (outside the shadow root),
+// matching every other page's header conventions rather than War Room's own.
+function FFSubNav({ theme, active, onNavigate }) {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+      {FF_SUBPAGES.map((p) => {
+        const isActive = p.id === active;
+        return (
+          <button
+            key={p.id || "dashboard"}
+            onClick={() => onNavigate(p.id)}
+            className="v-btn"
+            style={{
+              padding: "7px 13px",
+              borderRadius: "999px",
+              fontSize: "12.5px",
+              fontWeight: 700,
+              border: `1px solid ${isActive ? "transparent" : theme.divider}`,
+              background: isActive ? theme.accent : "transparent",
+              color: isActive ? theme.accentText : theme.textMuted,
+            }}
+          >
+            {p.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Placeholder for sub-pages not yet ported — replaced page by page in
+// upcoming batches (Dashboard/Players/etc. are real data-backed pages next).
+function FFComingSoon({ title, note }) {
+  return (
+    <div className="dashboard-widget" style={{ textAlign: "center", padding: "2.5rem 1.5rem" }}>
+      <h2>{title}</h2>
+      <p>{note || "This page is being ported over from The War Room next."}</p>
+    </div>
+  );
+}
+
+function FFPage({ theme, cheatSheets, setCheatSheets, customRankings, setCustomRankings, watchlist, setWatchlist, sleeper, setSleeper, yahoo, setYahoo }) {
+  const [segments, navigateFF] = useFantasySubRoute();
+  const sub = segments[0] || "";
+  const activeMeta = FF_SUBPAGES.find((p) => p.id === sub) || FF_SUBPAGES[0];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+      <div>
+        <div
+          style={{
+            color: theme.sectionLabelColor,
+            fontSize: "12px",
+            fontWeight: 700,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            marginBottom: "6px",
+          }}
+        >
+          Fantasy Football
+        </div>
+        <h1 style={{ margin: 0, fontSize: "24px", fontWeight: theme.headerWeight, color: theme.text }}>The War Room</h1>
+      </div>
+
+      <FFSubNav theme={theme} active={sub} onNavigate={navigateFF} />
+
+      <FFShadowRoot accent={theme.accent}>
+        <div className="page">
+          {sub === "" && (
+            <FFComingSoon title="Dashboard" note="Top players, your watchlist, and league cards land here next." />
+          )}
+          {sub === "players" && <FFComingSoon title="Player Database" note="Searchable/filterable player table lands here next." />}
+          {sub === "waiver-wire" && <FFComingSoon title="Waiver Wire" note="Trending adds/drops land here next." />}
+          {sub === "trade-analyzer" && <FFComingSoon title="Trade Analyzer" note="Two-sided trade value builder lands here next." />}
+          {sub === "mock-draft" && <FFComingSoon title="Mock Draft" note="Full snake-draft simulator lands here next." />}
+          {sub === "cheat-sheets" && (
+            <FFComingSoon title="Cheat Sheets" note={`${Object.keys(cheatSheets).length} saved locally. Full editor lands here next.`} />
+          )}
+          {sub === "import-rankings" && <FFComingSoon title="Import Rankings" note="Paste-a-ranked-list importer lands here next." />}
+          {sub === "onboarding" && <FFComingSoon title="Connect Leagues" note="Sleeper + Yahoo account linking lands here next." />}
+        </div>
+      </FFShadowRoot>
     </div>
   );
 }
