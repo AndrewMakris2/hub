@@ -8969,6 +8969,330 @@ function FFShadowRoot({ accent, children }) {
 // Top-level sub-pages the original app exposed in its sidebar nav (player
 // profile/comparison/league-detail are reached via links from these, same
 // as the original — not top-level tabs there either).
+/* ----------------------------------------------------------------------
+   FANTASY TAB — client-side data layer
+   Ported from FantasyFootballTool's server/src/services/{sleeperClient,
+   tradeValueClient}.ts. Both source APIs send permissive CORS headers
+   (verified via curl), so these run as plain browser fetch() calls instead
+   of going through a backend — the Netlify Blobs TTL cache those files used
+   server-side is replaced by the IndexedDB cache (dbGetFreshCache/dbSetCache,
+   defined earlier) here instead.
+---------------------------------------------------------------------- */
+
+const FF_SLEEPER_BASE = "https://api.sleeper.app/v1";
+const FF_FANTASY_POSITIONS = new Set(["QB", "RB", "WR", "TE", "K", "DEF"]);
+const FF_PLAYERS_CACHE_ID = "sleeper-players-v2";
+const FF_PLAYERS_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const FF_TRADEVALUE_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
+async function ffSleeperGet(pathname) {
+  const res = await fetch(`${FF_SLEEPER_BASE}${pathname}`);
+  if (!res.ok) throw new Error(`Sleeper API error ${res.status} for ${pathname}`);
+  return res.json();
+}
+
+async function ffFindUserByUsername(username) {
+  return ffSleeperGet(`/user/${encodeURIComponent(username)}`);
+}
+
+// Sleeper's idea of "the current season" only rolls over ~March/April, not
+// on the calendar year, so ask it directly rather than using new Date().
+async function ffGetCurrentSeason() {
+  const state = await ffSleeperGet("/state/nfl");
+  return state.season;
+}
+
+async function ffGetLeaguesForUser(userId, season) {
+  const resolvedSeason = season || (await ffGetCurrentSeason());
+  return ffSleeperGet(`/user/${userId}/leagues/nfl/${resolvedSeason}`);
+}
+
+// The full ~14MB Sleeper player directory (every player, active or not) —
+// cached in IndexedDB rather than re-fetched on every visit. Callers that
+// only want fantasy-relevant players should go through
+// ffGetFantasyRelevantPlayers instead of calling this directly.
+async function ffGetPlayersMap() {
+  const cached = await dbGetFreshCache(FF_PLAYERS_CACHE_ID, FF_PLAYERS_CACHE_MAX_AGE_MS);
+  if (cached) return cached;
+  const players = await ffSleeperGet("/players/nfl");
+  await dbSetCache(FF_PLAYERS_CACHE_ID, players);
+  return players;
+}
+
+function ffPlayerDisplayName(playerId, meta) {
+  return (meta && meta.full_name) || `${(meta && meta.first_name) || ""} ${(meta && meta.last_name) || ""}`.trim() || playerId;
+}
+
+function ffToPlayer(playerId, meta) {
+  return {
+    playerId,
+    name: ffPlayerDisplayName(playerId, meta),
+    position: (meta && meta.position) || "UNK",
+    team: (meta && meta.team) || null,
+    injuryStatus: (meta && meta.injury_status) || null,
+  };
+}
+
+function ffToNumber(value) {
+  if (value === null || value === undefined) return null;
+  const num = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function ffToPlayerProfile(playerId, meta) {
+  return {
+    playerId,
+    name: ffPlayerDisplayName(playerId, meta),
+    position: meta.position || "UNK",
+    team: meta.team || "FA",
+    age: ffToNumber(meta.age),
+    heightInches: ffToNumber(meta.height),
+    weightLbs: ffToNumber(meta.weight),
+    college: meta.college || null,
+    yearsExp: ffToNumber(meta.years_exp),
+    jerseyNumber: ffToNumber(meta.number),
+    status: meta.status || null,
+    injuryStatus: meta.injury_status || null,
+    depthChartPosition: meta.depth_chart_position || null,
+    depthChartOrder: ffToNumber(meta.depth_chart_order),
+  };
+}
+
+// Same "is this a real, current NFL roster player" check the original app
+// used everywhere it surfaced a player list, so Players/Waiver Wire stay
+// consistent instead of one filtering inactive players and the other not.
+function ffIsFantasyRelevant(meta) {
+  const isActive = meta.position === "DEF" ? meta.active === true : meta.status === "Active";
+  if (!isActive) return false;
+  if (!meta.team) return false;
+  if (!meta.position || !FF_FANTASY_POSITIONS.has(meta.position)) return false;
+  return true;
+}
+
+async function ffGetFantasyRelevantPlayers() {
+  const playersMap = await ffGetPlayersMap();
+  const profiles = [];
+  for (const [playerId, meta] of Object.entries(playersMap)) {
+    if (!ffIsFantasyRelevant(meta)) continue;
+    profiles.push(ffToPlayerProfile(playerId, meta));
+  }
+  return profiles;
+}
+
+async function ffGetTrendingPlayers(type, limit = 25) {
+  // Sleeper's trending endpoint includes inactive/free-agent players, so
+  // over-fetch and filter+trim to `limit` after.
+  const [trending, playersMap] = await Promise.all([
+    ffSleeperGet(`/players/nfl/trending/${type}?lookback_hours=24&limit=${limit * 4}`),
+    ffGetPlayersMap(),
+  ]);
+  const results = [];
+  for (const entry of trending) {
+    const meta = playersMap[entry.player_id];
+    if (!meta || !ffIsFantasyRelevant(meta)) continue;
+    results.push({ ...ffToPlayerProfile(entry.player_id, meta), trendCount: entry.count });
+    if (results.length >= limit) break;
+  }
+  return results;
+}
+
+// Sleeper's scoring_settings is a flat map of stat -> point value; "rec"
+// (points per reception) is what actually distinguishes PPR leagues.
+function ffScoringTypeFor(scoringSettings) {
+  const rec = (scoringSettings && scoringSettings.rec) || 0;
+  if (rec >= 1) return "Full PPR";
+  if (rec >= 0.5) return "Half PPR";
+  return "Standard";
+}
+
+async function ffGetLeagueDetail(leagueId, userId) {
+  const [leagueMeta, rosters, users, playersMap] = await Promise.all([
+    ffSleeperGet(`/league/${leagueId}`),
+    ffSleeperGet(`/league/${leagueId}/rosters`),
+    ffSleeperGet(`/league/${leagueId}/users`),
+    ffGetPlayersMap(),
+  ]);
+
+  const userNameByOwnerId = new Map(users.map((u) => [u.user_id, u.display_name]));
+  const myRoster = rosters.find((r) => r.owner_id === userId);
+  if (!myRoster) throw new Error(`No roster found for user ${userId} in league ${leagueId}`);
+
+  const standings = [...rosters]
+    .sort((a, b) => (b.settings.wins || 0) - (a.settings.wins || 0) || (b.settings.fpts || 0) - (a.settings.fpts || 0))
+    .map((r, index) => ({
+      teamId: String(r.roster_id),
+      teamName: userNameByOwnerId.get(r.owner_id) || `Team ${r.roster_id}`,
+      record: { wins: r.settings.wins || 0, losses: r.settings.losses || 0, ties: r.settings.ties || 0 },
+      pointsFor: r.settings.fpts || 0,
+      pointsAgainst: r.settings.fpts_against || 0,
+      rank: index + 1,
+    }));
+
+  const teams = rosters.map((r) => ({
+    teamId: String(r.roster_id),
+    teamName: userNameByOwnerId.get(r.owner_id) || `Team ${r.roster_id}`,
+    roster: (r.players || []).map((playerId) => ffToPlayer(playerId, playersMap[playerId])),
+  }));
+
+  let currentMatchup = null;
+  try {
+    const state = await ffSleeperGet("/state/nfl");
+    const matchups = await ffSleeperGet(`/league/${leagueId}/matchups/${state.week}`);
+    const mine = matchups.find((m) => m.roster_id === myRoster.roster_id);
+    const opponent = mine ? matchups.find((m) => m.matchup_id === mine.matchup_id && m.roster_id !== myRoster.roster_id) : undefined;
+    if (mine && opponent) {
+      const opponentRoster = rosters.find((r) => r.roster_id === opponent.roster_id);
+      currentMatchup = {
+        week: state.week,
+        myScore: mine.points,
+        opponentScore: opponent.points,
+        opponentTeamName: opponentRoster ? userNameByOwnerId.get(opponentRoster.owner_id) || `Team ${opponent.roster_id}` : "Unknown",
+      };
+    }
+  } catch (e) {
+    currentMatchup = null;
+  }
+
+  return {
+    platform: "sleeper",
+    leagueId,
+    name: leagueMeta.name,
+    season: leagueMeta.season,
+    myTeam: {
+      teamId: String(myRoster.roster_id),
+      teamName: userNameByOwnerId.get(userId) || "My Team",
+      record: { wins: myRoster.settings.wins || 0, losses: myRoster.settings.losses || 0, ties: myRoster.settings.ties || 0 },
+      roster: (myRoster.players || []).map((playerId) => ffToPlayer(playerId, playersMap[playerId])),
+    },
+    teams,
+    standings,
+    currentMatchup,
+    settings: {
+      scoringType: ffScoringTypeFor(leagueMeta.scoring_settings),
+      rosterPositions: leagueMeta.roster_positions || [],
+      playoffTeams: (leagueMeta.settings && leagueMeta.settings.playoff_teams) || null,
+      totalRosters: leagueMeta.total_rosters || rosters.length,
+    },
+  };
+}
+
+async function ffGetRosterTeamNames(leagueId) {
+  const [rosters, users] = await Promise.all([ffSleeperGet(`/league/${leagueId}/rosters`), ffSleeperGet(`/league/${leagueId}/users`)]);
+  const userNameByOwnerId = new Map(users.map((u) => [u.user_id, u.display_name]));
+  return new Map(rosters.map((r) => [r.roster_id, userNameByOwnerId.get(r.owner_id) || `Team ${r.roster_id}`]));
+}
+
+// Sleeper's transactions endpoint is keyed by week, not a flat feed — pull
+// the current week plus the two before it and merge, rather than fetching
+// all 18 weeks for a list that only shows the last 15 anyway.
+async function ffGetLeagueTransactions(leagueId, limit = 15) {
+  const state = await ffSleeperGet("/state/nfl");
+  const currentWeek = Math.max(1, state.week || 1);
+  const weeks = [currentWeek, currentWeek - 1, currentWeek - 2].filter((w) => w >= 1);
+
+  const [weeklyResults, playersMap, rosterNames] = await Promise.all([
+    Promise.all(weeks.map((week) => ffSleeperGet(`/league/${leagueId}/transactions/${week}`).catch(() => []))),
+    ffGetPlayersMap(),
+    ffGetRosterTeamNames(leagueId),
+  ]);
+
+  const all = weeklyResults.flat().filter((t) => t.status === "complete");
+  all.sort((a, b) => b.created - a.created);
+
+  function toRefs(entries) {
+    if (!entries) return [];
+    return Object.entries(entries).map(([playerId, rosterId]) => ({
+      playerId,
+      playerName: ffPlayerDisplayName(playerId, playersMap[playerId]),
+      teamName: rosterNames.get(rosterId) || `Team ${rosterId}`,
+    }));
+  }
+
+  return all.slice(0, limit).map((t) => ({
+    id: t.transaction_id,
+    type: t.type,
+    createdAt: t.created,
+    adds: toRefs(t.adds),
+    drops: toRefs(t.drops),
+  }));
+}
+
+function ffDraftStatusFrom(status) {
+  if (status === "complete") return "complete";
+  if (status === "drafting" || status === "paused") return "in_progress";
+  return "not_started";
+}
+
+async function ffGetLeagueDraft(leagueId) {
+  const drafts = await ffSleeperGet(`/league/${leagueId}/drafts`);
+  const draft = drafts[0];
+  if (!draft) return { status: "not_started", numTeams: 0, rounds: 0, picks: [] };
+
+  const [picks, playersMap, rosterNames] = await Promise.all([
+    ffSleeperGet(`/draft/${draft.draft_id}/picks`),
+    ffGetPlayersMap(),
+    ffGetRosterTeamNames(leagueId),
+  ]);
+
+  const draftPicks = picks.map((p) => {
+    const meta = playersMap[p.player_id];
+    return {
+      round: p.round,
+      pickNo: p.pick_no,
+      teamIndex: p.draft_slot - 1,
+      teamName: rosterNames.get(p.roster_id) || `Team ${p.roster_id}`,
+      playerId: p.player_id,
+      playerName: ffPlayerDisplayName(p.player_id, meta),
+      playerPosition: (meta && meta.position) || "UNK",
+    };
+  });
+
+  return {
+    status: ffDraftStatusFrom(draft.status),
+    numTeams: (draft.settings && draft.settings.teams) || rosterNames.size,
+    rounds: (draft.settings && draft.settings.rounds) || Math.max(0, ...draftPicks.map((p) => p.round)),
+    picks: draftPicks,
+  };
+}
+
+// ---------- FantasyCalc trade values ----------
+
+async function ffFetchFantasyCalcValues(isDynasty, ppr) {
+  const params = new URLSearchParams({ isDynasty: String(isDynasty), numQbs: "1", numTeams: "12", ppr: String(ppr) });
+  const res = await fetch(`https://api.fantasycalc.com/values/current?${params.toString()}`);
+  if (!res.ok) throw new Error(`FantasyCalc API error ${res.status}`);
+  return res.json();
+}
+
+async function ffGetTradeValues(isDynasty, ppr = 1) {
+  const cacheId = `fantasycalc-${isDynasty ? "dynasty" : "redraft"}-ppr${ppr}-v2`;
+  const cached = await dbGetCache(cacheId);
+  if (cached && Date.now() - cached.fetchedAt < FF_TRADEVALUE_CACHE_MAX_AGE_MS) {
+    return cached.data;
+  }
+  try {
+    const entries = await ffFetchFantasyCalcValues(isDynasty, ppr);
+    const values = {};
+    for (const entry of entries) {
+      if (!entry.player || !entry.player.sleeperId) continue;
+      values[entry.player.sleeperId] = {
+        sleeperId: entry.player.sleeperId,
+        value: entry.value,
+        overallRank: entry.overallRank,
+        positionRank: entry.positionRank,
+        trend30Day: entry.trend30Day,
+      };
+    }
+    await dbSetCache(cacheId, values);
+    return values;
+  } catch (err) {
+    // FantasyCalc can have transient outages — serving stale-but-present
+    // data beats throwing, same reasoning as the server-side original.
+    if (cached) return cached.data;
+    throw err;
+  }
+}
+
 const FF_SUBPAGES = [
   { id: "", label: "Dashboard" },
   { id: "players", label: "Players" },
