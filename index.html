@@ -9293,14 +9293,577 @@ async function ffGetTradeValues(isDynasty, ppr = 1) {
   }
 }
 
+// Backend origin for the two Netlify Functions that must stay server-side
+// (nflverse stats proxy, and Yahoo OAuth once that lands) — hardcoded since
+// Vantage only has one Netlify deploy; GitHub Pages visitors still reach it
+// fine since fetch() is cross-origin here (same pattern the TikTok
+// integration already uses via integrations.tiktokBackendUrl, just fixed
+// instead of user-configurable since there's only ever one target).
+const FF_BACKEND_URL = "https://bearvantagehub.netlify.app";
+
+async function ffGetSeasonStats() {
+  const res = await fetch(`${FF_BACKEND_URL}/.netlify/functions/player-stats`);
+  if (!res.ok) throw new Error(`player-stats error ${res.status}`);
+  return res.json();
+}
+
+async function ffGetWeeklyStats(playerId) {
+  const res = await fetch(`${FF_BACKEND_URL}/.netlify/functions/player-stats-weekly?playerId=${encodeURIComponent(playerId)}`);
+  if (!res.ok) throw new Error(`player-stats-weekly error ${res.status}`);
+  return res.json();
+}
+
+/* ----------------------------------------------------------------------
+   FANTASY TAB — small shared helpers/components
+   Ported from FantasyFootballTool's lib/*.ts and components/*.tsx. react-
+   query's useQuery is replaced by ffUseQuery, a small hook backed by a
+   module-level cache map — same "fetch once, share across pages" behavior
+   for the session, without pulling in the library. react-router's <Link>
+   is replaced by plain <a href="#fantasy/..."> since the hash IS the real
+   URL here, which gets standard link behavior (cmd/ctrl-click, etc.) free.
+---------------------------------------------------------------------- */
+
+const ffQueryCache = new Map();
+
+function ffUseQuery(key, queryFn, deps) {
+  const depsKey = JSON.stringify(deps === undefined ? [key] : deps);
+  const [state, setState] = useState(() => {
+    const cached = ffQueryCache.get(key);
+    return cached ? { data: cached, isLoading: false, isError: false, error: null } : { data: undefined, isLoading: true, isError: false, error: null };
+  });
+  useEffect(() => {
+    let cancelled = false;
+    const cached = ffQueryCache.get(key);
+    if (cached) {
+      setState({ data: cached, isLoading: false, isError: false, error: null });
+      return;
+    }
+    setState({ data: undefined, isLoading: true, isError: false, error: null });
+    queryFn()
+      .then((data) => {
+        ffQueryCache.set(key, data);
+        if (!cancelled) setState({ data, isLoading: false, isError: false, error: null });
+      })
+      .catch((err) => {
+        if (!cancelled) setState({ data: undefined, isLoading: false, isError: true, error: err });
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, depsKey]);
+  return state;
+}
+
+function ffMedalClass(rank) {
+  if (rank === 1) return "rank-medal rank-medal--gold";
+  if (rank === 2) return "rank-medal rank-medal--silver";
+  if (rank === 3) return "rank-medal rank-medal--bronze";
+  return "";
+}
+
+function ffFormatHeight(inches) {
+  if (inches === null || inches === undefined) return "—";
+  const feet = Math.floor(inches / 12);
+  const remainder = inches % 12;
+  return `${feet}'${remainder}"`;
+}
+
+// Primary accent color per NFL team, tuned to stay legible on the dark background.
+const FF_TEAM_COLORS = {
+  ARI: "#97233F", ATL: "#A71930", BAL: "#2A1A80", BUF: "#00338D", CAR: "#0085CA",
+  CHI: "#C83803", CIN: "#FB4F14", CLE: "#FF3C00", DAL: "#869397", DEN: "#FB4F14",
+  DET: "#0076B6", GB: "#FFB612", HOU: "#A71930", IND: "#1B3F8B", JAX: "#00778B",
+  KC: "#E31837", LAC: "#0080C6", LAR: "#FFA300", LV: "#A5ACAF", MIA: "#008E97",
+  MIN: "#4F2683", NE: "#C60C30", NO: "#D8A63D", NYG: "#1B3F8B", NYJ: "#1EB980",
+  PHI: "#00843D", PIT: "#FFB612", SEA: "#69BE28", SF: "#AA0000", TB: "#D50A0A",
+  TEN: "#4B92DB", WAS: "#8B2942",
+};
+function ffTeamColor(team) {
+  if (!team) return "var(--muted)";
+  return FF_TEAM_COLORS[team] || "var(--muted)";
+}
+
+// 2026 NFL bye weeks by team abbreviation — update once the new season's
+// schedule is released each year.
+const FF_BYE_WEEKS_2026 = {
+  CAR: 5, KC: 5, CIN: 6, DET: 6, MIA: 6, MIN: 6, BUF: 7, JAX: 7, LAC: 7, WAS: 7,
+  HOU: 8, NO: 8, NYG: 8, SF: 8, PIT: 9, TEN: 9, CHI: 10, DEN: 10, PHI: 10, TB: 10,
+  ATL: 11, CLE: 11, GB: 11, LAR: 11, NE: 11, SEA: 11, BAL: 13, IND: 13, LV: 13,
+  NYJ: 13, ARI: 14, DAL: 14,
+};
+function ffByeWeekFor(team) {
+  if (!team) return null;
+  return FF_BYE_WEEKS_2026[team] ?? null;
+}
+
+const FF_FORMAT_PARAMS = {
+  standard: { dynasty: false, ppr: 0 },
+  half: { dynasty: false, ppr: 0.5 },
+  full: { dynasty: false, ppr: 1 },
+  dynasty: { dynasty: true, ppr: 1 },
+};
+const FF_FORMATS = [
+  { key: "standard", label: "Standard" },
+  { key: "half", label: "Half PPR" },
+  { key: "full", label: "Full PPR" },
+  { key: "dynasty", label: "Dynasty" },
+];
+
+function ffInitials(name) {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function FFPlayerAvatar({ playerId, name, position, team, size = "md", ringColor }) {
+  const [errored, setErrored] = useState(false);
+  const ringStyle = ringColor ? { borderColor: ringColor, boxShadow: `0 0 24px ${ringColor}66` } : undefined;
+
+  if (position === "PICK") {
+    return (
+      <div className={`player-avatar player-avatar--${size} player-avatar--fallback`} style={ringStyle}>
+        PK
+      </div>
+    );
+  }
+
+  const src =
+    position === "DEF" && team
+      ? `https://sleepercdn.com/images/team_logos/nfl/${team.toLowerCase()}.png`
+      : `https://sleepercdn.com/content/nfl/players/thumb/${playerId}.jpg`;
+
+  if (errored) {
+    return (
+      <div className={`player-avatar player-avatar--${size} player-avatar--fallback`} style={ringStyle}>
+        {ffInitials(name)}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      className={`player-avatar player-avatar--${size} ${position === "DEF" ? "player-avatar--logo" : ""}`}
+      style={ringStyle}
+      src={src}
+      alt={name}
+      loading="lazy"
+      onError={() => setErrored(true)}
+    />
+  );
+}
+
+const FF_KNOWN_POSITIONS = new Set(["QB", "RB", "WR", "TE", "K", "DEF", "PICK"]);
+function FFPositionBadge({ position }) {
+  const variant = FF_KNOWN_POSITIONS.has(position) ? position : "UNK";
+  return <span className={`position-badge position-badge--${variant}`}>{position}</span>;
+}
+
+function FFPlatformBadge({ platform }) {
+  return <span className={`platform-badge platform-badge--${platform}`}>{platform}</span>;
+}
+
+function FFTeamTag({ team }) {
+  if (!team) return <span>—</span>;
+  const color = ffTeamColor(team);
+  return (
+    <span className="team-tag">
+      <span className="team-tag__dot" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />
+      {team}
+    </span>
+  );
+}
+
+function FFWatchlistButton({ playerId, watchlist, setWatchlist }) {
+  const isWatched = watchlist.includes(playerId);
+  function toggle(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setWatchlist(isWatched ? watchlist.filter((id) => id !== playerId) : [...watchlist, playerId]);
+  }
+  return (
+    <button
+      type="button"
+      className={`watchlist-button ${isWatched ? "watchlist-button--active" : ""}`}
+      onClick={toggle}
+      aria-label={isWatched ? "Remove from watchlist" : "Add to watchlist"}
+      title={isWatched ? "Remove from watchlist" : "Add to watchlist"}
+    >
+      {isWatched ? "★" : "☆"}
+    </button>
+  );
+}
+
+function FFLeagueCard({ league }) {
+  return (
+    <a href={`#fantasy/leagues/${league.platform}/${league.leagueId}`} className="league-card">
+      <FFPlatformBadge platform={league.platform} />
+      <div className="league-card__body">
+        <h3>{league.name}</h3>
+        <p className="league-card__team">{league.teamName}</p>
+      </div>
+      <p className="league-card__record">
+        {league.record.wins}-{league.record.losses}
+        {league.record.ties > 0 ? `-${league.record.ties}` : ""}
+        <span className="league-card__season">{league.season}</span>
+      </p>
+    </a>
+  );
+}
+
+function FFPlayerDetailCard({ player, entry, label }) {
+  const bye = ffByeWeekFor(player.team);
+  const isPick = player.position === "PICK";
+  return (
+    <div className="player-detail-card">
+      {label && <span className="player-detail-card__label">{label}</span>}
+      <div className="player-detail-card__header">
+        <FFPlayerAvatar playerId={player.playerId} name={player.name} position={player.position} team={player.team} size="md" ringColor={ffTeamColor(player.team)} />
+        <div>
+          {isPick ? (
+            <span className="player-detail-card__name">{player.name}</span>
+          ) : (
+            <a href={`#fantasy/players/${player.playerId}`} className="player-detail-card__name">
+              {player.name}
+            </a>
+          )}
+          <div className="player-detail-card__meta">
+            <FFPositionBadge position={player.position} />
+            {!isPick && <FFTeamTag team={player.team} />}
+            {player.injuryStatus && <span className="injury-badge">{player.injuryStatus}</span>}
+          </div>
+        </div>
+      </div>
+
+      {isPick ? (
+        <div className="player-detail-card__grid">
+          <div>
+            <span className="player-detail-card__stat-label">Estimated Value</span>
+            <span>{entry ? entry.value.toLocaleString() : "—"}</span>
+          </div>
+        </div>
+      ) : (
+        <div className="player-detail-card__grid">
+          <div>
+            <span className="player-detail-card__stat-label">Rank</span>
+            <span className={ffMedalClass(entry && entry.overallRank)}>{entry ? `#${entry.overallRank}` : "Unranked"}</span>
+          </div>
+          <div>
+            <span className="player-detail-card__stat-label">Value</span>
+            <span>{entry ? entry.value.toLocaleString() : "—"}</span>
+          </div>
+          <div>
+            <span className="player-detail-card__stat-label">Pos Rank</span>
+            <span>{entry ? `${player.position}${entry.positionRank}` : "—"}</span>
+          </div>
+          <div>
+            <span className="player-detail-card__stat-label">30-Day Trend</span>
+            <span>
+              {entry ? (entry.trend30Day === 0 ? "Flat" : `${entry.trend30Day > 0 ? "▲" : "▼"} ${Math.abs(entry.trend30Day).toLocaleString()}`) : "—"}
+            </span>
+          </div>
+          <div>
+            <span className="player-detail-card__stat-label">Bye Week</span>
+            <span>{bye ?? "—"}</span>
+          </div>
+          <div>
+            <span className="player-detail-card__stat-label">Depth Chart</span>
+            <span>{player.depthChartPosition ? `${player.depthChartPosition}${player.depthChartOrder ?? ""}` : "—"}</span>
+          </div>
+          <div>
+            <span className="player-detail-card__stat-label">Age</span>
+            <span>{player.age ?? "—"}</span>
+          </div>
+          <div>
+            <span className="player-detail-card__stat-label">Ht/Wt</span>
+            <span>
+              {ffFormatHeight(player.heightInches)}
+              {player.weightLbs !== null && player.weightLbs !== undefined ? ` / ${player.weightLbs} lb` : ""}
+            </span>
+          </div>
+          <div>
+            <span className="player-detail-card__stat-label">College</span>
+            <span>{player.college ?? "—"}</span>
+          </div>
+          <div>
+            <span className="player-detail-card__stat-label">Experience</span>
+            <span>{player.yearsExp !== null && player.yearsExp !== undefined ? `${player.yearsExp} yrs` : "—"}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FFPlayersTable({ players, values, watchlist, setWatchlist }) {
+  if (players.length === 0) {
+    return <p className="empty-state">No players match these filters.</p>;
+  }
+  return (
+    <div className="data-table-scroll data-table-scroll--frozen-first">
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th>Rank</th>
+            <th>Value</th>
+            <th>Pos</th>
+            <th>Team</th>
+            <th>Age</th>
+            <th>Ht/Wt</th>
+            <th>College</th>
+            <th>Exp</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {players.map((player) => {
+            const entry = values[player.playerId];
+            return (
+              <tr key={player.playerId}>
+                <td>
+                  <div className="table-player-cell">
+                    <FFWatchlistButton playerId={player.playerId} watchlist={watchlist} setWatchlist={setWatchlist} />
+                    <a href={`#fantasy/players/${player.playerId}`} className="table-player-link">
+                      <FFPlayerAvatar playerId={player.playerId} name={player.name} position={player.position} team={player.team} size="sm" />
+                      <span>
+                        {player.name}
+                        {player.jerseyNumber !== null && <span className="players-table__number"> No. {player.jerseyNumber}</span>}
+                      </span>
+                    </a>
+                  </div>
+                </td>
+                <td>{entry ? <span className={ffMedalClass(entry.overallRank)}>#{entry.overallRank}</span> : "—"}</td>
+                <td>{entry ? entry.value.toLocaleString() : "Unranked"}</td>
+                <td><FFPositionBadge position={player.position} /></td>
+                <td><FFTeamTag team={player.team} /></td>
+                <td>{player.age ?? "—"}</td>
+                <td>
+                  {ffFormatHeight(player.heightInches)}
+                  {player.weightLbs !== null ? ` / ${player.weightLbs} lb` : ""}
+                </td>
+                <td>{player.college ?? "—"}</td>
+                <td>{player.yearsExp ?? "—"}</td>
+                <td>{player.injuryStatus ? <span className="injury-badge">{player.injuryStatus}</span> : "Healthy"}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function FFTrendingTable({ players, type, watchlist, setWatchlist }) {
+  if (players.length === 0) {
+    return <p className="empty-state">No trending data available.</p>;
+  }
+  const countLabel = type === "add" ? "Leagues Adding (24h)" : "Leagues Dropping (24h)";
+  return (
+    <table className="data-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Player</th>
+          <th>Pos</th>
+          <th>Team</th>
+          <th title="Number of Sleeper leagues where this player was added/dropped in the last 24 hours">{countLabel}</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {players.map((player, index) => (
+          <tr key={player.playerId}>
+            <td>{index + 1}</td>
+            <td>
+              <div className="table-player-cell">
+                <FFWatchlistButton playerId={player.playerId} watchlist={watchlist} setWatchlist={setWatchlist} />
+                <a href={`#fantasy/players/${player.playerId}`} className="table-player-link">
+                  <FFPlayerAvatar playerId={player.playerId} name={player.name} position={player.position} team={player.team} size="sm" />
+                  <span>{player.name}</span>
+                </a>
+              </div>
+            </td>
+            <td><FFPositionBadge position={player.position} /></td>
+            <td><FFTeamTag team={player.team} /></td>
+            <td className="trending-count">{player.trendCount.toLocaleString()}</td>
+            <td>{player.injuryStatus ? <span className="injury-badge">{player.injuryStatus}</span> : "Healthy"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function FFComparisonTable({ players, values, onRemove }) {
+  if (players.length === 0) {
+    return <p className="empty-state">Add at least two players to compare them.</p>;
+  }
+  const maxValue = Math.max(...players.map((p) => (values[p.playerId] ? values[p.playerId].value : -Infinity)));
+  const byeCounts = new Map();
+  for (const p of players) {
+    const bye = ffByeWeekFor(p.team);
+    if (bye !== null) byeCounts.set(bye, (byeCounts.get(bye) || 0) + 1);
+  }
+
+  const rows = [
+    ["Rank", (p) => (values[p.playerId] ? <span className={ffMedalClass(values[p.playerId].overallRank)}>#{values[p.playerId].overallRank}</span> : "—")],
+    [
+      "Value",
+      (p) => {
+        const entry = values[p.playerId];
+        if (!entry) return "Unranked";
+        const isWinner = players.length > 1 && entry.value === maxValue;
+        return <span className={isWinner ? "comparison-table__winner" : undefined}>{entry.value.toLocaleString()}</span>;
+      },
+    ],
+    ["Position Rank", (p) => (values[p.playerId] ? `${p.position}${values[p.playerId].positionRank}` : "—")],
+    [
+      "30-Day Trend",
+      (p) => {
+        const entry = values[p.playerId];
+        if (!entry) return "—";
+        if (entry.trend30Day === 0) return <span className="empty-state">Flat</span>;
+        const up = entry.trend30Day > 0;
+        return (
+          <span className={up ? "comparison-table__winner" : "error-text"}>
+            {up ? "▲" : "▼"} {Math.abs(entry.trend30Day).toLocaleString()}
+          </span>
+        );
+      },
+    ],
+    ["Position", (p) => <FFPositionBadge position={p.position} />],
+    ["Team", (p) => <FFTeamTag team={p.team} />],
+    [
+      "Bye Week",
+      (p) => {
+        const bye = ffByeWeekFor(p.team);
+        if (bye === null) return "—";
+        const stacked = (byeCounts.get(bye) || 0) > 1;
+        return (
+          <span className={stacked ? "error-text" : undefined}>
+            {bye}
+            {stacked ? " (stacked)" : ""}
+          </span>
+        );
+      },
+    ],
+    ["Depth Chart", (p) => (p.depthChartPosition ? `${p.depthChartPosition}${p.depthChartOrder ?? ""}` : "—")],
+    ["Age", (p) => p.age ?? "—"],
+    ["Height/Weight", (p) => `${ffFormatHeight(p.heightInches)}${p.weightLbs !== null ? ` / ${p.weightLbs} lb` : ""}`],
+    ["College", (p) => p.college ?? "—"],
+    ["Experience", (p) => (p.yearsExp !== null ? `${p.yearsExp} yrs` : "—")],
+    ["Status", (p) => (p.injuryStatus ? <span className="injury-badge">{p.injuryStatus}</span> : "Healthy")],
+  ];
+
+  return (
+    <div className="comparison-scroll">
+      <table className="data-table comparison-table">
+        <thead>
+          <tr>
+            <th>Attribute</th>
+            {players.map((p) => (
+              <th key={p.playerId}>
+                <div className="comparison-table__player">
+                  <FFPlayerAvatar playerId={p.playerId} name={p.name} position={p.position} team={p.team} size="sm" />
+                  <a href={`#fantasy/players/${p.playerId}`}>{p.name}</a>
+                  <button type="button" className="trade-side__remove" onClick={() => onRemove(p.playerId)}>
+                    &times;
+                  </button>
+                </div>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([label, render]) => (
+            <tr key={label}>
+              <td className="comparison-table__label">{label}</td>
+              {players.map((p) => (
+                <td key={p.playerId}>{render(p)}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function FFModal({ title, onClose, children }) {
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-panel__header">
+          <h2>{title}</h2>
+          <button type="button" className="modal-panel__close" onClick={onClose} aria-label="Close">
+            &times;
+          </button>
+        </div>
+        <div className="modal-panel__body">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function FFComparisonModal({ players, values, onClose }) {
+  return (
+    <FFModal title="Full Comparison" onClose={onClose}>
+      <div className="comparison-modal__stack">
+        {players.map((player) => (
+          <FFPlayerDetailCard key={player.playerId} player={player} entry={values[player.playerId]} />
+        ))}
+      </div>
+    </FFModal>
+  );
+}
+
+function FFPlayerSearchAdd({ candidates, excludeIds, onAdd, placeholder }) {
+  const [search, setSearch] = useState("");
+  const query = search.trim().toLowerCase();
+  const matches = query === "" ? [] : candidates.filter((p) => !excludeIds.has(p.playerId) && p.name.toLowerCase().includes(query)).slice(0, 8);
+  return (
+    <>
+      <input type="text" placeholder={placeholder || "Search to add a player..."} value={search} onChange={(e) => setSearch(e.target.value)} />
+      {matches.length > 0 && (
+        <ul className="trade-side__matches">
+          {matches.map((player) => (
+            <li key={player.playerId}>
+              <button
+                type="button"
+                onClick={() => {
+                  onAdd(player);
+                  setSearch("");
+                }}
+              >
+                {player.name} ({player.position}
+                {player.team ? ` - ${player.team}` : ""})
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
 const FF_SUBPAGES = [
   { id: "", label: "Dashboard" },
   { id: "players", label: "Players" },
-  { id: "waiver-wire", label: "Waiver Wire" },
+  { id: "compare", label: "Compare" },
   { id: "trade-analyzer", label: "Trade Analyzer" },
+  { id: "waiver-wire", label: "Waiver Wire" },
   { id: "mock-draft", label: "Mock Draft" },
-  { id: "cheat-sheets", label: "Cheat Sheets" },
   { id: "import-rankings", label: "Import Rankings" },
+  { id: "cheat-sheets", label: "Cheat Sheets" },
   { id: "onboarding", label: "Connect Leagues" },
 ];
 
@@ -9345,6 +9908,693 @@ function FFComingSoon({ title, note }) {
   );
 }
 
+// Sleeper-only for now (see plan) — merges into "leagues" the same shape a
+// future Yahoo half can be appended to once that lands (batch 5).
+async function ffGetLinkedLeagueSummaries(sleeper) {
+  const ids = (sleeper && sleeper.linkedLeagueIds) || [];
+  if (ids.length === 0) return { leagues: [], errors: [] };
+  const results = await Promise.allSettled(ids.map((id) => ffGetLeagueDetail(id, sleeper.userId)));
+  const leagues = [];
+  const errors = [];
+  results.forEach((r, i) => {
+    if (r.status === "fulfilled") {
+      const d = r.value;
+      leagues.push({ platform: "sleeper", leagueId: ids[i], name: d.name, season: d.season, teamName: d.myTeam.teamName, record: d.myTeam.record });
+    } else {
+      errors.push(`Couldn't load a league: ${r.reason && r.reason.message}`);
+    }
+  });
+  return { leagues, errors };
+}
+
+function FFDashboard({ watchlist, setWatchlist, sleeper }) {
+  const playersQuery = ffUseQuery("ff-players", ffGetFantasyRelevantPlayers);
+  const tradeValuesQuery = ffUseQuery("ff-trade-values-false-1", () => ffGetTradeValues(false, 1));
+  const linkedIds = (sleeper && sleeper.linkedLeagueIds) || [];
+  const leaguesQuery = ffUseQuery(`ff-leagues-${linkedIds.join(",")}`, () => ffGetLinkedLeagueSummaries(sleeper), [linkedIds.join(",")]);
+
+  const players = playersQuery.data || [];
+  const values = tradeValuesQuery.data || {};
+  const watchedPlayers = players.filter((p) => watchlist.includes(p.playerId));
+
+  const topPlayers = players
+    .map((p) => ({ player: p, entry: values[p.playerId] }))
+    .filter((x) => x.entry)
+    .sort((a, b) => a.entry.overallRank - b.entry.overallRank)
+    .slice(0, 10);
+
+  const leaguesData = leaguesQuery.data || { leagues: [], errors: [] };
+
+  return (
+    <div className="page page--wide">
+      <div className="page-header">
+        <h1>Dashboard</h1>
+        <a href="#fantasy/onboarding" className="button-link">
+          + Add leagues
+        </a>
+      </div>
+
+      <div className="dashboard-grid">
+        <section className="dashboard-widget dashboard-widget--wide">
+          <div className="dashboard-widget__header">
+            <h2>Top Fantasy Players</h2>
+            <span className="data-source-note">Trade values via FantasyCalc.</span>
+          </div>
+          {topPlayers.length > 0 ? (
+            <div className="top-players-list">
+              {topPlayers.map(({ player, entry }) => (
+                <a key={player.playerId} href={`#fantasy/players/${player.playerId}`} className="top-player-row">
+                  <span className={`top-player-row__rank ${ffMedalClass(entry.overallRank)}`}>#{entry.overallRank}</span>
+                  <FFPlayerAvatar playerId={player.playerId} name={player.name} position={player.position} team={player.team} size="sm" />
+                  <span className="top-player-row__name">{player.name}</span>
+                  <FFPositionBadge position={player.position} />
+                  <FFTeamTag team={player.team} />
+                  <span className="top-player-row__value">{entry.value.toLocaleString()}</span>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <p className="empty-state">Loading rankings...</p>
+          )}
+        </section>
+
+        <section className="dashboard-widget">
+          <div className="dashboard-widget__header">
+            <h2>Your Watchlist</h2>
+          </div>
+          {watchedPlayers.length === 0 ? (
+            <p className="empty-state">Star a player anywhere on the site (Players, Waiver Wire, or their profile) to pin them here.</p>
+          ) : (
+            <div className="dashboard-widget__stack">
+              {watchedPlayers.map((player) => (
+                <FFPlayerDetailCard key={player.playerId} player={player} entry={values[player.playerId]} />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="dashboard-widget">
+          <div className="dashboard-widget__header">
+            <h2>Your Leagues</h2>
+          </div>
+          {leaguesQuery.isLoading && linkedIds.length > 0 && <p className="empty-state">Loading leagues...</p>}
+          {leaguesData.errors.length > 0 && (
+            <div className="warning-banner">
+              {leaguesData.errors.map((err, i) => (
+                <p key={i}>{err}</p>
+              ))}
+            </div>
+          )}
+          {leaguesData.leagues.length === 0 && (
+            <p className="empty-state">
+              No leagues linked yet. <a href="#fantasy/onboarding">Connect Sleeper or Yahoo</a> to get started.
+            </p>
+          )}
+          <div className="league-grid">
+            {leaguesData.leagues.map((league) => (
+              <FFLeagueCard key={`${league.platform}-${league.leagueId}`} league={league} />
+            ))}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+const FF_POSITIONS_LIST = ["QB", "RB", "WR", "TE", "K", "DEF"];
+const FF_PAGE_SIZE = 15;
+
+function FFPlayersPage({ watchlist, setWatchlist }) {
+  const playersQuery = ffUseQuery("ff-players", ffGetFantasyRelevantPlayers);
+  const [search, setSearch] = useState("");
+  const [position, setPosition] = useState("ALL");
+  const [team, setTeam] = useState("ALL");
+  const [format, setFormat] = useState("full");
+  const [health, setHealth] = useState("ALL");
+  const [rookiesOnly, setRookiesOnly] = useState(false);
+  const [rankedOnly, setRankedOnly] = useState(false);
+  const [page, setPage] = useState(1);
+
+  const { dynasty, ppr } = FF_FORMAT_PARAMS[format];
+  const tradeValuesQuery = ffUseQuery(`ff-trade-values-${dynasty}-${ppr}`, () => ffGetTradeValues(dynasty, ppr), [dynasty, ppr]);
+  const values = tradeValuesQuery.data || {};
+  const data = playersQuery.data;
+
+  const teams = useMemo(() => (data ? [...new Set(data.map((p) => p.team))].sort() : []), [data]);
+
+  const filtered = useMemo(() => {
+    if (!data) return [];
+    const query = search.trim().toLowerCase();
+    return data
+      .filter((p) => (position === "ALL" ? true : p.position === position))
+      .filter((p) => (team === "ALL" ? true : p.team === team))
+      .filter((p) => (query === "" ? true : p.name.toLowerCase().includes(query)))
+      .filter((p) => {
+        if (health === "ALL") return true;
+        if (health === "HEALTHY") return !p.injuryStatus;
+        return Boolean(p.injuryStatus);
+      })
+      .filter((p) => (rookiesOnly ? p.yearsExp === 0 : true))
+      .filter((p) => (rankedOnly ? Boolean(values[p.playerId]) : true))
+      .sort((a, b) => {
+        const rankA = values[a.playerId] ? values[a.playerId].overallRank : Infinity;
+        const rankB = values[b.playerId] ? values[b.playerId].overallRank : Infinity;
+        if (rankA !== rankB) return rankA - rankB;
+        return a.name.localeCompare(b.name);
+      });
+  }, [data, search, position, team, health, rookiesOnly, rankedOnly, values]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / FF_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paged = filtered.slice((currentPage - 1) * FF_PAGE_SIZE, currentPage * FF_PAGE_SIZE);
+  const rangeStart = filtered.length === 0 ? 0 : (currentPage - 1) * FF_PAGE_SIZE + 1;
+  const rangeEnd = Math.min(currentPage * FF_PAGE_SIZE, filtered.length);
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <h1>Player Database</h1>
+      </div>
+      <p className="data-source-note">Live player data via Sleeper &middot; trade values via FantasyCalc.</p>
+
+      <div className="filter-bar">
+        <input
+          type="text"
+          placeholder="Search by name..."
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+        />
+        <select
+          value={position}
+          onChange={(e) => {
+            setPosition(e.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="ALL">All positions</option>
+          {FF_POSITIONS_LIST.map((pos) => (
+            <option key={pos} value={pos}>
+              {pos}
+            </option>
+          ))}
+        </select>
+        <select
+          value={team}
+          onChange={(e) => {
+            setTeam(e.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="ALL">All teams</option>
+          {teams.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+        <select value={format} onChange={(e) => setFormat(e.target.value)}>
+          <option value="standard">Standard</option>
+          <option value="half">Half PPR</option>
+          <option value="full">Full PPR</option>
+          <option value="dynasty">Dynasty</option>
+        </select>
+      </div>
+
+      <div className="filter-bar filter-bar--secondary">
+        <select
+          value={health}
+          onChange={(e) => {
+            setHealth(e.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="ALL">Any health status</option>
+          <option value="HEALTHY">Healthy only</option>
+          <option value="INJURED">Injured / questionable</option>
+        </select>
+        <label className="filter-toggle">
+          <input
+            type="checkbox"
+            checked={rookiesOnly}
+            onChange={(e) => {
+              setRookiesOnly(e.target.checked);
+              setPage(1);
+            }}
+          />
+          Rookies only
+        </label>
+        <label className="filter-toggle">
+          <input
+            type="checkbox"
+            checked={rankedOnly}
+            onChange={(e) => {
+              setRankedOnly(e.target.checked);
+              setPage(1);
+            }}
+          />
+          Ranked only
+        </label>
+      </div>
+
+      {playersQuery.isLoading && <p>Loading players...</p>}
+      {playersQuery.isError && <p className="error-text">{playersQuery.error && playersQuery.error.message}</p>}
+
+      {data && (
+        <>
+          <p className="empty-state">
+            Showing {rangeStart}&ndash;{rangeEnd} of {filtered.length} players
+          </p>
+          <FFPlayersTable players={paged} values={values} watchlist={watchlist} setWatchlist={setWatchlist} />
+          {totalPages > 1 && (
+            <div className="pagination">
+              <button type="button" onClick={() => setPage(currentPage - 1)} disabled={currentPage <= 1}>
+                &lsaquo; Prev
+              </button>
+              <span className="pagination__status">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button type="button" onClick={() => setPage(currentPage + 1)} disabled={currentPage >= totalPages}>
+                Next &rsaquo;
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function FFWaiverWirePage({ watchlist, setWatchlist }) {
+  const [type, setType] = useState("add");
+  const [position, setPosition] = useState("ALL");
+  const trendingQuery = ffUseQuery(`ff-trending-${type}`, () => ffGetTrendingPlayers(type), [type]);
+  const data = trendingQuery.data;
+  const filtered = useMemo(() => {
+    if (!data) return [];
+    return data.filter((p) => (position === "ALL" ? true : p.position === position));
+  }, [data, position]);
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <h1>Waiver Wire</h1>
+      </div>
+      <p className="data-source-note">Live add/drop data via Sleeper, refreshed every 24h.</p>
+
+      <div className="filter-bar">
+        <select value={type} onChange={(e) => setType(e.target.value)}>
+          <option value="add">Most Added (24h)</option>
+          <option value="drop">Most Dropped (24h)</option>
+        </select>
+        <select value={position} onChange={(e) => setPosition(e.target.value)}>
+          <option value="ALL">All positions</option>
+          {FF_POSITIONS_LIST.map((pos) => (
+            <option key={pos} value={pos}>
+              {pos}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {trendingQuery.isLoading && <p>Loading trends...</p>}
+      {trendingQuery.isError && <p className="error-text">{trendingQuery.error && trendingQuery.error.message}</p>}
+
+      {data && <FFTrendingTable players={filtered} type={type} watchlist={watchlist} setWatchlist={setWatchlist} />}
+    </div>
+  );
+}
+
+const ffAsInt = (v) => v.toLocaleString();
+const ffAsDecimal1 = (v) => v.toFixed(1);
+const ffAsDecimal2 = (v) => v.toFixed(2);
+const ffAsPercent = (v) => `${(v * 100).toFixed(1)}%`;
+
+function ffRenderStatValue(entry, field) {
+  const raw = entry[field.key];
+  if (raw === null || raw === undefined) return "—";
+  return (field.format || ffAsInt)(raw);
+}
+
+// Which raw counting stats are worth showing depends entirely on position —
+// a WR's completions are always zero and just clutter the card.
+function ffStatFieldsFor(position) {
+  switch (position) {
+    case "QB":
+      return [
+        { label: "Comp", key: "completions" },
+        { label: "Att", key: "attempts" },
+        { label: "Pass Yds", key: "passingYards" },
+        { label: "Pass TD", key: "passingTds" },
+        { label: "INT", key: "interceptions" },
+        { label: "Rush Yds", key: "rushingYards" },
+        { label: "Rush TD", key: "rushingTds" },
+      ];
+    case "RB":
+      return [
+        { label: "Carries", key: "carries" },
+        { label: "Rush Yds", key: "rushingYards" },
+        { label: "Rush TD", key: "rushingTds" },
+        { label: "Rec", key: "receptions" },
+        { label: "Rec Yds", key: "receivingYards" },
+        { label: "Rec TD", key: "receivingTds" },
+      ];
+    case "WR":
+    case "TE":
+      return [
+        { label: "Targets", key: "targets" },
+        { label: "Rec", key: "receptions" },
+        { label: "Rec Yds", key: "receivingYards" },
+        { label: "Rec TD", key: "receivingTds" },
+      ];
+    default:
+      return [];
+  }
+}
+
+function ffAdvancedFieldsFor(position) {
+  switch (position) {
+    case "QB":
+      return [
+        { label: "Sacks", key: "sacks" },
+        { label: "Sack Yds", key: "sackYards" },
+        { label: "Pass Air Yds", key: "passingAirYards" },
+        { label: "Pass YAC", key: "passingYardsAfterCatch" },
+        { label: "Pass 1st Downs", key: "passingFirstDowns" },
+        { label: "Pass EPA", key: "passingEpa", format: ffAsDecimal1 },
+        { label: "PACR", key: "pacr", format: ffAsDecimal2 },
+        { label: "DAKOTA", key: "dakota", format: ffAsDecimal2 },
+        { label: "Pass 2PT", key: "passing2ptConversions" },
+      ];
+    case "RB":
+      return [
+        { label: "Fumbles", key: "rushingFumbles" },
+        { label: "Fumbles Lost", key: "rushingFumblesLost" },
+        { label: "Rush 1st Downs", key: "rushingFirstDowns" },
+        { label: "Rush EPA", key: "rushingEpa", format: ffAsDecimal1 },
+        { label: "Rec EPA", key: "receivingEpa", format: ffAsDecimal1 },
+        { label: "Target Share", key: "targetShare", format: ffAsPercent },
+        { label: "WOPR", key: "wopr", format: ffAsDecimal2 },
+      ];
+    case "WR":
+    case "TE":
+      return [
+        { label: "Air Yards", key: "receivingAirYards" },
+        { label: "YAC", key: "receivingYardsAfterCatch" },
+        { label: "Rec 1st Downs", key: "receivingFirstDowns" },
+        { label: "Rec EPA", key: "receivingEpa", format: ffAsDecimal1 },
+        { label: "RACR", key: "racr", format: ffAsDecimal2 },
+        { label: "Target Share", key: "targetShare", format: ffAsPercent },
+        { label: "Air Yards Share", key: "airYardsShare", format: ffAsPercent },
+        { label: "WOPR", key: "wopr", format: ffAsDecimal2 },
+        { label: "Fumbles", key: "receivingFumbles" },
+      ];
+    default:
+      return [];
+  }
+}
+
+function ffWeeklyColumnsFor(position) {
+  switch (position) {
+    case "QB":
+      return [
+        { label: "Comp/Att", render: (w) => `${w.completions}/${w.attempts}` },
+        { label: "Pass Yds", render: (w) => w.passingYards.toLocaleString() },
+        { label: "Pass TD", render: (w) => String(w.passingTds) },
+        { label: "INT", render: (w) => String(w.interceptions) },
+        { label: "Rush Yds", render: (w) => w.rushingYards.toLocaleString() },
+      ];
+    case "RB":
+      return [
+        { label: "Carries", render: (w) => String(w.carries) },
+        { label: "Rush Yds", render: (w) => w.rushingYards.toLocaleString() },
+        { label: "Rush TD", render: (w) => String(w.rushingTds) },
+        { label: "Rec", render: (w) => String(w.receptions) },
+        { label: "Rec Yds", render: (w) => w.receivingYards.toLocaleString() },
+      ];
+    case "WR":
+    case "TE":
+      return [
+        { label: "Tgt", render: (w) => String(w.targets) },
+        { label: "Rec", render: (w) => String(w.receptions) },
+        { label: "Rec Yds", render: (w) => w.receivingYards.toLocaleString() },
+        { label: "Rec TD", render: (w) => String(w.receivingTds) },
+      ];
+    default:
+      return [];
+  }
+}
+
+function FFPlayerProfilePage({ playerId, watchlist, setWatchlist }) {
+  const playersQuery = ffUseQuery("ff-players", ffGetFantasyRelevantPlayers);
+  const player = (playersQuery.data || []).find((p) => p.playerId === playerId);
+
+  const standard = ffUseQuery("ff-trade-values-false-0", () => ffGetTradeValues(false, 0));
+  const half = ffUseQuery("ff-trade-values-false-0.5", () => ffGetTradeValues(false, 0.5));
+  const full = ffUseQuery("ff-trade-values-false-1", () => ffGetTradeValues(false, 1));
+  const dynasty = ffUseQuery("ff-trade-values-true-1", () => ffGetTradeValues(true, 1));
+  const seasonStatsQuery = ffUseQuery("ff-season-stats", ffGetSeasonStats);
+  const weeklyKey = player ? `ff-weekly-stats-${player.playerId}` : "ff-weekly-stats-none";
+  const weeklyStatsQuery = ffUseQuery(weeklyKey, () => (player ? ffGetWeeklyStats(player.playerId) : Promise.resolve([])), [weeklyKey]);
+
+  const queriesByFormat = { standard, half, full, dynasty };
+
+  if (playersQuery.isLoading) {
+    return (
+      <div className="page">
+        <p>Loading player...</p>
+      </div>
+    );
+  }
+
+  if (!player) {
+    return (
+      <div className="page">
+        <button type="button" className="back-link" onClick={() => window.history.back()}>
+          &larr; Back to players
+        </button>
+        <p className="error-text">Player not found.</p>
+      </div>
+    );
+  }
+
+  const seasonStats = seasonStatsQuery.data || {};
+  const seasonEntry = seasonStats[player.playerId];
+  const fields = ffStatFieldsFor(player.position);
+  const advancedFields = ffAdvancedFieldsFor(player.position);
+  const weeks = weeklyStatsQuery.data;
+  const columns = ffWeeklyColumnsFor(player.position);
+  const maxPoints = weeks && weeks.length ? Math.max(...weeks.map((w) => w.fantasyPointsPpr), 1) : 1;
+
+  return (
+    <div className="page">
+      <button type="button" className="back-link" onClick={() => window.history.back()}>
+        &larr; Back to players
+      </button>
+
+      <div className="player-profile__banner">
+        <div className="player-profile__identity">
+          <FFPlayerAvatar playerId={player.playerId} name={player.name} position={player.position} team={player.team} size="md" ringColor={ffTeamColor(player.team)} />
+          <div>
+            <h1>
+              {player.name}
+              {player.jerseyNumber !== null && <span className="player-profile__number">No. {player.jerseyNumber}</span>}
+              <FFWatchlistButton playerId={player.playerId} watchlist={watchlist} setWatchlist={setWatchlist} />
+            </h1>
+            <div className="player-profile__meta">
+              <FFPositionBadge position={player.position} />
+              <FFTeamTag team={player.team} />
+              {player.injuryStatus && <span className="injury-badge">{player.injuryStatus}</span>}
+            </div>
+          </div>
+        </div>
+
+        <div className="player-profile__stats">
+          <div>
+            <span className="player-profile__bio-label">Age</span>
+            <span>{player.age ?? "—"}</span>
+          </div>
+          <div>
+            <span className="player-profile__bio-label">Ht/Wt</span>
+            <span>
+              {ffFormatHeight(player.heightInches)}
+              {player.weightLbs !== null ? ` / ${player.weightLbs} lb` : ""}
+            </span>
+          </div>
+          <div>
+            <span className="player-profile__bio-label">College</span>
+            <span>{player.college ?? "—"}</span>
+          </div>
+          <div>
+            <span className="player-profile__bio-label">Exp</span>
+            <span>{player.yearsExp !== null ? `${player.yearsExp} yrs` : "—"}</span>
+          </div>
+          <div>
+            <span className="player-profile__bio-label">Bye</span>
+            <span>{ffByeWeekFor(player.team) ?? "—"}</span>
+          </div>
+        </div>
+      </div>
+
+      {seasonEntry && fields.length > 0 && (
+        <>
+          <h2>{seasonEntry.season} Season Stats</h2>
+          <p className="data-source-note">Real per-player stats via nflverse (open data) &middot; {seasonEntry.games} games played.</p>
+          <div className="ranking-cards">
+            {fields.map((field) => (
+              <div key={field.label} className="ranking-card">
+                <span className="ranking-card__label">{field.label}</span>
+                <span className="ranking-card__value">{ffRenderStatValue(seasonEntry, field)}</span>
+              </div>
+            ))}
+            <div className="ranking-card">
+              <span className="ranking-card__label">Fantasy Pts (PPR)</span>
+              <span className="ranking-card__value">{seasonEntry.fantasyPointsPpr.toFixed(1)}</span>
+            </div>
+          </div>
+
+          {advancedFields.length > 0 && (
+            <>
+              <h2>Advanced Metrics</h2>
+              <p className="data-source-note">Efficiency &amp; opportunity stats &mdash; EPA, air yards, target share, and friends.</p>
+              <div className="ranking-cards">
+                {advancedFields.map((field) => (
+                  <div key={field.label} className="ranking-card">
+                    <span className="ranking-card__label">{field.label}</span>
+                    <span className="ranking-card__value">{ffRenderStatValue(seasonEntry, field)}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      )}
+
+      {weeks && weeks.length > 0 && columns.length > 0 && (
+        <>
+          <h2>Game Log</h2>
+          <p className="data-source-note">Week-by-week box score via nflverse (open data).</p>
+          <div className="data-table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Week</th>
+                  <th>Opp</th>
+                  {columns.map((col) => (
+                    <th key={col.label}>{col.label}</th>
+                  ))}
+                  <th>Fantasy Pts (PPR)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {weeks.map((week) => (
+                  <tr key={week.week}>
+                    <td>{week.week}</td>
+                    <td>{week.opponentTeam}</td>
+                    {columns.map((col) => (
+                      <td key={col.label}>{col.render(week)}</td>
+                    ))}
+                    <td>
+                      <div className="game-log-points">
+                        <div className="game-log-points__track">
+                          <div className="game-log-points__bar" style={{ width: `${Math.max((week.fantasyPointsPpr / maxPoints) * 100, 3)}%` }} />
+                        </div>
+                        <span>{week.fantasyPointsPpr.toFixed(1)}</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      <h2>Rankings by Format</h2>
+      <p className="data-source-note">Trade values via FantasyCalc.</p>
+      <div className="ranking-cards">
+        {FF_FORMATS.map(({ key, label }) => {
+          const q = queriesByFormat[key];
+          const entry = q.data && q.data[player.playerId];
+          return (
+            <div key={key} className="ranking-card">
+              <span className="ranking-card__label">{label}</span>
+              {q.isLoading ? (
+                <span className="ranking-card__unranked">Loading…</span>
+              ) : entry ? (
+                <>
+                  <span className={`ranking-card__rank ${ffMedalClass(entry.overallRank)}`}>#{entry.overallRank}</span>
+                  <span className="ranking-card__value">{entry.value.toLocaleString()}</span>
+                </>
+              ) : (
+                <span className="ranking-card__unranked">Unranked</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function FFPlayerComparisonPage() {
+  const playersQuery = ffUseQuery("ff-players", ffGetFantasyRelevantPlayers);
+  const [format, setFormat] = useState("full");
+  const [selected, setSelected] = useState([]);
+  const [showFullComparison, setShowFullComparison] = useState(false);
+
+  const { dynasty, ppr } = FF_FORMAT_PARAMS[format];
+  const tradeValuesQuery = ffUseQuery(`ff-trade-values-${dynasty}-${ppr}`, () => ffGetTradeValues(dynasty, ppr), [dynasty, ppr]);
+  const values = tradeValuesQuery.data || {};
+
+  const candidates = playersQuery.data || [];
+  const selectedIds = new Set(selected.map((p) => p.playerId));
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <h1>Player Comparison</h1>
+      </div>
+
+      <div className="filter-bar">
+        <select value={format} onChange={(e) => setFormat(e.target.value)}>
+          <option value="standard">Standard</option>
+          <option value="half">Half PPR</option>
+          <option value="full">Full PPR</option>
+          <option value="dynasty">Dynasty</option>
+        </select>
+        {selected.length > 0 && (
+          <button type="button" onClick={() => setShowFullComparison(true)}>
+            Full Comparison
+          </button>
+        )}
+      </div>
+
+      {playersQuery.isLoading && <p>Loading players...</p>}
+      {playersQuery.isError && <p className="error-text">{playersQuery.error && playersQuery.error.message}</p>}
+
+      {playersQuery.data && (
+        <>
+          {selected.length < 6 && (
+            <FFPlayerSearchAdd
+              candidates={candidates}
+              excludeIds={selectedIds}
+              onAdd={(p) => setSelected([...selected, p])}
+              placeholder="Search to add a player (up to 6)..."
+            />
+          )}
+
+          <FFComparisonTable players={selected} values={values} onRemove={(id) => setSelected(selected.filter((p) => p.playerId !== id))} />
+        </>
+      )}
+
+      {showFullComparison && <FFComparisonModal players={selected} values={values} onClose={() => setShowFullComparison(false)} />}
+    </div>
+  );
+}
+
 function FFPage({ theme, cheatSheets, setCheatSheets, customRankings, setCustomRankings, watchlist, setWatchlist, sleeper, setSleeper, yahoo, setYahoo }) {
   const [segments, navigateFF] = useFantasySubRoute();
   const sub = segments[0] || "";
@@ -9371,20 +10621,36 @@ function FFPage({ theme, cheatSheets, setCheatSheets, customRankings, setCustomR
       <FFSubNav theme={theme} active={sub} onNavigate={navigateFF} />
 
       <FFShadowRoot accent={theme.accent}>
-        <div className="page">
-          {sub === "" && (
-            <FFComingSoon title="Dashboard" note="Top players, your watchlist, and league cards land here next." />
-          )}
-          {sub === "players" && <FFComingSoon title="Player Database" note="Searchable/filterable player table lands here next." />}
-          {sub === "waiver-wire" && <FFComingSoon title="Waiver Wire" note="Trending adds/drops land here next." />}
-          {sub === "trade-analyzer" && <FFComingSoon title="Trade Analyzer" note="Two-sided trade value builder lands here next." />}
-          {sub === "mock-draft" && <FFComingSoon title="Mock Draft" note="Full snake-draft simulator lands here next." />}
-          {sub === "cheat-sheets" && (
+        {sub === "" && <FFDashboard watchlist={watchlist} setWatchlist={setWatchlist} sleeper={sleeper} />}
+        {sub === "players" && segments[1] && <FFPlayerProfilePage playerId={segments[1]} watchlist={watchlist} setWatchlist={setWatchlist} />}
+        {sub === "players" && !segments[1] && <FFPlayersPage watchlist={watchlist} setWatchlist={setWatchlist} />}
+        {sub === "compare" && <FFPlayerComparisonPage />}
+        {sub === "waiver-wire" && <FFWaiverWirePage watchlist={watchlist} setWatchlist={setWatchlist} />}
+        {sub === "trade-analyzer" && (
+          <div className="page">
+            <FFComingSoon title="Trade Analyzer" note="Two-sided trade value builder lands here next." />
+          </div>
+        )}
+        {sub === "mock-draft" && (
+          <div className="page">
+            <FFComingSoon title="Mock Draft" note="Full snake-draft simulator lands here next." />
+          </div>
+        )}
+        {sub === "cheat-sheets" && (
+          <div className="page">
             <FFComingSoon title="Cheat Sheets" note={`${Object.keys(cheatSheets).length} saved locally. Full editor lands here next.`} />
-          )}
-          {sub === "import-rankings" && <FFComingSoon title="Import Rankings" note="Paste-a-ranked-list importer lands here next." />}
-          {sub === "onboarding" && <FFComingSoon title="Connect Leagues" note="Sleeper + Yahoo account linking lands here next." />}
-        </div>
+          </div>
+        )}
+        {sub === "import-rankings" && (
+          <div className="page">
+            <FFComingSoon title="Import Rankings" note="Paste-a-ranked-list importer lands here next." />
+          </div>
+        )}
+        {sub === "onboarding" && (
+          <div className="page">
+            <FFComingSoon title="Connect Leagues" note="Sleeper + Yahoo account linking lands here next." />
+          </div>
+        )}
       </FFShadowRoot>
     </div>
   );
