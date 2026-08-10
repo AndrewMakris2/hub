@@ -20,8 +20,16 @@ function normalizeTeamAbbr(team) {
 }
 
 async function getPlayersMap() {
-  const store = getStore("sleeper-cache");
-  const cached = await store.getWithMetadata(PLAYERS_CACHE_KEY, { type: "json" });
+  // See statsData.js's loadPlayerStats for why Blobs failures are caught
+  // here instead of left to crash the function — same reasoning.
+  let store = null;
+  let cached = null;
+  try {
+    store = getStore("sleeper-cache");
+    cached = await store.getWithMetadata(PLAYERS_CACHE_KEY, { type: "json" });
+  } catch (err) {
+    console.error("sleeper-cache unavailable, skipping cache:", err.message);
+  }
   const fetchedAt = cached && cached.metadata.fetchedAt;
   if (cached && fetchedAt && Date.now() - fetchedAt < PLAYERS_CACHE_MAX_AGE_MS) {
     return cached.data;
@@ -29,7 +37,13 @@ async function getPlayersMap() {
   const res = await fetch(`${BASE_URL}/players/nfl`);
   if (!res.ok) throw new Error(`Sleeper API error ${res.status} for /players/nfl`);
   const players = await res.json();
-  await store.setJSON(PLAYERS_CACHE_KEY, players, { metadata: { fetchedAt: Date.now() } });
+  if (store) {
+    try {
+      await store.setJSON(PLAYERS_CACHE_KEY, players, { metadata: { fetchedAt: Date.now() } });
+    } catch (err) {
+      console.error("Failed to write sleeper-cache:", err.message);
+    }
+  }
   return players;
 }
 

@@ -282,8 +282,19 @@ async function fetchParsedStatsByGsisId() {
 }
 
 async function loadPlayerStats() {
-  const store = getStore("stats-cache");
-  const cached = await store.getWithMetadata(CACHE_KEY, { type: "json" });
+  // Netlify Blobs' automatic environment config doesn't reliably kick in for
+  // every function on every deploy (observed 502s here even though the
+  // identical getStore() pattern works fine elsewhere in this project) — so
+  // treat "Blobs unavailable" as "cache unavailable" instead of a hard
+  // failure. Slower (no cache) beats broken.
+  let store = null;
+  let cached = null;
+  try {
+    store = getStore("stats-cache");
+    cached = await store.getWithMetadata(CACHE_KEY, { type: "json" });
+  } catch (err) {
+    console.error("stats-cache unavailable, skipping cache:", err.message);
+  }
   const fetchedAt = cached && cached.metadata.fetchedAt;
   if (cached && fetchedAt && Date.now() - fetchedAt < CACHE_MAX_AGE_MS) {
     return cached.data;
@@ -324,7 +335,13 @@ async function loadPlayerStats() {
     }
 
     const result = { season, weekly };
-    await store.setJSON(CACHE_KEY, result, { metadata: { fetchedAt: Date.now() } });
+    if (store) {
+      try {
+        await store.setJSON(CACHE_KEY, result, { metadata: { fetchedAt: Date.now() } });
+      } catch (err) {
+        console.error("Failed to write stats-cache:", err.message);
+      }
+    }
     return result;
   } catch (err) {
     // nflverse (or the Sleeper crosswalk it depends on) can have transient
