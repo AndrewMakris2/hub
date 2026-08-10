@@ -722,6 +722,8 @@ const STORAGE_KEYS = {
   goals: "dash.goals",
   transactions: "dash.transactions",
   youtube: "dash.youtube",
+  golfSimRounds: "dash.golfSimRounds",
+  golfOutdoorRounds: "dash.golfOutdoorRounds",
 };
 
 function isMergeablePlainObject(v) {
@@ -798,6 +800,8 @@ const DEFAULT_GOLF = {
   roundsYtd: 18,
   handicap: 3.2,
 };
+
+const DEFAULT_GOLF_ROUNDS = [];
 
 const DEFAULT_FINANCIAL = {
   targetDownPayment: 90000,
@@ -1668,6 +1672,66 @@ async function dbDeleteVideo(id) {
   });
 }
 
+// Golf round scorecard photos — same rationale as video storage above:
+// IndexedDB only, local to this browser, excluded from JSON backup.
+const PHOTO_DB_NAME = "vantage-golf-photos";
+const PHOTO_STORE = "photos";
+
+function openPhotoDB() {
+  return new Promise((resolve, reject) => {
+    if (!window.indexedDB) {
+      reject(new Error("This browser doesn't support local photo storage."));
+      return;
+    }
+    const req = indexedDB.open(PHOTO_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(PHOTO_STORE)) {
+        db.createObjectStore(PHOTO_STORE, { keyPath: "id" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function dbPutPhoto(record) {
+  const db = await openPhotoDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PHOTO_STORE, "readwrite");
+    tx.objectStore(PHOTO_STORE).put(record);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function dbGetPhotosByIds(ids) {
+  if (!ids || ids.length === 0) return [];
+  const db = await openPhotoDB();
+  const store = db.transaction(PHOTO_STORE, "readonly").objectStore(PHOTO_STORE);
+  const results = await Promise.all(
+    ids.map(
+      (id) =>
+        new Promise((resolve) => {
+          const req = store.get(id);
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => resolve(null);
+        })
+    )
+  );
+  return results.filter(Boolean);
+}
+
+async function dbDeletePhoto(id) {
+  const db = await openPhotoDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PHOTO_STORE, "readwrite");
+    tx.objectStore(PHOTO_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 function formatBytes(bytes) {
   if (!bytes) return "0 B";
   const units = ["B", "KB", "MB", "GB"];
@@ -1938,6 +2002,329 @@ function GolfSection({ theme, data, setData, history, onRecordHandicap }) {
         />
       </MetricGrid>
       <Sparkline theme={theme} data={history} label="Handicap trend" goodDirection="down" />
+    </Card>
+  );
+}
+
+function GolfRoundLog({ theme, title, rounds, setRounds, delay }) {
+  const emptyForm = {
+    date: new Date().toISOString().slice(0, 10),
+    course: "",
+    par: "72",
+    front9: "",
+    back9: "",
+    fairwayHits: "",
+    gir: "",
+    avgDrivingDistance: "",
+    totalPutts: "",
+    scrambling: "",
+    sandSaves: "",
+  };
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [photoFiles, setPhotoFiles] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [expandedId, setExpandedId] = useState(null);
+  const [roundPhotos, setRoundPhotos] = useState({});
+  const photoInputRef = useRef(null);
+
+  function updateForm(key, value) {
+    setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  function handlePhotoSelect(e) {
+    const files = Array.from(e.target.files || []);
+    setPhotoFiles((prev) => [...prev, ...files].slice(0, 6));
+    e.target.value = "";
+  }
+
+  function removeStagedPhoto(idx) {
+    setPhotoFiles((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  async function addRound() {
+    if (!form.course.trim() || form.front9 === "" || form.back9 === "") return;
+    setSaving(true);
+    try {
+      const id = "gr" + Date.now() + Math.random().toString(36).slice(2, 6);
+      const photoIds = [];
+      for (const file of photoFiles) {
+        const photoId = "gp" + Date.now() + Math.random().toString(36).slice(2, 8);
+        await dbPutPhoto({ id: photoId, roundId: id, blob: file, createdAt: Date.now() });
+        photoIds.push(photoId);
+      }
+      const numOrNull = (v) => (v === "" ? null : Number(v));
+      const round = {
+        id,
+        date: form.date || new Date().toISOString().slice(0, 10),
+        course: form.course.trim(),
+        par: Number(form.par) || 72,
+        front9: Number(form.front9) || 0,
+        back9: Number(form.back9) || 0,
+        fairwayHits: numOrNull(form.fairwayHits),
+        gir: numOrNull(form.gir),
+        avgDrivingDistance: numOrNull(form.avgDrivingDistance),
+        totalPutts: numOrNull(form.totalPutts),
+        scrambling: numOrNull(form.scrambling),
+        sandSaves: numOrNull(form.sandSaves),
+        photoIds,
+      };
+      setRounds([round, ...rounds]);
+      setForm(emptyForm);
+      setPhotoFiles([]);
+      setShowForm(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeRound(id) {
+    const round = rounds.find((r) => r.id === id);
+    if (round && round.photoIds && round.photoIds.length > 0) {
+      await Promise.all(round.photoIds.map((pid) => dbDeletePhoto(pid)));
+    }
+    setRounds(rounds.filter((r) => r.id !== id));
+  }
+
+  async function loadPhotosFor(round) {
+    if (roundPhotos[round.id] || !round.photoIds || round.photoIds.length === 0) return;
+    const records = await dbGetPhotosByIds(round.photoIds);
+    const withUrls = records.map((r) => ({ id: r.id, url: URL.createObjectURL(r.blob) }));
+    setRoundPhotos((prev) => ({ ...prev, [round.id]: withUrls }));
+  }
+
+  function toggleExpand(round) {
+    if (expandedId === round.id) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(round.id);
+    loadPhotosFor(round);
+  }
+
+  const sorted = rounds.slice().sort((a, b) => b.date.localeCompare(a.date));
+  const scores = rounds.map((r) => r.front9 + r.back9);
+  const avgScore = scores.length ? Math.round((scores.reduce((s, v) => s + v, 0) / scores.length) * 10) / 10 : null;
+  const bestScore = scores.length ? Math.min(...scores) : null;
+
+  const inputStyle = {
+    background: theme.inputBg,
+    border: `1px solid ${theme.inputBorder}`,
+    borderRadius: "8px",
+    color: theme.inputText,
+    padding: "8px 10px",
+    fontSize: "13px",
+    minWidth: 0,
+    width: "100%",
+    "--focus-ring": theme.accentSoft,
+    "--focus-border": theme.accent,
+  };
+  const fieldLabelStyle = {
+    fontSize: "10px",
+    fontWeight: 700,
+    letterSpacing: "0.05em",
+    textTransform: "uppercase",
+    color: theme.textFaint,
+    marginBottom: "4px",
+    display: "block",
+  };
+
+  function Field({ label, children }) {
+    return (
+      <div style={{ minWidth: 0 }}>
+        <span style={fieldLabelStyle}>{label}</span>
+        {children}
+      </div>
+    );
+  }
+
+  return (
+    <Card theme={theme} delay={delay}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>
+        <SectionLabel theme={theme} icon={<IconGolf />} style={{ marginBottom: 0 }}>
+          {title}
+        </SectionLabel>
+        <button
+          onClick={() => setShowForm((s) => !s)}
+          className="v-btn"
+          style={{ fontSize: "11.5px", fontWeight: 700, color: theme.textMuted, background: "transparent", border: `1px solid ${theme.divider}`, borderRadius: "999px", padding: "4px 10px" }}
+        >
+          {showForm ? "Cancel" : "+ Add Round"}
+        </button>
+      </div>
+
+      {rounds.length > 0 && (
+        <div style={{ display: "flex", gap: "16px", fontSize: "12px", color: theme.textFaint, marginBottom: "16px" }}>
+          <span>{rounds.length} round{rounds.length === 1 ? "" : "s"}</span>
+          {avgScore !== null && (
+            <span>
+              avg <span className="v-tabular" style={{ color: theme.text, fontWeight: 700 }}>{avgScore}</span>
+            </span>
+          )}
+          {bestScore !== null && (
+            <span>
+              best <span className="v-tabular" style={{ color: theme.text, fontWeight: 700 }}>{bestScore}</span>
+            </span>
+          )}
+        </div>
+      )}
+
+      {showForm && (
+        <div style={{ background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "12px", padding: "14px", marginBottom: "18px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "10px", marginBottom: "10px" }}>
+            <Field label="Course">
+              <input value={form.course} onChange={(e) => updateForm("course", e.target.value)} className="v-input" style={inputStyle} placeholder="Ballyhack Golf Club" />
+            </Field>
+            <Field label="Date">
+              <input type="date" value={form.date} onChange={(e) => updateForm("date", e.target.value)} className="v-input" style={inputStyle} />
+            </Field>
+            <Field label="Par">
+              <input type="number" value={form.par} onChange={(e) => updateForm("par", e.target.value)} className="v-input v-tabular" style={inputStyle} />
+            </Field>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "10px", marginBottom: "10px" }}>
+            <Field label="Front 9">
+              <input type="number" value={form.front9} onChange={(e) => updateForm("front9", e.target.value)} className="v-input v-tabular" style={inputStyle} placeholder="42" />
+            </Field>
+            <Field label="Back 9">
+              <input type="number" value={form.back9} onChange={(e) => updateForm("back9", e.target.value)} className="v-input v-tabular" style={inputStyle} placeholder="42" />
+            </Field>
+            <Field label="Total putts">
+              <input type="number" value={form.totalPutts} onChange={(e) => updateForm("totalPutts", e.target.value)} className="v-input v-tabular" style={inputStyle} placeholder="30" />
+            </Field>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "10px", marginBottom: "10px" }}>
+            <Field label="Fairway hits %">
+              <input type="number" value={form.fairwayHits} onChange={(e) => updateForm("fairwayHits", e.target.value)} className="v-input v-tabular" style={inputStyle} placeholder="43" />
+            </Field>
+            <Field label="GIR %">
+              <input type="number" value={form.gir} onChange={(e) => updateForm("gir", e.target.value)} className="v-input v-tabular" style={inputStyle} placeholder="33" />
+            </Field>
+            <Field label="Avg drive (yd)">
+              <input type="number" value={form.avgDrivingDistance} onChange={(e) => updateForm("avgDrivingDistance", e.target.value)} className="v-input v-tabular" style={inputStyle} placeholder="244" />
+            </Field>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "10px", marginBottom: "12px" }}>
+            <Field label="Scrambling %">
+              <input type="number" value={form.scrambling} onChange={(e) => updateForm("scrambling", e.target.value)} className="v-input v-tabular" style={inputStyle} placeholder="75" />
+            </Field>
+            <Field label="Sand saves %">
+              <input type="number" value={form.sandSaves} onChange={(e) => updateForm("sandSaves", e.target.value)} className="v-input v-tabular" style={inputStyle} placeholder="50" />
+            </Field>
+          </div>
+
+          <span style={fieldLabelStyle}>Scorecard photos (optional)</span>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "10px" }}>
+            {photoFiles.map((f, i) => (
+              <div key={i} style={{ position: "relative", width: "52px", height: "52px", borderRadius: "8px", overflow: "hidden", border: `1px solid ${theme.divider}` }}>
+                <img src={URL.createObjectURL(f)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                <button
+                  onClick={() => removeStagedPhoto(i)}
+                  title="Remove"
+                  className="v-btn"
+                  style={{ position: "absolute", top: "2px", right: "2px", width: "16px", height: "16px", borderRadius: "50%", border: "none", background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: "10px", lineHeight: "16px", textAlign: "center", padding: 0 }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <button
+              onClick={() => photoInputRef.current && photoInputRef.current.click()}
+              className="v-btn"
+              style={{ width: "52px", height: "52px", borderRadius: "8px", border: `1px dashed ${theme.inputBorder}`, background: "transparent", color: theme.textMuted, fontSize: "20px" }}
+            >
+              +
+            </button>
+            <input ref={photoInputRef} type="file" accept="image/*" multiple onChange={handlePhotoSelect} style={{ display: "none" }} />
+          </div>
+
+          <button
+            onClick={addRound}
+            disabled={saving}
+            className="v-btn"
+            style={{ padding: "9px 18px", borderRadius: "8px", border: "none", background: theme.accent, color: theme.accentText, fontSize: "13px", fontWeight: 700, opacity: saving ? 0.6 : 1 }}
+          >
+            {saving ? "Saving…" : "Save Round"}
+          </button>
+        </div>
+      )}
+
+      {sorted.length > 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {sorted.map((r) => {
+            const total = r.front9 + r.back9;
+            const toPar = total - r.par;
+            const toParLabel = toPar === 0 ? "E" : toPar > 0 ? `+${toPar}` : `${toPar}`;
+            const toParColor = toPar > 0 ? theme.danger : toPar < 0 ? theme.positive : theme.textMuted;
+            const expanded = expandedId === r.id;
+            const metrics = [
+              ["Fairway hits", r.fairwayHits, "%"],
+              ["GIR", r.gir, "%"],
+              ["Avg drive", r.avgDrivingDistance, "yd"],
+              ["Putts", r.totalPutts, ""],
+              ["Scrambling", r.scrambling, "%"],
+              ["Sand saves", r.sandSaves, "%"],
+            ].filter(([, v]) => v !== null && v !== undefined);
+            return (
+              <div key={r.id} style={{ background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "10px", overflow: "hidden" }}>
+                <div onClick={() => toggleExpand(r)} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", cursor: "pointer" }}>
+                  <span style={{ fontSize: "11px", color: theme.textFaint, flexShrink: 0, width: "44px" }}>
+                    {r.date.slice(5).replace("-", "/")}
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: "13.5px", fontWeight: 600, color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {r.course}
+                  </span>
+                  <span className="v-tabular" style={{ fontSize: "12px", color: theme.textFaint, flexShrink: 0 }}>
+                    {r.front9}-{r.back9}
+                  </span>
+                  <span className="v-tabular" style={{ fontSize: "15px", fontWeight: 700, color: theme.text, flexShrink: 0 }}>
+                    {total} <span style={{ fontSize: "12px", color: toParColor }}>({toParLabel})</span>
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeRound(r.id);
+                    }}
+                    title="Remove"
+                    className="v-btn"
+                    style={{ width: "18px", height: "18px", borderRadius: "50%", border: "none", background: theme.dangerSoft, color: theme.danger, fontSize: "11px", lineHeight: "18px", textAlign: "center", padding: 0, flexShrink: 0 }}
+                  >
+                    ×
+                  </button>
+                </div>
+                {expanded && (
+                  <div style={{ padding: "0 12px 14px", borderTop: `1px solid ${theme.divider}` }}>
+                    {metrics.length > 0 && (
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))", gap: "10px", marginTop: "12px" }}>
+                        {metrics.map(([label, value, suffix]) => (
+                          <div key={label}>
+                            <div style={fieldLabelStyle}>{label}</div>
+                            <div className="v-tabular" style={{ fontSize: "14px", fontWeight: 700, color: theme.text }}>
+                              {value}
+                              {suffix}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {roundPhotos[r.id] && roundPhotos[r.id].length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "12px" }}>
+                        {roundPhotos[r.id].map((p) => (
+                          <a key={p.id} href={p.url} target="_blank" rel="noopener noreferrer">
+                            <img src={p.url} alt="" style={{ width: "64px", height: "64px", objectFit: "cover", borderRadius: "8px", border: `1px solid ${theme.divider}`, display: "block" }} />
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        !showForm && <div style={{ fontSize: "13px", color: theme.textFaint }}>No rounds logged yet.</div>
+      )}
     </Card>
   );
 }
@@ -4697,6 +5084,38 @@ function sanitizeBackup(parsed) {
       lastSeenAt: Number.isFinite(Number(parsed.youtube.lastSeenAt)) ? Number(parsed.youtube.lastSeenAt) : null,
     };
   }
+  // Round metadata backs up; the scorecard photos themselves stay local
+  // (IndexedDB, same as the video library) so a restored backup keeps the
+  // numbers but not the images — same trade-off already made for videos.
+  function sanitizeGolfRounds(arr) {
+    if (!Array.isArray(arr)) return null;
+    const numOrNull = (v) => (v === null || v === undefined || v === "" ? null : Number.isFinite(Number(v)) ? Number(v) : null);
+    return arr
+      .filter((r) => isPlainObject(r) && typeof r.course === "string" && r.course.trim() && typeof r.date === "string")
+      .map((r, i) => ({
+        id: typeof r.id === "string" && r.id ? r.id : "gr" + Date.now() + i,
+        date: r.date,
+        course: String(r.course),
+        par: Number(r.par) || 72,
+        front9: Number(r.front9) || 0,
+        back9: Number(r.back9) || 0,
+        fairwayHits: numOrNull(r.fairwayHits),
+        gir: numOrNull(r.gir),
+        avgDrivingDistance: numOrNull(r.avgDrivingDistance),
+        totalPutts: numOrNull(r.totalPutts),
+        scrambling: numOrNull(r.scrambling),
+        sandSaves: numOrNull(r.sandSaves),
+        photoIds: [],
+      }));
+  }
+  if (Array.isArray(parsed.golfSimRounds)) {
+    const sanitized = sanitizeGolfRounds(parsed.golfSimRounds);
+    if (sanitized) out.golfSimRounds = sanitized;
+  }
+  if (Array.isArray(parsed.golfOutdoorRounds)) {
+    const sanitized = sanitizeGolfRounds(parsed.golfOutdoorRounds);
+    if (sanitized) out.golfOutdoorRounds = sanitized;
+  }
   return out;
 }
 
@@ -4725,6 +5144,8 @@ function BackupMenu({
   goals,
   transactions,
   youtube,
+  golfSimRounds,
+  golfOutdoorRounds,
   setThemeKey,
   setFitness,
   setGolf,
@@ -4738,6 +5159,8 @@ function BackupMenu({
   setGoals,
   setTransactions,
   setYoutube,
+  setGolfSimRounds,
+  setGolfOutdoorRounds,
 }) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState(null);
@@ -4772,6 +5195,8 @@ function BackupMenu({
       goals,
       transactions,
       youtube,
+      golfSimRounds,
+      golfOutdoorRounds,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -4816,6 +5241,8 @@ function BackupMenu({
         if (sanitized.goals) setGoals(sanitized.goals);
         if (sanitized.transactions) setTransactions(sanitized.transactions);
         if (sanitized.youtube) setYoutube(sanitized.youtube);
+        if (sanitized.golfSimRounds) setGolfSimRounds(sanitized.golfSimRounds);
+        if (sanitized.golfOutdoorRounds) setGolfOutdoorRounds(sanitized.golfOutdoorRounds);
         setStatus({ type: "success", message: "Backup restored." });
       } catch (err) {
         setStatus({ type: "error", message: "Couldn't parse that file as JSON." });
@@ -5628,6 +6055,8 @@ function Sidebar({
   transactions,
   newYoutubeCount,
   youtube,
+  golfSimRounds,
+  golfOutdoorRounds,
   page,
   onNavigate,
   setThemeKey,
@@ -5644,6 +6073,8 @@ function Sidebar({
   setGoals,
   setTransactions,
   setYoutube,
+  setGolfSimRounds,
+  setGolfOutdoorRounds,
 }) {
   const doneGoals = goals.filter((g) => g.status === "done").length;
   const valueByPage = {
@@ -5753,6 +6184,8 @@ function Sidebar({
           goals={goals}
           transactions={transactions}
           youtube={youtube}
+          golfSimRounds={golfSimRounds}
+          golfOutdoorRounds={golfOutdoorRounds}
           setThemeKey={setThemeKey}
           setFitness={setFitness}
           setGolf={setGolf}
@@ -5766,6 +6199,8 @@ function Sidebar({
           setGoals={setGoals}
           setTransactions={setTransactions}
           setYoutube={setYoutube}
+          setGolfSimRounds={setGolfSimRounds}
+          setGolfOutdoorRounds={setGolfOutdoorRounds}
         />
         <ThemePicker theme={theme} themeKey={themeKey} setThemeKey={setThemeKey} />
       </div>
@@ -5832,6 +6267,8 @@ function App() {
 
   const [fitness, setFitness] = usePersistentState(STORAGE_KEYS.fitness, DEFAULT_FITNESS);
   const [golf, setGolf] = usePersistentState(STORAGE_KEYS.golf, DEFAULT_GOLF);
+  const [golfSimRounds, setGolfSimRounds] = usePersistentState(STORAGE_KEYS.golfSimRounds, DEFAULT_GOLF_ROUNDS);
+  const [golfOutdoorRounds, setGolfOutdoorRounds] = usePersistentState(STORAGE_KEYS.golfOutdoorRounds, DEFAULT_GOLF_ROUNDS);
   const [trackers, setTrackers] = usePersistentState(STORAGE_KEYS.trackers, DEFAULT_TRACKERS);
   const [financial, setFinancial] = usePersistentState(STORAGE_KEYS.financial, DEFAULT_FINANCIAL);
   const [events, setEvents] = usePersistentState(STORAGE_KEYS.upcoming, DEFAULT_UPCOMING_EVENTS);
@@ -5993,6 +6430,8 @@ function App() {
         transactions={transactions}
         newYoutubeCount={newYoutubeCount}
         youtube={youtube}
+        golfSimRounds={golfSimRounds}
+        golfOutdoorRounds={golfOutdoorRounds}
         page={page}
         onNavigate={navigate}
         setThemeKey={setThemeKey}
@@ -6009,6 +6448,8 @@ function App() {
         setGoals={setGoals}
         setTransactions={setTransactions}
         setYoutube={setYoutube}
+        setGolfSimRounds={setGolfSimRounds}
+        setGolfOutdoorRounds={setGolfOutdoorRounds}
       />
 
       <div className="v-main">
@@ -6035,7 +6476,11 @@ function App() {
             <FitnessSection theme={theme} data={fitness} setData={setFitness} history={history.fitness} onRecordWeight={recordWeight} />
           )}
           {page === "golf" && (
-            <GolfSection theme={theme} data={golf} setData={setGolf} history={history.golf} onRecordHandicap={recordHandicap} />
+            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              <GolfSection theme={theme} data={golf} setData={setGolf} history={history.golf} onRecordHandicap={recordHandicap} />
+              <GolfRoundLog theme={theme} title="Simulator Rounds" rounds={golfSimRounds} setRounds={setGolfSimRounds} delay={0} />
+              <GolfRoundLog theme={theme} title="Outdoor Rounds" rounds={golfOutdoorRounds} setRounds={setGolfOutdoorRounds} delay={0} />
+            </div>
           )}
           {page === "financial" && <FinancialSection theme={theme} data={financial} setData={setFinancial} />}
           {page === "transactions" && (
