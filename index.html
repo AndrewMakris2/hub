@@ -121,15 +121,25 @@
       width: 100%;
       height: auto;
       flex-direction: row;
+      flex-wrap: wrap;
       align-items: center;
-      justify-content: space-between;
-      padding: 14px 20px;
-      gap: 12px;
+      padding: 14px 20px 0;
+      gap: 10px 12px;
       overflow: visible;
     }
     .v-rail::before { border-right: none; border-bottom: 1px solid var(--rail-border); }
-    .v-rail-nav { display: none; }
-    .v-rail-utilities { flex-direction: row; align-items: center; }
+    .v-rail-brand { order: 1; }
+    .v-rail-utilities { order: 2; flex-direction: row; align-items: center; margin-left: auto; }
+    .v-rail-nav {
+      order: 3;
+      flex: none;
+      flex-basis: 100%;
+      flex-direction: row;
+      overflow-x: auto;
+      gap: 4px;
+      padding-bottom: 12px;
+    }
+    .v-navitem { width: auto; flex-shrink: 0; }
     .v-main { margin-left: 0; }
   }
 
@@ -143,33 +153,23 @@
   }
   .v-stream-item:last-child { border-bottom: none; }
 
-  /* ---- Bento grid ---- */
-  .v-bento {
+  /* ---- Home overview tiles ---- */
+  .v-hometiles {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 20px;
-    align-items: stretch;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 14px;
   }
-  .v-bento > * { min-width: 0; }
-  .v-bento-fitness { grid-column: span 2; }
-  .v-bento-golf { grid-column: span 1; }
-  .v-bento-financial { grid-column: span 1; }
-  .v-bento-upcoming { grid-column: span 2; }
-  .v-bento-profile { grid-column: span 2; }
-  .v-bento-trackers { grid-column: span 2; }
-  .v-bento-videos { grid-column: span 2; }
-  .v-bento-budget { grid-column: span 2; }
-  .v-bento-agenda { grid-column: span 4; }
-  .v-bento-watchlist { grid-column: span 2; }
-  .v-bento-goals { grid-column: span 2; }
-  .v-bento-journal { grid-column: span 2; }
-  .v-bento-transactions { grid-column: span 2; }
-  .v-bento-youtube { grid-column: span 2; }
-
-  @media (max-width: 860px) {
-    .v-bento { grid-template-columns: 1fr; }
-    .v-bento > * { grid-column: 1 / -1 !important; }
+  .v-hometile {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-align: left;
+    border: none;
+    cursor: pointer;
+    padding: 16px;
+    transition: transform 0.15s ease;
   }
+  .v-hometile:hover { transform: translateY(-2px); }
 </style>
 </head>
 <body>
@@ -718,7 +718,6 @@ const STORAGE_KEYS = {
   briefingLastShown: "dash.briefingLastShown",
   weather: "dash.weather",
   watchlist: "dash.watchlist",
-  budget: "dash.budget",
   journal: "dash.journal",
   goals: "dash.goals",
   transactions: "dash.transactions",
@@ -760,6 +759,30 @@ function usePersistentState(key, initial) {
   return [state, setState];
 }
 
+// Minimal hash-based router — no library needed for a handful of pages.
+// The hash is the source of truth so pages are bookmarkable/shareable and
+// the browser's back/forward buttons work; validIds guards against a stale
+// hash pointing at a page that no longer exists.
+function useHashRoute(defaultRoute, validIds) {
+  function resolve() {
+    const raw = window.location.hash.replace(/^#/, "");
+    return raw && validIds.includes(raw) ? raw : defaultRoute;
+  }
+  const [route, setRoute] = useState(resolve);
+  useEffect(() => {
+    function onHashChange() {
+      setRoute(resolve());
+    }
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  function navigate(next) {
+    window.location.hash = next === defaultRoute ? "" : next;
+  }
+  return [route, navigate];
+}
+
 /* ----------------------------------------------------------------------
    DEFAULT DATA
 ---------------------------------------------------------------------- */
@@ -784,7 +807,6 @@ const DEFAULT_FINANCIAL = {
 };
 
 const DEFAULT_TRACKERS = [
-  { id: "t1", label: "Books Read", value: "7", target: "20" },
   { id: "t2", label: "5K PR", value: "21:04", target: "" },
 ];
 
@@ -831,7 +853,7 @@ function analyzeTrend(series, { flatThreshold = 0.5, minSpanDays = 6 } = {}) {
 }
 
 const DEFAULT_PROFILE = {
-  interests: ["Golf", "Fitness", "Reading"],
+  interests: ["Golf", "Fitness"],
   genres: [],
   activities: {},
   topPicks: [],
@@ -846,12 +868,6 @@ const DEFAULT_INTEGRATIONS = {
 };
 
 const DEFAULT_WATCHLIST = [];
-
-function currentMonthLabel() {
-  return new Date().toLocaleDateString(undefined, { month: "long", year: "numeric" });
-}
-
-const DEFAULT_BUDGET = { month: currentMonthLabel(), categories: [] };
 
 const DEFAULT_TRANSACTIONS = [];
 
@@ -1085,7 +1101,6 @@ const QUIZ_ACTIVITIES = [
   "Live Music",
   "Museums",
   "Golf",
-  "Reading",
   "Travel",
   "Photography",
   "Board Games",
@@ -2863,171 +2878,6 @@ function AgendaStripSection({ theme, events, delay }) {
             </div>
           </div>
         ))}
-      </div>
-    </Card>
-  );
-}
-
-function BudgetSnapshotSection({ theme, data, setData, transactions, delay }) {
-  const [label, setLabel] = useState("");
-  const [budgeted, setBudgeted] = useState("");
-
-  function addCategory() {
-    const trimmed = label.trim();
-    if (!trimmed || !budgeted) return;
-    const id = "b" + Date.now() + Math.random().toString(36).slice(2, 6);
-    setData({
-      ...data,
-      categories: [...data.categories, { id, label: trimmed, budgeted: Number(budgeted) || 0, actual: 0 }],
-    });
-    setLabel("");
-    setBudgeted("");
-  }
-
-  function removeCategory(id) {
-    setData({ ...data, categories: data.categories.filter((c) => c.id !== id) });
-  }
-
-  function updateActual(id, value) {
-    setData({ ...data, categories: data.categories.map((c) => (c.id === id ? { ...c, actual: Number(value) || 0 } : c)) });
-  }
-
-  function resetActuals() {
-    setData({ ...data, categories: data.categories.map((c) => ({ ...c, actual: 0 })), month: currentMonthLabel() });
-  }
-
-  const monthPrefix = new Date().toISOString().slice(0, 7);
-  const monthTx = (transactions || []).filter((t) => t.date.startsWith(monthPrefix));
-  function linkedActual(categoryLabel) {
-    const matches = monthTx.filter((t) => t.category.trim().toLowerCase() === categoryLabel.trim().toLowerCase());
-    if (matches.length === 0) return null;
-    return { total: matches.reduce((s, t) => s + t.amount, 0), count: matches.length };
-  }
-
-  const totalBudgeted = data.categories.reduce((s, c) => s + c.budgeted, 0);
-  const totalActual = data.categories.reduce((s, c) => {
-    const linked = linkedActual(c.label);
-    return s + (linked ? linked.total : c.actual);
-  }, 0);
-
-  const inputStyle = {
-    background: theme.inputBg,
-    border: `1px solid ${theme.inputBorder}`,
-    borderRadius: "8px",
-    color: theme.inputText,
-    padding: "9px 12px",
-    fontSize: "14px",
-    minWidth: 0,
-    "--focus-ring": theme.accentSoft,
-    "--focus-border": theme.accent,
-  };
-
-  return (
-    <Card theme={theme} delay={delay}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
-        <SectionLabel theme={theme} icon={<IconWallet />} style={{ marginBottom: 0 }}>Monthly Budget</SectionLabel>
-        <button
-          onClick={resetActuals}
-          className="v-btn"
-          style={{ fontSize: "11.5px", fontWeight: 700, color: theme.textMuted, background: "transparent", border: `1px solid ${theme.divider}`, borderRadius: "999px", padding: "4px 10px" }}
-        >
-          Start new month
-        </button>
-      </div>
-      <div style={{ fontSize: "12px", color: theme.textFaint, marginBottom: "16px" }}>{data.month}</div>
-
-      {data.categories.length > 0 ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginBottom: "18px" }}>
-          {data.categories.map((c) => {
-            const linked = linkedActual(c.label);
-            const effectiveActual = linked ? linked.total : c.actual;
-            const over = effectiveActual > c.budgeted;
-            const pct = Math.min(100, Math.round((effectiveActual / (c.budgeted || 1)) * 100));
-            return (
-              <div key={c.id}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px", gap: "8px" }}>
-                  <span style={{ fontSize: "13px", fontWeight: 600, color: theme.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {c.label}
-                  </span>
-                  {linked ? (
-                    <span
-                      title={`From ${linked.count} transaction${linked.count === 1 ? "" : "s"} this month`}
-                      className="v-tabular"
-                      style={{ fontSize: "13px", fontWeight: 700, color: over ? theme.danger : theme.text, flexShrink: 0 }}
-                    >
-                      {linked.total.toLocaleString()}
-                    </span>
-                  ) : (
-                    <input
-                      type="number"
-                      value={c.actual || ""}
-                      onChange={(e) => updateActual(c.id, e.target.value)}
-                      placeholder="0"
-                      className="v-input v-tabular"
-                      style={{ width: "70px", fontSize: "13px", fontWeight: 700, color: over ? theme.danger : theme.text, background: "transparent", border: "none", textAlign: "right", padding: 0, "--focus-ring": theme.accentSoft, "--focus-border": "transparent" }}
-                    />
-                  )}
-                  <span style={{ fontSize: "12px", color: theme.textFaint, flexShrink: 0 }}>/ ${c.budgeted.toLocaleString()}</span>
-                  <button
-                    onClick={() => removeCategory(c.id)}
-                    title="Remove"
-                    className="v-btn"
-                    style={{ width: "18px", height: "18px", borderRadius: "50%", border: "none", background: theme.dangerSoft, color: theme.danger, fontSize: "11px", lineHeight: "18px", textAlign: "center", padding: 0, flexShrink: 0 }}
-                  >
-                    ×
-                  </button>
-                </div>
-                <div style={{ height: "6px", borderRadius: "999px", background: theme.progressTrack, overflow: "hidden" }}>
-                  <div
-                    style={{
-                      height: "100%",
-                      width: `${pct}%`,
-                      borderRadius: "999px",
-                      background: over ? theme.danger : theme.progressFill,
-                      backgroundImage: !over && typeof theme.progressFill === "string" && theme.progressFill.includes("gradient") ? theme.progressFill : undefined,
-                      transition: "width 0.3s ease",
-                    }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12.5px", fontWeight: 700, color: theme.textMuted, paddingTop: "4px", borderTop: `1px solid ${theme.divider}` }}>
-            <span>Total</span>
-            <span className="v-tabular">${totalActual.toLocaleString()} / ${totalBudgeted.toLocaleString()}</span>
-          </div>
-        </div>
-      ) : (
-        <div style={{ fontSize: "13px", color: theme.textFaint, marginBottom: "18px" }}>
-          No categories yet — add one below.
-        </div>
-      )}
-
-      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-        <input
-          placeholder="Category (e.g. Groceries)"
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && addCategory()}
-          className="v-input"
-          style={{ ...inputStyle, flex: "2 1 140px" }}
-        />
-        <input
-          placeholder="Budget $"
-          type="number"
-          value={budgeted}
-          onChange={(e) => setBudgeted(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && addCategory()}
-          className="v-input"
-          style={{ ...inputStyle, flex: "1 1 90px" }}
-        />
-        <button
-          onClick={addCategory}
-          className="v-btn"
-          style={{ padding: "9px 16px", borderRadius: "8px", border: "none", background: theme.accent, color: theme.accentText, fontSize: "13px", fontWeight: 700, flexShrink: 0 }}
-        >
-          Add
-        </button>
       </div>
     </Card>
   );
@@ -4817,22 +4667,6 @@ function sanitizeBackup(parsed) {
         status: validStatuses.has(w.status) ? w.status : "queued",
       }));
   }
-  if (isPlainObject(parsed.budget)) {
-    const b = parsed.budget;
-    out.budget = {
-      month: typeof b.month === "string" && b.month.trim() ? b.month : currentMonthLabel(),
-      categories: Array.isArray(b.categories)
-        ? b.categories
-            .filter((c) => isPlainObject(c) && typeof c.label === "string" && c.label.trim())
-            .map((c, i) => ({
-              id: typeof c.id === "string" && c.id ? c.id : "b" + Date.now() + i,
-              label: String(c.label),
-              budgeted: Number(c.budgeted) || 0,
-              actual: Number(c.actual) || 0,
-            }))
-        : [],
-    };
-  }
   if (Array.isArray(parsed.journal)) {
     out.journal = parsed.journal
       .filter((e) => isPlainObject(e) && typeof e.date === "string" && e.date.trim())
@@ -4887,7 +4721,6 @@ function BackupMenu({
   events,
   history,
   watchlist,
-  budget,
   journal,
   goals,
   transactions,
@@ -4901,7 +4734,6 @@ function BackupMenu({
   setEvents,
   setHistory,
   setWatchlist,
-  setBudget,
   setJournal,
   setGoals,
   setTransactions,
@@ -4936,7 +4768,6 @@ function BackupMenu({
       events,
       history,
       watchlist,
-      budget,
       journal,
       goals,
       transactions,
@@ -4981,7 +4812,6 @@ function BackupMenu({
         if (sanitized.events) setEvents(sanitized.events);
         if (sanitized.history) setHistory(sanitized.history);
         if (sanitized.watchlist) setWatchlist(sanitized.watchlist);
-        if (sanitized.budget) setBudget(sanitized.budget);
         if (sanitized.journal) setJournal(sanitized.journal);
         if (sanitized.goals) setGoals(sanitized.goals);
         if (sanitized.transactions) setTransactions(sanitized.transactions);
@@ -5676,23 +5506,40 @@ function YouTubeSection({ theme, integrations, setIntegrations, videos, onVideos
   );
 }
 
-function scrollToSection(id) {
-  const el = document.getElementById(id);
-  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-}
+// Every non-Home page Vantage can navigate to. Order here drives both the
+// sidebar nav list and the Home overview tile grid.
+const PAGE_META = [
+  { id: "fitness", label: "Fitness", icon: <IconDumbbell /> },
+  { id: "golf", label: "Golf", icon: <IconGolf /> },
+  { id: "financial", label: "Financial", icon: <IconTrendingUp /> },
+  { id: "transactions", label: "Transactions", icon: <IconReceipt size={14} /> },
+  { id: "upcoming", label: "Upcoming", icon: <IconCalendar /> },
+  { id: "agenda", label: "Agenda", icon: <IconCalendar /> },
+  { id: "youtube", label: "YouTube", icon: <IconYoutube size={14} /> },
+  { id: "profile", label: "About Me", icon: <IconUser /> },
+  { id: "watchlist", label: "Watch List", icon: <IconFilm size={14} /> },
+  { id: "trackers", label: "Trackers", icon: <IconChecklist size={14} /> },
+  { id: "goals", label: "Life Goals", icon: <IconFlag size={14} /> },
+  { id: "videos", label: "Videos", icon: <IconVideo size={14} /> },
+  { id: "journal", label: "Journal", icon: <IconBookOpen size={14} /> },
+];
 
-function NavItem({ theme, icon, label, value, onClick }) {
+function NavItem({ theme, icon, label, value, active, onClick }) {
   return (
     <button
       onClick={onClick}
       className="v-btn v-navitem"
-      style={{ color: theme.text, "--navitem-hover": theme.accentSoft }}
+      style={{
+        color: active ? theme.accent : theme.text,
+        background: active ? theme.accentSoft : "transparent",
+        "--navitem-hover": theme.accentSoft,
+      }}
     >
-      <span style={{ color: theme.textMuted, flexShrink: 0, display: "inline-flex" }}>{icon}</span>
+      <span style={{ color: active ? theme.accent : theme.textMuted, flexShrink: 0, display: "inline-flex" }}>{icon}</span>
       <span
         style={{
           fontSize: "13.5px",
-          fontWeight: 600,
+          fontWeight: active ? 700 : 600,
           flex: 1,
           minWidth: 0,
           overflow: "hidden",
@@ -5706,7 +5553,7 @@ function NavItem({ theme, icon, label, value, onClick }) {
       {value !== null && value !== undefined && value !== "" && (
         <span
           className="v-tabular"
-          style={{ fontSize: "12px", fontWeight: 700, color: theme.textMuted, flexShrink: 0 }}
+          style={{ fontSize: "12px", fontWeight: 700, color: active ? theme.accent : theme.textMuted, flexShrink: 0 }}
         >
           {value}
         </span>
@@ -5731,12 +5578,13 @@ function Sidebar({
   upcomingCount,
   weekAgendaCount,
   watchlist,
-  budget,
   journal,
   goals,
   transactions,
   newYoutubeCount,
   youtube,
+  page,
+  onNavigate,
   setThemeKey,
   setFitness,
   setGolf,
@@ -5747,7 +5595,6 @@ function Sidebar({
   setEvents,
   setHistory,
   setWatchlist,
-  setBudget,
   setJournal,
   setGoals,
   setTransactions,
@@ -5755,30 +5602,23 @@ function Sidebar({
   onEvents,
 }) {
   const doneGoals = goals.filter((g) => g.status === "done").length;
-  const navItems = [
-    { id: "section-suggestions", label: "For You", icon: <IconBulb size={14} />, value: suggestionsCount || null },
-    { id: "section-fitness", label: "Fitness", icon: <IconDumbbell />, value: fitness.currentWeight },
-    { id: "section-golf", label: "Golf", icon: <IconGolf />, value: golf.handicap },
-    {
-      id: "section-financial",
-      label: "Financial",
-      icon: <IconTrendingUp />,
-      value: financial.targetDownPayment
-        ? `${Math.min(100, Math.round(((financial.currentSavings || 0) / financial.targetDownPayment) * 100))}%`
-        : null,
-    },
-    { id: "section-budget", label: "Budget", icon: <IconWallet size={14} />, value: budget.categories.length || null },
-    { id: "section-transactions", label: "Transactions", icon: <IconReceipt size={14} />, value: transactions.length || null },
-    { id: "section-upcoming", label: "Upcoming", icon: <IconCalendar />, value: upcomingCount || null },
-    { id: "section-agenda", label: "Agenda", icon: <IconCalendar />, value: weekAgendaCount || null },
-    { id: "section-youtube", label: "YouTube", icon: <IconYoutube size={14} />, value: newYoutubeCount || null },
-    { id: "section-profile", label: "About Me", icon: <IconUser />, value: profile.interests.length || null },
-    { id: "section-watchlist", label: "Watch List", icon: <IconFilm size={14} />, value: watchlist.length || null },
-    { id: "section-trackers", label: "Trackers", icon: <IconChecklist size={14} />, value: trackers.length || null },
-    { id: "section-goals", label: "Life Goals", icon: <IconFlag size={14} />, value: goals.length ? `${doneGoals}/${goals.length}` : null },
-    { id: "section-videos", label: "Videos", icon: <IconVideo size={14} />, value: null },
-    { id: "section-journal", label: "Journal", icon: <IconBookOpen size={14} />, value: journal.length || null },
-  ];
+  const valueByPage = {
+    fitness: fitness.currentWeight,
+    golf: golf.handicap,
+    financial: financial.targetDownPayment
+      ? `${Math.min(100, Math.round(((financial.currentSavings || 0) / financial.targetDownPayment) * 100))}%`
+      : null,
+    transactions: transactions.length || null,
+    upcoming: upcomingCount || null,
+    agenda: weekAgendaCount || null,
+    youtube: newYoutubeCount || null,
+    profile: profile.interests.length || null,
+    watchlist: watchlist.length || null,
+    trackers: trackers.length || null,
+    goals: goals.length ? `${doneGoals}/${goals.length}` : null,
+    videos: null,
+    journal: journal.length || null,
+  };
 
   return (
     <div
@@ -5788,7 +5628,11 @@ function Sidebar({
         "--rail-border": theme.themeBarBorder,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "0 6px", flexShrink: 0 }}>
+      <button
+        onClick={() => onNavigate("home")}
+        className="v-rail-brand"
+        style={{ display: "flex", alignItems: "center", gap: "10px", padding: "0 6px", flexShrink: 0, border: "none", background: "transparent", cursor: "pointer" }}
+      >
         <span
           style={{
             width: "30px",
@@ -5815,17 +5659,26 @@ function Sidebar({
         >
           Vantage
         </span>
-      </div>
+      </button>
 
       <div className="v-rail-nav">
-        {navItems.map((item) => (
+        <NavItem
+          theme={theme}
+          icon={<IconBulb size={14} />}
+          label="Home"
+          value={suggestionsCount || null}
+          active={page === "home"}
+          onClick={() => onNavigate("home")}
+        />
+        {PAGE_META.map((item) => (
           <NavItem
             key={item.id}
             theme={theme}
             icon={item.icon}
             label={item.label}
-            value={item.value}
-            onClick={() => scrollToSection(item.id)}
+            value={valueByPage[item.id]}
+            active={page === item.id}
+            onClick={() => onNavigate(item.id)}
           />
         ))}
       </div>
@@ -5849,7 +5702,6 @@ function Sidebar({
           events={events}
           history={history}
           watchlist={watchlist}
-          budget={budget}
           journal={journal}
           goals={goals}
           transactions={transactions}
@@ -5863,13 +5715,57 @@ function Sidebar({
           setEvents={setEvents}
           setHistory={setHistory}
           setWatchlist={setWatchlist}
-          setBudget={setBudget}
           setJournal={setJournal}
           setGoals={setGoals}
           setTransactions={setTransactions}
           setYoutube={setYoutube}
         />
         <ThemePicker theme={theme} themeKey={themeKey} setThemeKey={setThemeKey} />
+      </div>
+    </div>
+  );
+}
+
+function HomeOverview({ theme, suggestions, weather, weatherStatus, onEnableWeather, onOpenBriefing, pageStats, onNavigate }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+      <SuggestionsSection
+        theme={theme}
+        suggestions={suggestions}
+        onOpenBriefing={onOpenBriefing}
+        weather={weather}
+        weatherStatus={weatherStatus}
+        onEnableWeather={onEnableWeather}
+      />
+      <div className="v-hometiles">
+        {PAGE_META.map((p) => {
+          const stat = pageStats[p.id] || {};
+          return (
+            <button
+              key={p.id}
+              onClick={() => onNavigate(p.id)}
+              className="v-card v-hometile"
+              style={{ ...cardBackgroundStyle(theme), "--accent-line": theme.accent }}
+            >
+              <span style={{ color: theme.accent, display: "inline-flex" }}>{p.icon}</span>
+              <span
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  color: theme.sectionLabelColor,
+                }}
+              >
+                {p.label}
+              </span>
+              <span className="v-tabular" style={{ fontSize: "22px", fontWeight: 700, color: theme.text }}>
+                {stat.value !== null && stat.value !== undefined && stat.value !== "" ? stat.value : "—"}
+              </span>
+              {stat.detail && <span style={{ fontSize: "11.5px", color: theme.textFaint }}>{stat.detail}</span>}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -5882,6 +5778,10 @@ function Sidebar({
 function App() {
   const [themeKey, setThemeKey] = usePersistentState(STORAGE_KEYS.theme, "minimal");
   const theme = THEMES[themeKey] || THEMES.minimal;
+  const [page, navigate] = useHashRoute("home", PAGE_META.map((p) => p.id));
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [page]);
 
   const [fitness, setFitness] = usePersistentState(STORAGE_KEYS.fitness, DEFAULT_FITNESS);
   const [golf, setGolf] = usePersistentState(STORAGE_KEYS.golf, DEFAULT_GOLF);
@@ -5901,7 +5801,6 @@ function App() {
   const [profile, setProfile] = usePersistentState(STORAGE_KEYS.profile, DEFAULT_PROFILE);
   const [integrations, setIntegrations] = usePersistentState(STORAGE_KEYS.integrations, DEFAULT_INTEGRATIONS);
   const [watchlist, setWatchlist] = usePersistentState(STORAGE_KEYS.watchlist, DEFAULT_WATCHLIST);
-  const [budget, setBudget] = usePersistentState(STORAGE_KEYS.budget, DEFAULT_BUDGET);
   const [journal, setJournal] = usePersistentState(STORAGE_KEYS.journal, DEFAULT_JOURNAL);
   const [goals, setGoals] = usePersistentState(STORAGE_KEYS.goals, DEFAULT_GOALS);
   const [transactions, setTransactions] = usePersistentState(STORAGE_KEYS.transactions, DEFAULT_TRANSACTIONS);
@@ -5988,6 +5887,28 @@ function App() {
     setBriefingOpen(false);
   }
 
+  const doneGoals = goals.filter((g) => g.status === "done").length;
+  const pageStats = {
+    fitness: { value: fitness.currentWeight, detail: `target ${fitness.targetWeight} lbs` },
+    golf: { value: golf.handicap, detail: `${golf.roundsYtd} rounds YTD` },
+    financial: {
+      value: financial.targetDownPayment
+        ? `${Math.min(100, Math.round(((financial.currentSavings || 0) / financial.targetDownPayment) * 100))}%`
+        : "—",
+      detail: "toward down payment",
+    },
+    transactions: { value: transactions.length || 0, detail: "logged" },
+    upcoming: { value: allEvents.length || 0, detail: "events" },
+    agenda: { value: weekAgendaCount || 0, detail: "this week" },
+    youtube: { value: newYoutubeCount || youtubeVideos.length || 0, detail: newYoutubeCount ? "new" : "checked" },
+    profile: { value: profile.interests.length || 0, detail: "interests" },
+    watchlist: { value: watchlist.length || 0, detail: "queued" },
+    trackers: { value: trackers.length || 0, detail: "trackers" },
+    goals: { value: goals.length ? `${doneGoals}/${goals.length}` : 0, detail: "done" },
+    videos: { value: null, detail: "library" },
+    journal: { value: journal.length || 0, detail: "entries" },
+  };
+
   return (
     <div
       style={{
@@ -6013,12 +5934,13 @@ function App() {
         upcomingCount={allEvents.length}
         weekAgendaCount={weekAgendaCount}
         watchlist={watchlist}
-        budget={budget}
         journal={journal}
         goals={goals}
         transactions={transactions}
         newYoutubeCount={newYoutubeCount}
         youtube={youtube}
+        page={page}
+        onNavigate={navigate}
         setThemeKey={setThemeKey}
         setFitness={setFitness}
         setGolf={setGolf}
@@ -6029,7 +5951,6 @@ function App() {
         setEvents={setEvents}
         setHistory={setHistory}
         setWatchlist={setWatchlist}
-        setBudget={setBudget}
         setJournal={setJournal}
         setGoals={setGoals}
         setTransactions={setTransactions}
@@ -6040,113 +5961,65 @@ function App() {
       <div className="v-main">
         <div
           style={{
-            maxWidth: "1200px",
+            maxWidth: page === "home" ? "1200px" : "760px",
             margin: "0 auto",
             padding: "32px 20px 64px",
-            display: "flex",
-            flexDirection: "column",
-            gap: "20px",
           }}
         >
-          <div id="section-suggestions" style={{ scrollMarginTop: "24px" }}>
-            <SuggestionsSection
+          {page === "home" && (
+            <HomeOverview
               theme={theme}
               suggestions={suggestions}
-              onOpenBriefing={() => setBriefingOpen(true)}
               weather={weather}
               weatherStatus={weatherStatus}
               onEnableWeather={enableWeather}
+              onOpenBriefing={() => setBriefingOpen(true)}
+              pageStats={pageStats}
+              onNavigate={navigate}
             />
-          </div>
-
-          <div className="v-bento">
-            <div id="section-fitness" className="v-bento-fitness" style={{ scrollMarginTop: "24px" }}>
-              <FitnessSection
-                theme={theme}
-                data={fitness}
-                setData={setFitness}
-                history={history.fitness}
-                onRecordWeight={recordWeight}
-              />
-            </div>
-            <div id="section-golf" className="v-bento-golf" style={{ scrollMarginTop: "24px" }}>
-              <GolfSection
-                theme={theme}
-                data={golf}
-                setData={setGolf}
-                history={history.golf}
-                onRecordHandicap={recordHandicap}
-              />
-            </div>
-            <div id="section-financial" className="v-bento-financial" style={{ scrollMarginTop: "24px" }}>
-              <FinancialSection theme={theme} data={financial} setData={setFinancial} />
-            </div>
-            <div id="section-budget" className="v-bento-budget" style={{ scrollMarginTop: "24px" }}>
-              <BudgetSnapshotSection theme={theme} data={budget} setData={setBudget} transactions={transactions} delay={200} />
-            </div>
-            <div id="section-transactions" className="v-bento-transactions" style={{ scrollMarginTop: "24px" }}>
-              <TransactionsSection
-                theme={theme}
-                transactions={transactions}
-                setTransactions={setTransactions}
-                categoryOptions={budget.categories.map((c) => c.label)}
-                delay={210}
-              />
-            </div>
-            <div id="section-upcoming" className="v-bento-upcoming" style={{ scrollMarginTop: "24px" }}>
-              <UpcomingSection
-                theme={theme}
-                events={events}
-                setEvents={setEvents}
-                connectedEvents={allConnectedEvents}
-              />
-            </div>
-            <div id="section-agenda" className="v-bento-agenda" style={{ scrollMarginTop: "24px" }}>
-              <AgendaStripSection theme={theme} events={allEvents} delay={220} />
-            </div>
-            <div id="section-youtube" className="v-bento-youtube" style={{ scrollMarginTop: "24px" }}>
-              <YouTubeSection
-                theme={theme}
-                integrations={integrations}
-                setIntegrations={setIntegrations}
-                videos={youtubeVideos}
-                onVideos={setYoutubeVideos}
-                youtubeState={youtube}
-                setYoutubeState={setYoutube}
-                delay={230}
-              />
-            </div>
-            <div id="section-profile" className="v-bento-profile" style={{ scrollMarginTop: "24px" }}>
-              <ProfileSection theme={theme} profile={profile} setProfile={setProfile} />
-            </div>
-            <div id="section-watchlist" className="v-bento-watchlist" style={{ scrollMarginTop: "24px" }}>
-              <WatchQueueSection
-                theme={theme}
-                watchlist={watchlist}
-                setWatchlist={setWatchlist}
-                genres={profile.genres}
-                delay={240}
-              />
-            </div>
-            <div id="section-trackers" className="v-bento-trackers" style={{ scrollMarginTop: "24px" }}>
-              <CustomTrackersSection
-                theme={theme}
-                trackers={trackers}
-                setTrackers={setTrackers}
-                trackerHistory={history.trackers}
-                onRecordTracker={recordTracker}
-              />
-            </div>
-            <div id="section-goals" className="v-bento-goals" style={{ scrollMarginTop: "24px" }}>
-              <GoalsBoardSection theme={theme} data={goals} setData={setGoals} delay={260} />
-            </div>
-            <div id="section-videos" className="v-bento-videos" style={{ scrollMarginTop: "24px" }}>
-              <VideoLibrarySection theme={theme} integrations={integrations} setIntegrations={setIntegrations} />
-            </div>
-            <div id="section-journal" className="v-bento-journal" style={{ scrollMarginTop: "24px" }}>
-              <JournalSection theme={theme} data={journal} setData={setJournal} delay={280} />
-            </div>
-          </div>
+          )}
+          {page === "fitness" && (
+            <FitnessSection theme={theme} data={fitness} setData={setFitness} history={history.fitness} onRecordWeight={recordWeight} />
+          )}
+          {page === "golf" && (
+            <GolfSection theme={theme} data={golf} setData={setGolf} history={history.golf} onRecordHandicap={recordHandicap} />
+          )}
+          {page === "financial" && <FinancialSection theme={theme} data={financial} setData={setFinancial} />}
+          {page === "transactions" && (
+            <TransactionsSection theme={theme} transactions={transactions} setTransactions={setTransactions} categoryOptions={[]} delay={0} />
+          )}
+          {page === "upcoming" && (
+            <UpcomingSection theme={theme} events={events} setEvents={setEvents} connectedEvents={allConnectedEvents} />
+          )}
+          {page === "agenda" && <AgendaStripSection theme={theme} events={allEvents} delay={0} />}
+          {page === "youtube" && (
+            <YouTubeSection
+              theme={theme}
+              integrations={integrations}
+              setIntegrations={setIntegrations}
+              videos={youtubeVideos}
+              onVideos={setYoutubeVideos}
+              youtubeState={youtube}
+              setYoutubeState={setYoutube}
+              delay={0}
+            />
+          )}
+          {page === "profile" && <ProfileSection theme={theme} profile={profile} setProfile={setProfile} />}
+          {page === "watchlist" && (
+            <WatchQueueSection theme={theme} watchlist={watchlist} setWatchlist={setWatchlist} genres={profile.genres} delay={0} />
+          )}
+          {page === "trackers" && (
+            <CustomTrackersSection
+              theme={theme}
+              trackers={trackers}
+              setTrackers={setTrackers}
+              trackerHistory={history.trackers}
+              onRecordTracker={recordTracker}
+            />
+          )}
+          {page === "goals" && <GoalsBoardSection theme={theme} data={goals} setData={setGoals} delay={0} />}
+          {page === "videos" && <VideoLibrarySection theme={theme} integrations={integrations} setIntegrations={setIntegrations} />}
+          {page === "journal" && <JournalSection theme={theme} data={journal} setData={setJournal} delay={0} />}
         </div>
       </div>
 
