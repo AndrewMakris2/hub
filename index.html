@@ -12,7 +12,7 @@
      Babel Standalone transforming/running inline JSX with no build step —
      the real protection here is the explicit host allowlist, which still
      blocks loading a script from any origin not listed below. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://accounts.google.com https://alcdn.msauth.net https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://cdn.sheetjs.com; worker-src 'self' blob: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https:; frame-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://accounts.google.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://cdn.sheetjs.com; worker-src 'self' blob: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https:; frame-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Vantage</title>
 <meta name="color-scheme" content="light dark" />
@@ -201,11 +201,11 @@
 
 <!-- Optional calendar integrations: only used if you connect Google/Outlook via the header. -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<!-- No SRI here (unlike the other CDN scripts on this page): this exact
-     URL 404s as of 2026-08 — msauth's CDN no longer serves 3.7.1 at this
-     path, pre-existing and unrelated to this pass, so there's no live file
-     to hash. Left unpinned rather than hard-coding a hash for an error page. -->
-<script src="https://alcdn.msauth.net/browser/3.7.1/js/msal-browser.min.js" async defer></script>
+<!-- msauth's own CDN stopped serving browser 3.7.1 at its old path (404,
+     found 2026-08) — moved to the npm-mirrored build on jsdelivr (already
+     an allowed script-src host below) instead of chasing msauth's CDN
+     layout again, and bumped to the current @azure/msal-browser release. -->
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@5.18.0/lib/msal-browser.min.js" integrity="sha384-FQfSZjxaWBhzqI7u0+3M2/K/kFajbcK45G1GMnQdDzVZszPTSjjvWY9YEnJ9tEia" crossorigin="anonymous" async defer></script>
 
 <!-- PDF statement import (Transactions widget): pdf.js runs entirely client-side —
      a statement PDF is parsed in the browser and never leaves the device. Bridged
