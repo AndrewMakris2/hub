@@ -1,0 +1,16 @@
+# Local env/secrets — Netlify Functions read these via process.env in
+# production; never commit real values for SESSION_SECRET, YAHOO_CLIENT_SECRET,
+# TIKTOK_CLIENT_SECRET, etc.
+.env
+.env.*
+!.env.example
+
+# Netlify CLI local state
+.netlify/
+
+# Dependencies (only relevant if any local tooling adds a node_modules dir)
+node_modules/
+
+# OS/editor cruft
+.DS_Store
+*.swp

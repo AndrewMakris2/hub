@@ -4,3 +4,16 @@
 
 [functions]
   node_bundler = "esbuild"
+
+# Security headers. Only takes effect on the Netlify deploy — GitHub Pages
+# has no mechanism for custom response headers, so that copy relies solely
+# on the <meta http-equiv="Content-Security-Policy"> tag in index.html
+# (which can't carry frame-ancestors; X-Frame-Options below is this site's
+# only source of clickjacking protection, and only on Netlify).
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://accounts.google.com https://alcdn.msauth.net https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://cdn.sheetjs.com; worker-src 'self' blob: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https:; frame-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'"

@@ -2,6 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
+<!-- CSP lives here (not just netlify.toml) because GitHub Pages has no
+     mechanism for custom response headers at all — this is the only way to
+     get any CSP enforcement on that copy of the site. Netlify additionally
+     gets it as a real header (see netlify.toml) for the earlier-blocking,
+     more robust delivery; frame-ancestors is ignored here by spec (meta tags
+     can't set it) but is enforced via the Netlify header + X-Frame-Options.
+     script-src needs 'unsafe-inline'/'unsafe-eval' because this whole app is
+     Babel Standalone transforming/running inline JSX with no build step —
+     the real protection here is the explicit host allowlist, which still
+     blocks loading a script from any origin not listed below. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://accounts.google.com https://alcdn.msauth.net https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://cdn.sheetjs.com; worker-src 'self' blob: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https:; frame-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Vantage</title>
 <meta name="color-scheme" content="light dark" />
@@ -190,6 +201,10 @@
 
 <!-- Optional calendar integrations: only used if you connect Google/Outlook via the header. -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- No SRI here (unlike the other CDN scripts on this page): this exact
+     URL 404s as of 2026-08 — msauth's CDN no longer serves 3.7.1 at this
+     path, pre-existing and unrelated to this pass, so there's no live file
+     to hash. Left unpinned rather than hard-coding a hash for an error page. -->
 <script src="https://alcdn.msauth.net/browser/3.7.1/js/msal-browser.min.js" async defer></script>
 
 <!-- PDF statement import (Transactions widget): pdf.js runs entirely client-side —
@@ -212,7 +227,7 @@
      they're stored, entirely in the browser. heic-to (not the older/more
      common heic2any) is used because it tracks current libheif releases —
      heic2any's bundled decoder rejected real iPhone HEIC files in testing. -->
-<script src="https://unpkg.com/heic-to@1.5.2/dist/iife/heic-to.js"></script>
+<script src="https://unpkg.com/heic-to@1.5.2/dist/iife/heic-to.js" integrity="sha384-cVm8gaWQ5+URpoh6ACKXpm8TuyoHkfIDDBkxvDoUdIZ18w8nV5en0lVQvWMwO/6S" crossorigin="anonymous"></script>
 
 <script type="text/babel" data-type="module">
 const { useState, useEffect, useMemo, useRef } = React;
@@ -9353,6 +9368,8 @@ function moLoadSheetJS() {
   window.__moXlsxPromise = new Promise((resolve, reject) => {
     const s = document.createElement("script");
     s.src = "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js";
+    s.integrity = "sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT";
+    s.crossOrigin = "anonymous";
     s.onload = () => (window.XLSX ? resolve(window.XLSX) : reject(new Error("Spreadsheet library failed to initialize.")));
     s.onerror = () => { window.__moXlsxPromise = null; reject(new Error("Couldn't load the spreadsheet library (are you offline?). Export as CSV and try again.")); };
     document.head.appendChild(s);
@@ -13013,6 +13030,8 @@ function ravenLoadExcelJS() {
   window.__ravenExcelJSPromise = new Promise((resolve, reject) => {
     const s = document.createElement("script");
     s.src = "https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js";
+    s.integrity = "sha384-Pqp51FUN2/qzfxZxBCtF0stpc9ONI6MYZpVqmo8m20SoaQCzf+arZvACkLkirlPz";
+    s.crossOrigin = "anonymous";
     s.onload = () => (window.ExcelJS ? resolve(window.ExcelJS) : reject(new Error("Spreadsheet library failed to initialize.")));
     s.onerror = () => {
       window.__ravenExcelJSPromise = null;
@@ -13030,6 +13049,8 @@ function ravenLoadMammoth() {
   window.__ravenMammothPromise = new Promise((resolve, reject) => {
     const s = document.createElement("script");
     s.src = "https://cdn.jsdelivr.net/npm/mammoth@1.12.0/mammoth.browser.min.js";
+    s.integrity = "sha384-fWLn06AIo00H32MDcWUZTT+4Ru3OuoYn1DRH0o6JkhDl89YFSF4tJ4odze9bI+4r";
+    s.crossOrigin = "anonymous";
     s.onload = () => (window.mammoth ? resolve(window.mammoth) : reject(new Error("Word-document library failed to initialize.")));
     s.onerror = () => {
       window.__ravenMammothPromise = null;
@@ -13510,9 +13531,13 @@ function ravenLoadPdfMake() {
   window.__ravenPdfMakePromise = new Promise((resolve, reject) => {
     const core = document.createElement("script");
     core.src = "https://cdn.jsdelivr.net/npm/pdfmake@0.3.11/build/pdfmake.min.js";
+    core.integrity = "sha384-vsaIaEjAOZA6uoCQ2pryCKIc8YGpQ/0HK5krdezL4PYvnmLzrizBMDJCZulvIomS";
+    core.crossOrigin = "anonymous";
     core.onload = () => {
       const fonts = document.createElement("script");
       fonts.src = "https://cdn.jsdelivr.net/npm/pdfmake@0.3.11/build/vfs_fonts.js";
+      fonts.integrity = "sha384-pkBUW1wxcm6m7ZjKDxADnNHqnz+Sx9sAL1ndsLNv/GZnWZgodPYsju1yxeyQnn0c";
+      fonts.crossOrigin = "anonymous";
       fonts.onload = () =>
         window.pdfMake && window.pdfMake.fonts && window.pdfMake.fonts.Roboto
           ? resolve(window.pdfMake)
