@@ -974,6 +974,8 @@ const STORAGE_KEYS = {
   golfSimRounds: "dash.golfSimRounds",
   golfOutdoorRounds: "dash.golfOutdoorRounds",
   golfScorecards: "dash.golfScorecards",
+  trips: "dash.trips",
+  mealPlanning: "dash.mealPlanning",
   fantasyCheatSheets: "dash.fantasyCheatSheets",
   fantasyCustomRankings: "dash.fantasyCustomRankings",
   fantasyWatchlist: "dash.fantasyWatchlist",
@@ -1495,6 +1497,113 @@ function daysUntil(dateStr) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return Math.round((target - today) / 86400000);
+}
+
+function IconCloud({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17.5 19a4.5 4.5 0 0 0 0-9 6 6 0 0 0-11.3-2A5 5 0 0 0 6 19h11.5z" />
+    </svg>
+  );
+}
+
+const WEATHER_DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+// A dedicated forecast view for data that was already being fetched
+// (fetchWeatherDays above) but never had anywhere to be seen beyond
+// feeding golf/briefing suggestions — this is pure presentation, no new
+// data layer.
+function WeatherPage({ theme, weather, weatherStatus, onEnableWeather }) {
+  const enabled = weather && weather.lat != null;
+  const todayIso = new Date().toISOString().slice(0, 10);
+
+  if (!enabled) {
+    return (
+      <Card theme={theme}>
+        <SectionLabel theme={theme} icon={<IconCloud size={16} />}>Weather</SectionLabel>
+        <p style={{ fontSize: "14px", color: theme.textMuted, marginBottom: "16px" }}>
+          Add your location to see a 10-day forecast here.
+        </p>
+        <button
+          onClick={onEnableWeather}
+          className="v-btn"
+          style={{
+            fontSize: "13px",
+            fontWeight: 700,
+            color: theme.accentText,
+            background: theme.accent,
+            border: "none",
+            borderRadius: "999px",
+            padding: "9px 18px",
+            alignSelf: "flex-start",
+          }}
+        >
+          {weatherStatus && weatherStatus.type === "loading" ? weatherStatus.message : "Add local weather"}
+        </button>
+        {weatherStatus && weatherStatus.type === "error" && (
+          <div style={{ fontSize: "12px", color: theme.danger, marginTop: "12px" }}>{weatherStatus.message}</div>
+        )}
+      </Card>
+    );
+  }
+
+  const days = weather.days || [];
+
+  return (
+    <Card theme={theme}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "18px", flexWrap: "wrap", gap: "8px" }}>
+        <SectionLabel theme={theme} icon={<IconCloud size={16} />} style={{ marginBottom: 0 }}>
+          10-Day Forecast
+        </SectionLabel>
+        <button
+          onClick={onEnableWeather}
+          className="v-btn"
+          style={{ fontSize: "11.5px", fontWeight: 700, color: theme.textMuted, background: "transparent", border: `1px solid ${theme.divider}`, borderRadius: "999px", padding: "4px 10px" }}
+        >
+          {weatherStatus && weatherStatus.type === "loading" ? weatherStatus.message : "Refresh"}
+        </button>
+      </div>
+      {weatherStatus && weatherStatus.type === "error" && (
+        <div style={{ fontSize: "12px", color: theme.danger, marginBottom: "14px" }}>{weatherStatus.message}</div>
+      )}
+      {days.length === 0 ? (
+        <p style={{ fontSize: "14px", color: theme.textFaint }}>No forecast yet — try refreshing.</p>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: "10px" }}>
+          {days.map((d) => {
+            const info = weatherInfo(d.code);
+            const isToday = d.date === todayIso;
+            const dow = WEATHER_DAY_NAMES[new Date(d.date + "T00:00:00").getDay()];
+            return (
+              <div
+                key={d.date}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "14px 8px",
+                  borderRadius: "12px",
+                  border: `1px solid ${isToday ? theme.accent : theme.divider}`,
+                  background: isToday ? theme.accentSoft : "transparent",
+                }}
+              >
+                <span style={{ fontSize: "11px", fontWeight: 700, color: isToday ? theme.accent : theme.textMuted, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  {isToday ? "Today" : dow}
+                </span>
+                <span style={{ fontSize: "28px" }}>{info.icon}</span>
+                <span style={{ fontSize: "11px", color: theme.textFaint, textAlign: "center" }}>{info.label}</span>
+                <span className="v-tabular" style={{ fontSize: "15px", fontWeight: 700, color: theme.text }}>
+                  {d.tempMax}&deg; <span style={{ color: theme.textFaint, fontWeight: 500 }}>{d.tempMin}&deg;</span>
+                </span>
+                {d.precipProb > 0 && <span style={{ fontSize: "10.5px", color: theme.sectionLabelColor }}>💧 {d.precipProb}%</span>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
 }
 
 /* ----------------------------------------------------------------------
@@ -3927,6 +4036,18 @@ function TransactionsSection({ theme, transactions, setTransactions, categoryOpt
   const categoryBreakdown = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
   const maxCategorySpend = categoryBreakdown.length > 0 ? categoryBreakdown[0][1] : 0;
 
+  // Last 6 months of total spend, oldest first, for the Sparkline trend —
+  // separate from categoryBreakdown above, which is this-month-only.
+  const spendByMonth = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - (5 - i));
+    const prefix = d.toISOString().slice(0, 7);
+    const total = transactions.filter((t) => t.date.startsWith(prefix)).reduce((s, t) => s + t.amount, 0);
+    return { month: prefix, value: total };
+  });
+  const monthsWithSpend = spendByMonth.filter((m) => m.value > 0).length;
+
   const sorted = transactions.slice().sort((a, b) => b.date.localeCompare(a.date));
   const allCategoryOptions = Array.from(new Set([...(categoryOptions || []), ...transactions.map((t) => t.category)]));
 
@@ -4014,8 +4135,12 @@ function TransactionsSection({ theme, transactions, setTransactions, categoryOpt
         </div>
       )}
 
+      {monthsWithSpend >= 2 && (
+        <Sparkline theme={theme} data={spendByMonth} label="Monthly spend trend (6 mo)" goodDirection="down" />
+      )}
+
       {categoryBreakdown.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "18px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "18px", marginTop: monthsWithSpend >= 2 ? "18px" : 0 }}>
           {categoryBreakdown.map(([cat, amt]) => (
             <div key={cat}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: theme.textMuted, marginBottom: "3px" }}>
@@ -5819,6 +5944,92 @@ function sanitizeBackup(parsed) {
         penTest: sanitizeRavenPenTest(p.penTest),
       }));
   }
+  // Habits/Reading/Games/Subscriptions/golf Scorecards/News topics — added
+  // after these tabs shipped without a Backup & Restore hookup. Sports is
+  // deliberately excluded: it's 100% re-fetchable ESPN cache with no
+  // user-authored data, same reasoning as why golf photos and Mechanical
+  // Orchard's tool caches aren't backed up either.
+  if (isPlainObject(parsed.habits) && Array.isArray(parsed.habits.items)) {
+    const items = parsed.habits.items
+      .filter((h) => isPlainObject(h) && typeof h.id === "string" && h.id && typeof h.name === "string" && h.name.trim())
+      .map((h) => ({ id: h.id, name: String(h.name) }));
+    const validIds = new Set(items.map((h) => h.id));
+    const done = {};
+    if (isPlainObject(parsed.habits.done)) {
+      for (const [id, dates] of Object.entries(parsed.habits.done)) {
+        if (!validIds.has(id) || !isPlainObject(dates)) continue;
+        const cleanDates = {};
+        for (const [k, v] of Object.entries(dates)) if (v) cleanDates[k] = 1;
+        done[id] = cleanDates;
+      }
+    }
+    out.habits = { items, done };
+  }
+  if (isPlainObject(parsed.reading)) {
+    out.reading = {
+      goal: Number.isFinite(Number(parsed.reading.goal)) ? Number(parsed.reading.goal) : DEFAULT_READING.goal,
+      books: Array.isArray(parsed.reading.books)
+        ? parsed.reading.books
+            .filter((b) => isPlainObject(b) && typeof b.id === "string" && b.id && typeof b.title === "string" && b.title.trim())
+            .map((b) => ({
+              id: b.id,
+              title: String(b.title),
+              author: typeof b.author === "string" ? b.author : "",
+              year: typeof b.year === "string" || typeof b.year === "number" ? b.year : "",
+              pages: typeof b.pages === "string" || typeof b.pages === "number" ? b.pages : "",
+              coverId: b.coverId ?? null,
+              status: typeof b.status === "string" ? b.status : "want",
+              rating: Number.isFinite(Number(b.rating)) ? Number(b.rating) : 0,
+            }))
+        : [],
+    };
+  }
+  if (isPlainObject(parsed.games) && Array.isArray(parsed.games.games)) {
+    out.games = {
+      games: parsed.games.games
+        .filter((g) => isPlainObject(g) && typeof g.id === "string" && g.id && typeof g.title === "string" && g.title.trim())
+        .map((g) => ({
+          id: g.id,
+          title: String(g.title),
+          platform: typeof g.platform === "string" ? g.platform : "",
+          status: typeof g.status === "string" ? g.status : "backlog",
+          rating: Number.isFinite(Number(g.rating)) ? Number(g.rating) : 0,
+          hours: typeof g.hours === "string" || typeof g.hours === "number" ? g.hours : "",
+          addedAt: typeof g.addedAt === "string" ? g.addedAt : new Date().toISOString(),
+        })),
+    };
+  }
+  if (Array.isArray(parsed.subscriptions)) {
+    out.subscriptions = parsed.subscriptions
+      .filter((s) => isPlainObject(s) && typeof s.id === "string" && s.id && typeof s.name === "string" && s.name.trim())
+      .map((s) => ({
+        id: s.id,
+        name: String(s.name),
+        cost: Number.isFinite(Number(s.cost)) ? Number(s.cost) : 0,
+        cycle: typeof s.cycle === "string" ? s.cycle : "monthly",
+        renewal: typeof s.renewal === "string" ? s.renewal : "",
+        category: typeof s.category === "string" ? s.category : "",
+      }));
+  }
+  if (Array.isArray(parsed.golfScorecards)) {
+    out.golfScorecards = parsed.golfScorecards
+      .filter((c) => isPlainObject(c) && typeof c.id === "string" && c.id && typeof c.date === "string")
+      .map((c) => ({
+        id: c.id,
+        date: c.date,
+        course: typeof c.course === "string" ? c.course : "",
+        tee: typeof c.tee === "string" ? c.tee : "",
+        holes: Array.isArray(c.holes)
+          ? c.holes.map((h) => ({
+              par: Number.isFinite(Number(h?.par)) ? Number(h.par) : 4,
+              strokes: typeof h?.strokes === "string" || typeof h?.strokes === "number" ? h.strokes : "",
+            }))
+          : [],
+      }));
+  }
+  if (Array.isArray(parsed.newsTopics)) {
+    out.newsTopics = parsed.newsTopics.filter((t) => typeof t === "string" && t.trim()).map(String);
+  }
   return out;
 }
 
@@ -5855,6 +6066,12 @@ function BackupMenu({
   fantasySleeper,
   fantasyYahoo,
   ravenProducts,
+  habits,
+  reading,
+  games,
+  subscriptions,
+  golfScorecards,
+  newsTopics,
   setThemeKey,
   setFitness,
   setGolf,
@@ -5876,6 +6093,12 @@ function BackupMenu({
   setFantasySleeper,
   setFantasyYahoo,
   setRavenProducts,
+  setHabits,
+  setReading,
+  setGames,
+  setSubscriptions,
+  setGolfScorecards,
+  setNewsTopics,
 }) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState(null);
@@ -5918,6 +6141,12 @@ function BackupMenu({
       fantasySleeper,
       fantasyYahoo,
       ravenProducts,
+      habits,
+      reading,
+      games,
+      subscriptions,
+      golfScorecards,
+      newsTopics,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -5970,6 +6199,12 @@ function BackupMenu({
         if (sanitized.fantasySleeper) setFantasySleeper(sanitized.fantasySleeper);
         if (sanitized.fantasyYahoo) setFantasyYahoo(sanitized.fantasyYahoo);
         if (sanitized.ravenProducts) setRavenProducts(sanitized.ravenProducts);
+        if (sanitized.habits) setHabits(sanitized.habits);
+        if (sanitized.reading) setReading(sanitized.reading);
+        if (sanitized.games) setGames(sanitized.games);
+        if (sanitized.subscriptions) setSubscriptions(sanitized.subscriptions);
+        if (sanitized.golfScorecards) setGolfScorecards(sanitized.golfScorecards);
+        if (sanitized.newsTopics) setNewsTopics(sanitized.newsTopics);
         setStatus({ type: "success", message: "Backup restored." });
       } catch (err) {
         setStatus({ type: "error", message: "Couldn't parse that file as JSON." });
@@ -6710,6 +6945,8 @@ const PAGE_META = [
   { id: "financial", label: "Financial", icon: <IconTrendingUp /> },
   { id: "transactions", label: "Transactions", icon: <IconReceipt size={14} /> },
   { id: "upcoming", label: "Upcoming", icon: <IconCalendar /> },
+  { id: "weather", label: "Weather", icon: <IconCloud size={14} /> },
+  { id: "travel", label: "Travel", icon: <IconPlane size={14} /> },
   { id: "agenda", label: "Agenda", icon: <IconCalendar /> },
   { id: "youtube", label: "YouTube", icon: <IconYoutube size={14} /> },
   { id: "profile", label: "About Me", icon: <IconUser /> },
@@ -6719,6 +6956,7 @@ const PAGE_META = [
   { id: "videos", label: "Videos", icon: <IconVideo size={14} /> },
   { id: "journal", label: "Journal", icon: <IconBookOpen size={14} /> },
   { id: "habits", label: "Habits", icon: <IconFlame size={14} /> },
+  { id: "mealplanning", label: "Meal Planning", icon: <IconChefHat size={14} /> },
   { id: "reading", label: "Reading", icon: <IconBook size={14} /> },
   { id: "games", label: "Games", icon: <IconGamepad size={14} /> },
   { id: "news", label: "News", icon: <IconNews size={14} /> },
@@ -6734,9 +6972,9 @@ const PAGE_META = [
 const NAV_GROUPS = [
   { id: "health", label: "Health & Play", ids: ["fitness", "golf", "fantasy", "sports"] },
   { id: "money", label: "Money", ids: ["financial", "transactions", "subscriptions"] },
-  { id: "schedule", label: "Schedule", ids: ["upcoming", "agenda"] },
+  { id: "schedule", label: "Schedule", ids: ["upcoming", "agenda", "weather", "travel"] },
   { id: "media", label: "Media", ids: ["youtube", "news", "watchlist", "videos", "reading", "games"] },
-  { id: "personal", label: "Personal", ids: ["profile", "trackers", "goals", "journal", "habits"] },
+  { id: "personal", label: "Personal", ids: ["profile", "trackers", "goals", "journal", "habits", "mealplanning"] },
   { id: "work", label: "Security & Work", ids: ["securityx", "ravenseye"] },
 ];
 
@@ -6819,6 +7057,12 @@ function Sidebar({
   fantasySleeper,
   fantasyYahoo,
   ravenProducts,
+  habits,
+  reading,
+  games,
+  subscriptions,
+  golfScorecards,
+  newsTopics,
   moLinks,
   setMoLinks,
   onOpenMoTool,
@@ -6852,6 +7096,12 @@ function Sidebar({
   setFantasySleeper,
   setFantasyYahoo,
   setRavenProducts,
+  setHabits,
+  setReading,
+  setGames,
+  setSubscriptions,
+  setGolfScorecards,
+  setNewsTopics,
 }) {
   const doneGoals = goals.filter((g) => g.status === "done").length;
   const [navCollapsed, setNavCollapsed] = usePersistentState(STORAGE_KEYS.navCollapsed, {});
@@ -7023,6 +7273,12 @@ function Sidebar({
           fantasySleeper={fantasySleeper}
           fantasyYahoo={fantasyYahoo}
           ravenProducts={ravenProducts}
+          habits={habits}
+          reading={reading}
+          games={games}
+          subscriptions={subscriptions}
+          golfScorecards={golfScorecards}
+          newsTopics={newsTopics}
           setThemeKey={setThemeKey}
           setFitness={setFitness}
           setGolf={setGolf}
@@ -7044,6 +7300,12 @@ function Sidebar({
           setFantasySleeper={setFantasySleeper}
           setFantasyYahoo={setFantasyYahoo}
           setRavenProducts={setRavenProducts}
+          setHabits={setHabits}
+          setReading={setReading}
+          setGames={setGames}
+          setSubscriptions={setSubscriptions}
+          setGolfScorecards={setGolfScorecards}
+          setNewsTopics={setNewsTopics}
         />
         <RemindersMenu theme={theme} reminders={reminders} setReminders={setReminders} events={events} />
         <ThemePicker theme={theme} themeKey={themeKey} setThemeKey={setThemeKey} />
@@ -7922,6 +8184,719 @@ function GamesSection({ theme, state, setState }) {
   );
 }
 
+/* ----------------------------------------------------------------------
+   TRAVEL — trip planner (packing list, itinerary, budget), fully local
+---------------------------------------------------------------------- */
+const DEFAULT_TRIPS = [];
+const TRIP_PACKING_SUGGESTIONS = ["Passport", "Phone charger", "Toothbrush", "Medications", "Sunglasses", "Weather-appropriate layers"];
+
+function IconPlane({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-1 0-1.3.4l-.7.7c-.4.4-.3 1 .2 1.3L9 12l-2 2H4l-1 1 3 2 2 3 1-1v-3l2-2 3.6 6c.3.5.9.6 1.3.2l.7-.7c.4-.3.5-.8.4-1.3Z" />
+    </svg>
+  );
+}
+
+function tripBlank() {
+  return { name: "", destination: "", startDate: "", endDate: "" };
+}
+
+function TripDetail({ theme, trip, onUpdate, onBack, onRemove, inputStyle }) {
+  const [packItem, setPackItem] = useState("");
+  const [itinDay, setItinDay] = useState("");
+  const [itinText, setItinText] = useState("");
+  const [budgetLabel, setBudgetLabel] = useState("");
+  const [budgetAmount, setBudgetAmount] = useState("");
+
+  function addPackItem(label) {
+    const l = (label ?? packItem).trim();
+    if (!l) return;
+    onUpdate({ packing: [...trip.packing, { id: "pk" + Date.now() + Math.random().toString(36).slice(2, 6), label: l, done: false }] });
+    if (label === undefined) setPackItem("");
+  }
+  function togglePack(id) {
+    onUpdate({ packing: trip.packing.map((p) => (p.id === id ? { ...p, done: !p.done } : p)) });
+  }
+  function removePack(id) {
+    onUpdate({ packing: trip.packing.filter((p) => p.id !== id) });
+  }
+  function addItinerary() {
+    if (!itinText.trim()) return;
+    onUpdate({ itinerary: [...trip.itinerary, { id: "it" + Date.now(), day: itinDay.trim(), text: itinText.trim() }] });
+    setItinDay("");
+    setItinText("");
+  }
+  function removeItinerary(id) {
+    onUpdate({ itinerary: trip.itinerary.filter((i) => i.id !== id) });
+  }
+  function addBudgetItem() {
+    const amt = Number(budgetAmount);
+    if (!budgetLabel.trim() || !amt) return;
+    onUpdate({ budget: [...trip.budget, { id: "bg" + Date.now(), label: budgetLabel.trim(), amount: amt }] });
+    setBudgetLabel("");
+    setBudgetAmount("");
+  }
+  function removeBudgetItem(id) {
+    onUpdate({ budget: trip.budget.filter((b) => b.id !== id) });
+  }
+
+  const totalBudget = trip.budget.reduce((s, b) => s + b.amount, 0);
+  const packedCount = trip.packing.filter((p) => p.done).length;
+  const removeBtnStyle = { fontSize: "16px", color: theme.textFaint, background: "transparent", border: "none", padding: "0 4px", cursor: "pointer" };
+  const rowStyle = { display: "flex", alignItems: "center", gap: "10px", padding: "8px 10px", background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "8px" };
+  const addBtnStyle = { fontSize: "13px", fontWeight: 700, color: theme.accentText, background: theme.accent, border: "none", borderRadius: "8px", padding: "9px 16px", flexShrink: 0 };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <Card theme={theme}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+          <div>
+            <button onClick={onBack} className="v-btn" style={{ fontSize: "12px", fontWeight: 700, color: theme.textMuted, background: "transparent", border: "none", padding: 0, marginBottom: "6px", cursor: "pointer" }}>
+              ← All trips
+            </button>
+            <SectionLabel theme={theme} icon={<IconPlane size={16} />} style={{ marginBottom: 0 }}>
+              {trip.name}
+            </SectionLabel>
+            <div style={{ fontSize: "12.5px", color: theme.textMuted, marginTop: "4px" }}>
+              {trip.destination || "—"} {trip.startDate && `· ${trip.startDate}${trip.endDate ? " – " + trip.endDate : ""}`}
+            </div>
+          </div>
+          <button
+            onClick={onRemove}
+            className="v-btn"
+            style={{ fontSize: "11.5px", fontWeight: 700, color: theme.danger, background: "transparent", border: `1px solid ${theme.divider}`, borderRadius: "999px", padding: "4px 10px" }}
+          >
+            Delete trip
+          </button>
+        </div>
+      </Card>
+
+      <Card theme={theme}>
+        <SectionLabel theme={theme}>Packing list{trip.packing.length > 0 ? ` (${packedCount}/${trip.packing.length})` : ""}</SectionLabel>
+        <div style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
+          <input
+            value={packItem}
+            onChange={(e) => setPackItem(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addPackItem()}
+            placeholder="Add an item…"
+            className="v-input"
+            style={{ ...inputStyle, flex: 1 }}
+          />
+          <button onClick={() => addPackItem()} className="v-btn" style={addBtnStyle}>
+            Add
+          </button>
+        </div>
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "12px" }}>
+          {TRIP_PACKING_SUGGESTIONS.filter((s) => !trip.packing.some((p) => p.label === s)).map((s) => (
+            <button
+              key={s}
+              onClick={() => addPackItem(s)}
+              className="v-btn"
+              style={{ fontSize: "11.5px", fontWeight: 600, color: theme.textMuted, background: "transparent", border: `1px solid ${theme.divider}`, borderRadius: "999px", padding: "4px 10px" }}
+            >
+              + {s}
+            </button>
+          ))}
+        </div>
+        {trip.packing.length === 0 ? (
+          <p style={{ fontSize: "13px", color: theme.textFaint }}>Nothing added yet.</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            {trip.packing.map((p) => (
+              <div key={p.id} style={rowStyle}>
+                <input type="checkbox" checked={p.done} onChange={() => togglePack(p.id)} />
+                <span style={{ flex: 1, fontSize: "13.5px", color: theme.text, textDecoration: p.done ? "line-through" : "none", opacity: p.done ? 0.6 : 1 }}>
+                  {p.label}
+                </span>
+                <button onClick={() => removePack(p.id)} className="v-btn" style={removeBtnStyle}>
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card theme={theme}>
+        <SectionLabel theme={theme}>Itinerary</SectionLabel>
+        <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+          <input value={itinDay} onChange={(e) => setItinDay(e.target.value)} placeholder="Day (e.g. Fri)" className="v-input" style={{ ...inputStyle, width: "110px", flexShrink: 0 }} />
+          <input
+            value={itinText}
+            onChange={(e) => setItinText(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addItinerary()}
+            placeholder="What's happening…"
+            className="v-input"
+            style={{ ...inputStyle, flex: 1 }}
+          />
+          <button onClick={addItinerary} className="v-btn" style={addBtnStyle}>
+            Add
+          </button>
+        </div>
+        {trip.itinerary.length === 0 ? (
+          <p style={{ fontSize: "13px", color: theme.textFaint }}>Nothing planned yet.</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            {trip.itinerary.map((i) => (
+              <div key={i.id} style={rowStyle}>
+                {i.day && <span style={{ fontSize: "11px", fontWeight: 700, color: theme.accent, flexShrink: 0, width: "40px" }}>{i.day}</span>}
+                <span style={{ flex: 1, fontSize: "13.5px", color: theme.text }}>{i.text}</span>
+                <button onClick={() => removeItinerary(i.id)} className="v-btn" style={removeBtnStyle}>
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card theme={theme}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+          <SectionLabel theme={theme} style={{ marginBottom: 0 }}>
+            Budget
+          </SectionLabel>
+          <span className="v-tabular" style={{ fontSize: "16px", fontWeight: 700, color: theme.text }}>
+            ${totalBudget.toLocaleString()}
+          </span>
+        </div>
+        <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+          <input
+            value={budgetLabel}
+            onChange={(e) => setBudgetLabel(e.target.value)}
+            placeholder="Item (e.g. Flights)"
+            className="v-input"
+            style={{ ...inputStyle, flex: 1 }}
+          />
+          <input
+            value={budgetAmount}
+            onChange={(e) => setBudgetAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+            onKeyDown={(e) => e.key === "Enter" && addBudgetItem()}
+            inputMode="decimal"
+            placeholder="$"
+            className="v-input"
+            style={{ ...inputStyle, width: "90px" }}
+          />
+          <button onClick={addBudgetItem} className="v-btn" style={addBtnStyle}>
+            Add
+          </button>
+        </div>
+        {trip.budget.length === 0 ? (
+          <p style={{ fontSize: "13px", color: theme.textFaint }}>No budget items yet.</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            {trip.budget.map((b) => (
+              <div key={b.id} style={rowStyle}>
+                <span style={{ flex: 1, fontSize: "13.5px", color: theme.text }}>{b.label}</span>
+                <span className="v-tabular" style={{ fontSize: "13.5px", fontWeight: 700, color: theme.text }}>
+                  ${b.amount.toLocaleString()}
+                </span>
+                <button onClick={() => removeBudgetItem(b.id)} className="v-btn" style={removeBtnStyle}>
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function TravelPage({ theme, trips, setTrips }) {
+  const [selectedId, setSelectedId] = useState(null);
+  const [form, setForm] = useState(tripBlank());
+  const [showForm, setShowForm] = useState(false);
+
+  function addTrip() {
+    if (!form.name.trim()) return;
+    const trip = {
+      id: "trip" + Date.now(),
+      name: form.name.trim(),
+      destination: form.destination.trim(),
+      startDate: form.startDate,
+      endDate: form.endDate,
+      packing: [],
+      itinerary: [],
+      budget: [],
+    };
+    setTrips([trip, ...trips]);
+    setForm(tripBlank());
+    setShowForm(false);
+    setSelectedId(trip.id);
+  }
+  function removeTrip(id) {
+    setTrips(trips.filter((t) => t.id !== id));
+    if (selectedId === id) setSelectedId(null);
+  }
+  function updateTrip(id, patch) {
+    setTrips(trips.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  }
+
+  const inputStyle = {
+    background: theme.inputBg,
+    border: `1px solid ${theme.inputBorder}`,
+    borderRadius: "8px",
+    color: theme.inputText,
+    padding: "9px 12px",
+    fontSize: "14px",
+    minWidth: 0,
+    "--focus-ring": theme.accentSoft,
+    "--focus-border": theme.accent,
+  };
+
+  const selected = trips.find((t) => t.id === selectedId);
+  if (selected) {
+    return (
+      <TripDetail
+        theme={theme}
+        trip={selected}
+        onUpdate={(patch) => updateTrip(selected.id, patch)}
+        onBack={() => setSelectedId(null)}
+        onRemove={() => removeTrip(selected.id)}
+        inputStyle={inputStyle}
+      />
+    );
+  }
+
+  return (
+    <Card theme={theme}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
+        <SectionLabel theme={theme} icon={<IconPlane size={16} />} style={{ marginBottom: 0 }}>
+          Trips
+        </SectionLabel>
+        <button
+          onClick={() => setShowForm((s) => !s)}
+          className="v-btn"
+          style={{ fontSize: "12px", fontWeight: 700, color: theme.accentText, background: theme.accent, border: "none", borderRadius: "999px", padding: "6px 14px" }}
+        >
+          + New Trip
+        </button>
+      </div>
+      {showForm && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "18px" }}>
+          <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Trip name (e.g. Telluride)" className="v-input" style={inputStyle} />
+          <input value={form.destination} onChange={(e) => setForm((f) => ({ ...f, destination: e.target.value }))} placeholder="Destination" className="v-input" style={inputStyle} />
+          <input type="date" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} className="v-input" style={inputStyle} />
+          <input type="date" value={form.endDate} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} className="v-input" style={inputStyle} />
+          <button
+            onClick={addTrip}
+            className="v-btn"
+            style={{ gridColumn: "span 2", fontSize: "13px", fontWeight: 700, color: theme.accentText, background: theme.accent, border: "none", borderRadius: "8px", padding: "9px" }}
+          >
+            Create trip
+          </button>
+        </div>
+      )}
+      {trips.length === 0 ? (
+        <p style={{ fontSize: "14px", color: theme.textFaint }}>No trips yet — plan your first one above.</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {trips.map((t) => {
+            const packed = t.packing.filter((p) => p.done).length;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setSelectedId(t.id)}
+                className="v-btn"
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", textAlign: "left", background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "10px", padding: "12px 14px", color: theme.text }}
+              >
+                <div>
+                  <div style={{ fontSize: "14px", fontWeight: 700 }}>{t.name}</div>
+                  <div style={{ fontSize: "12px", color: theme.textMuted, marginTop: "2px" }}>
+                    {t.destination || "—"} {t.startDate && `· ${t.startDate}${t.endDate ? " – " + t.endDate : ""}`}
+                  </div>
+                </div>
+                <div style={{ fontSize: "11.5px", color: theme.textFaint, flexShrink: 0 }}>{t.packing.length > 0 ? `${packed}/${t.packing.length} packed` : ""}</div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/* ----------------------------------------------------------------------
+   MEAL PLANNING — liked-ingredient recipe generator (TheMealDB, keyless)
+
+   TheMealDB's free tier only filters by ONE ingredient per call, so
+   "generate recipes from what I like" is built by fanning out: call
+   filter.php once per liked ingredient, then rank the combined results
+   by how many of the user's liked ingredients each recipe matched
+   across. A recipe hit by 3 of 5 liked ingredients ranks above one hit
+   by 1 — this is what actually delivers "recipes based on what I like"
+   despite the single-ingredient API limit, entirely client-side.
+---------------------------------------------------------------------- */
+const DEFAULT_MEAL_PLANNING = { likedIngredients: [], savedRecipes: [], weeklyPlan: {} };
+const MEALDB_BASE = "https://www.themealdb.com/api/json/v1/1";
+const WEEK_DAYS = [
+  { id: "mon", label: "Mon" },
+  { id: "tue", label: "Tue" },
+  { id: "wed", label: "Wed" },
+  { id: "thu", label: "Thu" },
+  { id: "fri", label: "Fri" },
+  { id: "sat", label: "Sat" },
+  { id: "sun", label: "Sun" },
+];
+
+function IconChefHat({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z" />
+      <line x1="6" y1="17" x2="18" y2="17" />
+    </svg>
+  );
+}
+
+async function mealDbFilterByIngredient(ingredient) {
+  const q = ingredient.trim().toLowerCase().replace(/\s+/g, "_");
+  if (!q) return [];
+  const res = await fetch(`${MEALDB_BASE}/filter.php?i=${encodeURIComponent(q)}`);
+  if (!res.ok) throw new Error(`Recipe search failed (${res.status})`);
+  const data = await res.json();
+  return data.meals || [];
+}
+
+async function mealDbLookup(id) {
+  const res = await fetch(`${MEALDB_BASE}/lookup.php?i=${encodeURIComponent(id)}`);
+  if (!res.ok) throw new Error(`Recipe lookup failed (${res.status})`);
+  const data = await res.json();
+  const meal = data.meals && data.meals[0];
+  if (!meal) return null;
+  const ingredients = [];
+  for (let i = 1; i <= 20; i++) {
+    const ing = meal[`strIngredient${i}`];
+    const measure = meal[`strMeasure${i}`];
+    if (ing && ing.trim()) ingredients.push({ ingredient: ing.trim(), measure: (measure || "").trim() });
+  }
+  return {
+    id: meal.idMeal,
+    name: meal.strMeal,
+    thumb: meal.strMealThumb,
+    category: meal.strCategory,
+    area: meal.strArea,
+    instructions: meal.strInstructions,
+    youtube: meal.strYoutube,
+    ingredients,
+  };
+}
+
+function MealPlanningPage({ theme, state, setState }) {
+  const s = state && state.likedIngredients ? state : DEFAULT_MEAL_PLANNING;
+  const [ingredientInput, setIngredientInput] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [results, setResults] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  function addIngredient() {
+    const v = ingredientInput.trim();
+    if (!v || s.likedIngredients.includes(v)) return;
+    setState({ ...s, likedIngredients: [...s.likedIngredients, v] });
+    setIngredientInput("");
+  }
+  function removeIngredient(ing) {
+    setState({ ...s, likedIngredients: s.likedIngredients.filter((i) => i !== ing) });
+  }
+
+  async function findRecipes() {
+    if (s.likedIngredients.length === 0) return;
+    setSearching(true);
+    setSearchError("");
+    setResults(null);
+    try {
+      const lists = await Promise.all(s.likedIngredients.map((ing) => mealDbFilterByIngredient(ing).catch(() => [])));
+      const byId = new Map();
+      lists.forEach((meals) => {
+        meals.forEach((m) => {
+          const existing = byId.get(m.idMeal);
+          if (existing) existing.matchCount += 1;
+          else byId.set(m.idMeal, { id: m.idMeal, name: m.strMeal, thumb: m.strMealThumb, matchCount: 1 });
+        });
+      });
+      const ranked = Array.from(byId.values()).sort((a, b) => b.matchCount - a.matchCount || a.name.localeCompare(b.name));
+      if (ranked.length === 0) {
+        setSearchError("No recipes matched those ingredients — try a more common one (e.g. chicken, rice, tomato).");
+      }
+      setResults(ranked.slice(0, 40));
+    } catch (err) {
+      setSearchError(err.message || "Couldn't reach the recipe service.");
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  async function openDetail(id) {
+    setDetailLoading(true);
+    setDetail(null);
+    try {
+      const full = await mealDbLookup(id);
+      setDetail(full);
+    } catch (err) {
+      setDetail({ error: err.message || "Couldn't load that recipe." });
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  function saveRecipe(recipe) {
+    if (s.savedRecipes.some((r) => r.id === recipe.id)) return;
+    setState({ ...s, savedRecipes: [...s.savedRecipes, { id: recipe.id, name: recipe.name, thumb: recipe.thumb }] });
+  }
+  function unsaveRecipe(id) {
+    setState({
+      ...s,
+      savedRecipes: s.savedRecipes.filter((r) => r.id !== id),
+      weeklyPlan: Object.fromEntries(Object.entries(s.weeklyPlan).filter(([, v]) => v !== id)),
+    });
+  }
+  function assignDay(day, recipeId) {
+    setState({ ...s, weeklyPlan: { ...s.weeklyPlan, [day]: recipeId || undefined } });
+  }
+
+  const inputStyle = {
+    background: theme.inputBg,
+    border: `1px solid ${theme.inputBorder}`,
+    borderRadius: "8px",
+    color: theme.inputText,
+    padding: "9px 12px",
+    fontSize: "14px",
+    minWidth: 0,
+    "--focus-ring": theme.accentSoft,
+    "--focus-border": theme.accent,
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <Card theme={theme}>
+        <SectionLabel theme={theme} icon={<IconChefHat size={16} />}>
+          Foods you like
+        </SectionLabel>
+        <p style={{ fontSize: "13px", color: theme.textMuted, marginBottom: "12px" }}>
+          Add ingredients you like, then generate recipes that use as many of them as possible.
+        </p>
+        <div style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
+          <input
+            value={ingredientInput}
+            onChange={(e) => setIngredientInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addIngredient()}
+            placeholder="e.g. chicken, rice, garlic…"
+            className="v-input"
+            style={{ ...inputStyle, flex: 1 }}
+          />
+          <button
+            onClick={addIngredient}
+            className="v-btn"
+            style={{ fontSize: "13px", fontWeight: 700, color: theme.accentText, background: theme.accent, border: "none", borderRadius: "8px", padding: "9px 16px", flexShrink: 0 }}
+          >
+            Add
+          </button>
+        </div>
+        {s.likedIngredients.length > 0 && (
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "14px" }}>
+            {s.likedIngredients.map((ing) => (
+              <span
+                key={ing}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  fontSize: "12.5px",
+                  fontWeight: 600,
+                  color: theme.text,
+                  background: theme.accentSoft,
+                  border: `1px solid ${theme.divider}`,
+                  borderRadius: "999px",
+                  padding: "5px 6px 5px 12px",
+                }}
+              >
+                {ing}
+                <button onClick={() => removeIngredient(ing)} className="v-btn" style={{ fontSize: "14px", color: theme.textFaint, background: "transparent", border: "none", padding: "0 6px", cursor: "pointer" }}>
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        <button
+          onClick={findRecipes}
+          disabled={s.likedIngredients.length === 0 || searching}
+          className="v-btn"
+          style={{
+            fontSize: "13px",
+            fontWeight: 700,
+            color: theme.accentText,
+            background: theme.accent,
+            border: "none",
+            borderRadius: "999px",
+            padding: "9px 18px",
+            opacity: s.likedIngredients.length === 0 ? 0.5 : 1,
+          }}
+        >
+          {searching ? "Searching…" : "Find recipes"}
+        </button>
+        {searchError && <div style={{ fontSize: "12.5px", color: theme.danger, marginTop: "10px" }}>{searchError}</div>}
+      </Card>
+
+      {results && results.length > 0 && (
+        <Card theme={theme}>
+          <SectionLabel theme={theme}>
+            {results.length} recipe{results.length === 1 ? "" : "s"} found
+          </SectionLabel>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "12px" }}>
+            {results.map((r) => (
+              <button
+                key={r.id}
+                onClick={() => openDetail(r.id)}
+                className="v-btn"
+                style={{ display: "flex", flexDirection: "column", textAlign: "left", background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "10px", overflow: "hidden", padding: 0 }}
+              >
+                <img src={r.thumb} alt="" style={{ width: "100%", aspectRatio: "1", objectFit: "cover" }} />
+                <div style={{ padding: "8px 10px" }}>
+                  <div style={{ fontSize: "12.5px", fontWeight: 700, color: theme.text, lineHeight: 1.3 }}>{r.name}</div>
+                  <div style={{ fontSize: "11px", color: theme.accent, marginTop: "4px", fontWeight: 600 }}>
+                    Matches {r.matchCount} of {s.likedIngredients.length}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      <Card theme={theme}>
+        <SectionLabel theme={theme}>Saved recipes</SectionLabel>
+        {s.savedRecipes.length === 0 ? (
+          <p style={{ fontSize: "13px", color: theme.textFaint }}>Save a recipe from your search results to plan meals with it.</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            {s.savedRecipes.map((r) => (
+              <div key={r.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 10px", background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "8px" }}>
+                <img src={r.thumb} alt="" style={{ width: "36px", height: "36px", borderRadius: "6px", objectFit: "cover", flexShrink: 0 }} />
+                <button
+                  onClick={() => openDetail(r.id)}
+                  className="v-btn"
+                  style={{ flex: 1, textAlign: "left", fontSize: "13.5px", color: theme.text, background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
+                >
+                  {r.name}
+                </button>
+                <button onClick={() => unsaveRecipe(r.id)} className="v-btn" style={{ fontSize: "16px", color: theme.textFaint, background: "transparent", border: "none", padding: "0 4px", cursor: "pointer" }}>
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {s.savedRecipes.length > 0 && (
+        <Card theme={theme}>
+          <SectionLabel theme={theme}>Weekly plan</SectionLabel>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: "8px" }}>
+            {WEEK_DAYS.map((d) => (
+              <div key={d.id}>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: theme.textMuted, marginBottom: "4px", textTransform: "uppercase" }}>{d.label}</div>
+                <select
+                  value={s.weeklyPlan[d.id] || ""}
+                  onChange={(e) => assignDay(d.id, e.target.value)}
+                  className="v-input"
+                  style={{ ...inputStyle, width: "100%", fontSize: "12px", padding: "7px 8px" }}
+                >
+                  <option value="">—</option>
+                  {s.savedRecipes.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {(detail || detailLoading) && (
+        <div
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setDetail(null);
+          }}
+          style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "6vh 16px 16px", background: "rgba(0,0,0,0.5)", overflowY: "auto" }}
+        >
+          <div className="v-scroll" style={{ width: "100%", maxWidth: "560px", maxHeight: "88vh", overflowY: "auto", ...cardBackgroundStyle(theme), background: theme.cardBg, padding: "22px" }}>
+            {detailLoading ? (
+              <p style={{ fontSize: "14px", color: theme.textMuted }}>Loading recipe…</p>
+            ) : detail.error ? (
+              <>
+                <p style={{ fontSize: "14px", color: theme.danger, marginBottom: "14px" }}>{detail.error}</p>
+                <button
+                  onClick={() => setDetail(null)}
+                  className="v-btn"
+                  style={{ fontSize: "13px", fontWeight: 700, color: theme.text, background: "transparent", border: `1px solid ${theme.divider}`, borderRadius: "8px", padding: "8px 14px" }}
+                >
+                  Close
+                </button>
+              </>
+            ) : (
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", marginBottom: "14px" }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: "18px", color: theme.text }}>{detail.name}</h3>
+                    <div style={{ fontSize: "12px", color: theme.textMuted, marginTop: "4px" }}>{[detail.category, detail.area].filter(Boolean).join(" · ")}</div>
+                  </div>
+                  <button
+                    onClick={() => setDetail(null)}
+                    className="v-btn"
+                    style={{ fontSize: "20px", color: theme.textFaint, background: "transparent", border: "none", padding: "0 4px", cursor: "pointer", flexShrink: 0 }}
+                  >
+                    ×
+                  </button>
+                </div>
+                {detail.thumb && <img src={detail.thumb} alt="" style={{ width: "100%", borderRadius: "10px", marginBottom: "14px" }} />}
+                <button
+                  onClick={() => saveRecipe(detail)}
+                  disabled={s.savedRecipes.some((r) => r.id === detail.id)}
+                  className="v-btn"
+                  style={{
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    color: theme.accentText,
+                    background: theme.accent,
+                    border: "none",
+                    borderRadius: "999px",
+                    padding: "8px 16px",
+                    marginBottom: "16px",
+                    opacity: s.savedRecipes.some((r) => r.id === detail.id) ? 0.5 : 1,
+                  }}
+                >
+                  {s.savedRecipes.some((r) => r.id === detail.id) ? "Saved" : "Save recipe"}
+                </button>
+                <div style={{ fontSize: "12px", fontWeight: 700, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "6px" }}>Ingredients</div>
+                <ul style={{ margin: 0, marginBottom: "16px", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "4px" }}>
+                  {detail.ingredients.map((ing, i) => (
+                    <li key={i} style={{ fontSize: "13.5px", color: theme.text, display: "flex", justifyContent: "space-between", borderBottom: `1px solid ${theme.divider}`, padding: "4px 0" }}>
+                      <span>{ing.ingredient}</span>
+                      <span style={{ color: theme.textMuted }}>{ing.measure}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div style={{ fontSize: "12px", fontWeight: 700, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "6px" }}>Instructions</div>
+                <p style={{ fontSize: "13.5px", color: theme.text, lineHeight: 1.6, whiteSpace: "pre-line", marginBottom: detail.youtube ? "16px" : 0 }}>{detail.instructions}</p>
+                {detail.youtube && (
+                  <a href={detail.youtube} target="_blank" rel="noopener noreferrer" style={{ fontSize: "13px", fontWeight: 700, color: theme.accent }}>
+                    Watch on YouTube ↗
+                  </a>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SubscriptionsSection({ theme, subs, setSubs }) {
   const [name, setName] = useState("");
   const [cost, setCost] = useState("");
@@ -8680,6 +9655,8 @@ function App() {
   const [golfSimRounds, setGolfSimRounds] = usePersistentState(STORAGE_KEYS.golfSimRounds, DEFAULT_GOLF_ROUNDS);
   const [golfOutdoorRounds, setGolfOutdoorRounds] = usePersistentState(STORAGE_KEYS.golfOutdoorRounds, DEFAULT_GOLF_ROUNDS);
   const [golfScorecards, setGolfScorecards] = usePersistentState(STORAGE_KEYS.golfScorecards, []);
+  const [trips, setTrips] = usePersistentState(STORAGE_KEYS.trips, DEFAULT_TRIPS);
+  const [mealPlanning, setMealPlanning] = usePersistentState(STORAGE_KEYS.mealPlanning, DEFAULT_MEAL_PLANNING);
   const [fantasyCheatSheets, setFantasyCheatSheets] = usePersistentState(STORAGE_KEYS.fantasyCheatSheets, DEFAULT_FANTASY_CHEAT_SHEETS);
   const [fantasyCustomRankings, setFantasyCustomRankings] = usePersistentState(STORAGE_KEYS.fantasyCustomRankings, DEFAULT_FANTASY_CUSTOM_RANKINGS);
   const [fantasyWatchlist, setFantasyWatchlist] = usePersistentState(STORAGE_KEYS.fantasyWatchlist, DEFAULT_FANTASY_WATCHLIST);
@@ -8721,6 +9698,10 @@ function App() {
   const [reading, setReading] = usePersistentState(STORAGE_KEYS.reading, DEFAULT_READING);
   const [games, setGames] = usePersistentState(STORAGE_KEYS.games, DEFAULT_GAMES);
   const [news, setNews] = usePersistentState(STORAGE_KEYS.news, { topics: DEFAULT_NEWS_TOPICS, cache: {}, fetchedAt: null });
+  // Backup & Restore only carries the user's chosen topics, not the
+  // re-fetchable cache — this merges a restored topic list back in
+  // without clobbering whatever's already cached.
+  const setNewsTopics = (topics) => setNews((prev) => ({ ...prev, topics }));
   const [lock, setLock] = usePersistentState(STORAGE_KEYS.lock, { enabled: false });
   const [locked, setLocked] = useState(() => !!lock.enabled);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -8904,6 +9885,12 @@ function App() {
         fantasySleeper={fantasySleeper}
         fantasyYahoo={fantasyYahoo}
         ravenProducts={ravenProducts}
+        habits={habits}
+        reading={reading}
+        games={games}
+        subscriptions={subscriptions}
+        golfScorecards={golfScorecards}
+        newsTopics={news.topics}
         moLinks={moLinks}
         setMoLinks={setMoLinks}
         onOpenMoTool={setMoTool}
@@ -8937,6 +9924,12 @@ function App() {
         setFantasySleeper={setFantasySleeper}
         setFantasyYahoo={setFantasyYahoo}
         setRavenProducts={setRavenProducts}
+        setHabits={setHabits}
+        setReading={setReading}
+        setGames={setGames}
+        setSubscriptions={setSubscriptions}
+        setGolfScorecards={setGolfScorecards}
+        setNewsTopics={setNewsTopics}
       />
 
       <div className="v-main">
@@ -8997,6 +9990,11 @@ function App() {
             <UpcomingSection theme={theme} events={events} setEvents={setEvents} connectedEvents={allConnectedEvents} />
           )}
           {page === "agenda" && <AgendaStripSection theme={theme} events={allEvents} delay={0} />}
+          {page === "weather" && (
+            <WeatherPage theme={theme} weather={weather} weatherStatus={weatherStatus} onEnableWeather={enableWeather} />
+          )}
+          {page === "travel" && <TravelPage theme={theme} trips={trips} setTrips={setTrips} />}
+          {page === "mealplanning" && <MealPlanningPage theme={theme} state={mealPlanning} setState={setMealPlanning} />}
           {page === "youtube" && (
             <YouTubeSection
               theme={theme}
@@ -12413,6 +13411,8 @@ function loadTesseract() {
   __tesseractPromise = new Promise((resolve, reject) => {
     const s = document.createElement("script");
     s.src = "https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js";
+    s.integrity = "sha384-GJqSu7vueQ9qN0E9yLPb3Wtpd7OrgK8KmYzC8T1IysG1bcvxvIO4qtYR/D3A991F";
+    s.crossOrigin = "anonymous";
     s.async = true;
     s.onload = () => resolve();
     s.onerror = () => { __tesseractPromise = null; reject(new Error("Could not load OCR engine")); };
