@@ -60,6 +60,9 @@
   .v-btn:active { filter: brightness(0.95); transform: translateY(0); }
 
   .v-input { transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+  .v-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+  .v-scroll::-webkit-scrollbar-track { background: transparent; }
+  .v-scroll::-webkit-scrollbar-thumb { background: var(--scroll-thumb, rgba(128,128,128,0.35)); border-radius: 999px; }
   .v-input:focus {
     outline: none;
     box-shadow: 0 0 0 3px var(--focus-ring, rgba(0,0,0,0.12));
@@ -196,6 +199,11 @@
   import * as pdfjsLib from "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.2.108/pdf.min.mjs";
   pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.2.108/pdf.worker.min.mjs";
   window.pdfjsLib = pdfjsLib;
+</script>
+
+<!-- fflate (MIT): tiny zip reader/writer, inlined so the PPTX deck builder works offline -->
+<script id="fflate-lib">
+!function(f){typeof module!='undefined'&&typeof exports=='object'?module.exports=f():typeof define!='undefined'&&define.amd?define(f):(typeof self!='undefined'?self:this).fflate=f()}(function(){var _e={};"use strict";var t=(typeof module!='undefined'&&typeof exports=='object'?function(_f){"use strict";var e,t=";var __w=require('worker_threads');__w.parentPort.on('message',function(m){onmessage({data:m})}),postMessage=function(m,t){__w.parentPort.postMessage(m,t)},close=process.exit;self=global";try{e=require("worker_threads").Worker}catch(e){}exports.default=e?function(r,n,o,a,s){var u=!1,i=new e(r+t,{eval:!0}).on("error",(function(e){return s(e,null)})).on("message",(function(e){return s(null,e)})).on("exit",(function(e){e&&!u&&s(Error("exited with code "+e),null)}));return i.postMessage(o,a),i.terminate=function(){return u=!0,e.prototype.terminate.call(i)},i}:function(e,t,r,n,o){setImmediate((function(){return o(Error("async operations unsupported - update to Node 12+ (or Node 10-11 with the --experimental-worker CLI flag)"),null)}));var a=function(){};return{terminate:a,postMessage:a}};return _f}:function(_f){"use strict";var e={};_f.default=function(r,t,s,a,n){var o=new Worker(e[t]||(e[t]=URL.createObjectURL(new Blob([r+';addEventListener("error",function(e){e=e.error;postMessage({$e$:[e.message,e.code,e.stack]})})'],{type:"text/javascript"}))));return o.onmessage=function(e){var r=e.data,t=r.$e$;if(t){var s=Error(t[0]);s.code=t[1],s.stack=t[2],n(s,null)}else n(null,r)},o.postMessage(s,a),o};return _f})({}),n=Uint8Array,r=Uint16Array,e=Int32Array,i=new n([0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0,0,0,0]),o=new n([0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13,0,0]),s=new n([16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15]),a=function(t,n){for(var i=new r(31),o=0;o<31;++o)i[o]=n+=1<<t[o-1];var s=new e(i[30]);for(o=1;o<30;++o)for(var a=i[o];a<i[o+1];++a)s[a]=a-i[o]<<5|o;return{b:i,r:s}},u=a(i,2),h=u.b,f=u.r;h[28]=258,f[258]=28;for(var l=a(o,0),c=l.b,p=l.r,v=new r(32768),d=0;d<32768;++d){var g=(43690&d)>>1|(21845&d)<<1;v[d]=((65280&(g=(61680&(g=(52428&g)>>2|(13107&g)<<2))>>4|(3855&g)<<4))>>8|(255&g)<<8)>>1}var y=function(t,n,e){for(var i=t.length,o=0,s=new r(n);o<i;++o)t[o]&&++s[t[o]-1];var a,u=new r(n);for(o=1;o<n;++o)u[o]=u[o-1]+s[o-1]<<1;if(e){a=new r(1<<n);var h=15-n;for(o=0;o<i;++o)if(t[o])for(var f=o<<4|t[o],l=n-t[o],c=u[t[o]-1]++<<l,p=c|(1<<l)-1;c<=p;++c)a[v[c]>>h]=f}else for(a=new r(i),o=0;o<i;++o)t[o]&&(a[o]=v[u[t[o]-1]++]>>15-t[o]);return a},m=new n(288);for(d=0;d<144;++d)m[d]=8;for(d=144;d<256;++d)m[d]=9;for(d=256;d<280;++d)m[d]=7;for(d=280;d<288;++d)m[d]=8;var b=new n(32);for(d=0;d<32;++d)b[d]=5;var w=y(m,9,0),x=y(m,9,1),z=y(b,5,0),k=y(b,5,1),M=function(t){for(var n=t[0],r=1;r<t.length;++r)t[r]>n&&(n=t[r]);return n},S=function(t,n,r){var e=n/8|0;return(t[e]|t[e+1]<<8)>>(7&n)&r},A=function(t,n){var r=n/8|0;return(t[r]|t[r+1]<<8|t[r+2]<<16)>>(7&n)},T=function(t){return(t+7)/8|0},D=function(t,r,e){return(null==r||r<0)&&(r=0),(null==e||e>t.length)&&(e=t.length),new n(t.subarray(r,e))};_e.FlateErrorCode={UnexpectedEOF:0,InvalidBlockType:1,InvalidLengthLiteral:2,InvalidDistance:3,StreamFinished:4,NoStreamHandler:5,InvalidHeader:6,NoCallback:7,InvalidUTF8:8,ExtraFieldTooLong:9,InvalidDate:10,FilenameTooLong:11,StreamFinishing:12,InvalidZipData:13,UnknownCompressionMethod:14};var C=["unexpected EOF","invalid block type","invalid length/literal","invalid distance","stream finished","no stream handler",,"no callback","invalid UTF-8 data","extra field too long","date not in range 1980-2099","filename too long","stream finishing","invalid zip data"],I=function(t,n,r){var e=Error(n||C[t]);if(e.code=t,Error.captureStackTrace&&Error.captureStackTrace(e,I),!r)throw e;return e},U=function(t,r,e,a){var u=t.length,f=a?a.length:0;if(!u||r.f&&!r.l)return e||new n(0);var l=!e,p=l||2!=r.i,v=r.i;l&&(e=new n(3*u));var d=function(t){var r=e.length;if(t>r){var i=new n(Math.max(2*r,t));i.set(e),e=i}},g=r.f||0,m=r.p||0,b=r.b||0,w=r.l,z=r.d,C=r.m,U=r.n,F=8*u;do{if(!w){g=S(t,m,1);var E=S(t,m+1,3);if(m+=3,!E){var Z=t[(J=T(m)+4)-4]|t[J-3]<<8,q=J+Z;if(q>u){v&&I(0);break}p&&d(b+Z),e.set(t.subarray(J,q),b),r.b=b+=Z,r.p=m=8*q,r.f=g;continue}if(1==E)w=x,z=k,C=9,U=5;else if(2==E){var O=S(t,m,31)+257,G=S(t,m+10,15)+4,L=O+S(t,m+5,31)+1;m+=14;for(var H=new n(L),j=new n(19),N=0;N<G;++N)j[s[N]]=S(t,m+3*N,7);m+=3*G;var P=M(j),B=(1<<P)-1,Y=y(j,P,1);for(N=0;N<L;){var J,K=Y[S(t,m,B)];if(m+=15&K,(J=K>>4)<16)H[N++]=J;else{var Q=0,R=0;for(16==J?(R=3+S(t,m,3),m+=2,Q=H[N-1]):17==J?(R=3+S(t,m,7),m+=3):18==J&&(R=11+S(t,m,127),m+=7);R--;)H[N++]=Q}}var V=H.subarray(0,O),W=H.subarray(O);C=M(V),U=M(W),w=y(V,C,1),z=y(W,U,1)}else I(1);if(m>F){v&&I(0);break}}p&&d(b+131072);for(var X=(1<<C)-1,$=(1<<U)-1,_=m;;_=m){var tt=(Q=w[A(t,m)&X])>>4;if((m+=15&Q)>F){v&&I(0);break}if(Q||I(2),tt<256)e[b++]=tt;else{if(256==tt){_=m,w=null;break}var nt=tt-254;tt>264&&(nt=S(t,m,(1<<(it=i[N=tt-257]))-1)+h[N],m+=it);var rt=z[A(t,m)&$],et=rt>>4;if(rt||I(3),m+=15&rt,W=c[et],et>3){var it=o[et];W+=A(t,m)&(1<<it)-1,m+=it}if(m>F){v&&I(0);break}p&&d(b+131072);var ot=b+nt;if(b<W){var st=f-W,at=Math.min(W,ot);for(st+b<0&&I(3);b<at;++b)e[b]=a[st+b]}for(;b<ot;++b)e[b]=e[b-W]}}r.l=w,r.p=_,r.b=b,r.f=g,w&&(g=1,r.m=C,r.d=z,r.n=U)}while(!g);return b!=e.length&&l?D(e,0,b):e.subarray(0,b)},F=function(t,n,r){var e=n/8|0;t[e]|=r<<=7&n,t[e+1]|=r>>8},E=function(t,n,r){var e=n/8|0;t[e]|=r<<=7&n,t[e+1]|=r>>8,t[e+2]|=r>>16},Z=function(t,e){for(var i=[],o=0;o<t.length;++o)t[o]&&i.push({s:o,f:t[o]});var s=i.length,a=i.slice();if(!s)return{t:N,l:0};if(1==s){var u=new n(i[0].s+1);return u[i[0].s]=1,{t:u,l:1}}i.sort((function(t,n){return t.f-n.f})),i.push({s:-1,f:25001});var h=i[0],f=i[1],l=0,c=1,p=2;for(i[0]={s:-1,f:h.f+f.f,l:h,r:f};c!=s-1;)h=i[i[l].f<i[p].f?l++:p++],f=i[l!=c&&i[l].f<i[p].f?l++:p++],i[c++]={s:-1,f:h.f+f.f,l:h,r:f};var v=a[0].s;for(o=1;o<s;++o)a[o].s>v&&(v=a[o].s);var d=new r(v+1),g=q(i[c-1],d,0);if(g>e){o=0;var y=0,m=g-e,b=1<<m;for(a.sort((function(t,n){return d[n.s]-d[t.s]||t.f-n.f}));o<s;++o){var w=a[o].s;if(!(d[w]>e))break;y+=b-(1<<g-d[w]),d[w]=e}for(y>>=m;y>0;){var x=a[o].s;d[x]<e?y-=1<<e-d[x]++-1:++o}for(;o>=0&&y;--o){var z=a[o].s;d[z]==e&&(--d[z],++y)}g=e}return{t:new n(d),l:g}},q=function(t,n,r){return-1==t.s?Math.max(q(t.l,n,r+1),q(t.r,n,r+1)):n[t.s]=r},O=function(t){for(var n=t.length;n&&!t[--n];);for(var e=new r(++n),i=0,o=t[0],s=1,a=function(t){e[i++]=t},u=1;u<=n;++u)if(t[u]==o&&u!=n)++s;else{if(!o&&s>2){for(;s>138;s-=138)a(32754);s>2&&(a(s>10?s-11<<5|28690:s-3<<5|12305),s=0)}else if(s>3){for(a(o),--s;s>6;s-=6)a(8304);s>2&&(a(s-3<<5|8208),s=0)}for(;s--;)a(o);s=1,o=t[u]}return{c:e.subarray(0,i),n:n}},G=function(t,n){for(var r=0,e=0;e<n.length;++e)r+=t[e]*n[e];return r},L=function(t,n,r){var e=r.length,i=T(n+2);t[i]=255&e,t[i+1]=e>>8,t[i+2]=255^t[i],t[i+3]=255^t[i+1];for(var o=0;o<e;++o)t[i+o+4]=r[o];return 8*(i+4+e)},H=function(t,n,e,a,u,h,f,l,c,p,v){F(n,v++,e),++u[256];for(var d=Z(u,15),g=d.t,x=d.l,k=Z(h,15),M=k.t,S=k.l,A=O(g),T=A.c,D=A.n,C=O(M),I=C.c,U=C.n,q=new r(19),H=0;H<T.length;++H)++q[31&T[H]];for(H=0;H<I.length;++H)++q[31&I[H]];for(var j=Z(q,7),N=j.t,P=j.l,B=19;B>4&&!N[s[B-1]];--B);var Y,J,K,Q,R=p+5<<3,V=G(u,m)+G(h,b)+f,W=G(u,g)+G(h,M)+f+14+3*B+G(q,N)+2*q[16]+3*q[17]+7*q[18];if(c>=0&&R<=V&&R<=W)return L(n,v,t.subarray(c,c+p));if(F(n,v,1+(W<V)),v+=2,W<V){Y=y(g,x,0),J=g,K=y(M,S,0),Q=M;var X=y(N,P,0);for(F(n,v,D-257),F(n,v+5,U-1),F(n,v+10,B-4),v+=14,H=0;H<B;++H)F(n,v+3*H,N[s[H]]);v+=3*B;for(var $=[T,I],_=0;_<2;++_){var tt=$[_];for(H=0;H<tt.length;++H)F(n,v,X[rt=31&tt[H]]),v+=N[rt],rt>15&&(F(n,v,tt[H]>>5&127),v+=tt[H]>>12)}}else Y=w,J=m,K=z,Q=b;for(H=0;H<l;++H){var nt=a[H];if(nt>255){var rt;E(n,v,Y[257+(rt=nt>>18&31)]),v+=J[rt+257],rt>7&&(F(n,v,nt>>23&31),v+=i[rt]);var et=31&nt;E(n,v,K[et]),v+=Q[et],et>3&&(E(n,v,nt>>5&8191),v+=o[et])}else E(n,v,Y[nt]),v+=J[nt]}return E(n,v,Y[256]),v+J[256]},j=new e([65540,131080,131088,131104,262176,1048704,1048832,2114560,2117632]),N=new n(0),P=function(t,s,a,u,h,l){var c=l.z||t.length,v=new n(u+c+5*(1+Math.ceil(c/7e3))+h),d=v.subarray(u,v.length-h),g=l.l,y=7&(l.r||0);if(s){y&&(d[0]=l.r>>3);for(var m=j[s-1],b=m>>13,w=8191&m,x=(1<<a)-1,z=l.p||new r(32768),k=l.h||new r(x+1),M=Math.ceil(a/3),S=2*M,A=function(n){return(t[n]^t[n+1]<<M^t[n+2]<<S)&x},C=new e(25e3),I=new r(288),U=new r(32),F=0,E=0,Z=l.i||0,q=0,O=l.w||0,G=0;Z+2<c;++Z){var N=A(Z),P=32767&Z,B=k[N];if(z[P]=B,k[N]=P,O<=Z){var Y=c-Z;if((F>7e3||q>24576)&&(Y>423||!g)){y=H(t,d,0,C,I,U,E,q,G,Z-G,y),q=F=E=0,G=Z;for(var J=0;J<286;++J)I[J]=0;for(J=0;J<30;++J)U[J]=0}var K=2,Q=0,R=w,V=P-B&32767;if(Y>2&&N==A(Z-V))for(var W=Math.min(b,Y)-1,X=Math.min(32767,Z),$=Math.min(258,Y);V<=X&&--R&&P!=B;){if(t[Z+K]==t[Z+K-V]){for(var _=0;_<$&&t[Z+_]==t[Z+_-V];++_);if(_>K){if(K=_,Q=V,_>W)break;var tt=Math.min(V,_-2),nt=0;for(J=0;J<tt;++J){var rt=Z-V+J&32767,et=rt-z[rt]&32767;et>nt&&(nt=et,B=rt)}}}V+=(P=B)-(B=z[P])&32767}if(Q){C[q++]=268435456|f[K]<<18|p[Q];var it=31&f[K],ot=31&p[Q];E+=i[it]+o[ot],++I[257+it],++U[ot],O=Z+K,++F}else C[q++]=t[Z],++I[t[Z]]}}for(Z=Math.max(Z,O);Z<c;++Z)C[q++]=t[Z],++I[t[Z]];y=H(t,d,g,C,I,U,E,q,G,Z-G,y),g||(l.r=7&y|d[y/8|0]<<3,y-=7,l.h=k,l.p=z,l.i=Z,l.w=O)}else{for(Z=l.w||0;Z<c+g;Z+=65535){var st=Z+65535;st>=c&&(d[y/8|0]=g,st=c),y=L(d,y+1,t.subarray(Z,st))}l.i=c}return D(v,0,u+T(y)+h)},B=function(){for(var t=new Int32Array(256),n=0;n<256;++n){for(var r=n,e=9;--e;)r=(1&r&&-306674912)^r>>>1;t[n]=r}return t}(),Y=function(){var t=-1;return{p:function(n){for(var r=t,e=0;e<n.length;++e)r=B[255&r^n[e]]^r>>>8;t=r},d:function(){return~t}}},J=function(){var t=1,n=0;return{p:function(r){for(var e=t,i=n,o=0|r.length,s=0;s!=o;){for(var a=Math.min(s+2655,o);s<a;++s)i+=e+=r[s];e=(65535&e)+15*(e>>16),i=(65535&i)+15*(i>>16)}t=e,n=i},d:function(){return(255&(t%=65521))<<24|(65280&t)<<8|(255&(n%=65521))<<8|n>>8}}},K=function(t,r,e,i,o){if(!o&&(o={l:1},r.dictionary)){var s=r.dictionary.subarray(-32768),a=new n(s.length+t.length);a.set(s),a.set(t,s.length),t=a,o.w=s.length}return P(t,null==r.level?6:r.level,null==r.mem?o.l?Math.ceil(1.5*Math.max(8,Math.min(13,Math.log(t.length)))):20:12+r.mem,e,i,o)},Q=function(t,n){var r={};for(var e in t)r[e]=t[e];for(var e in n)r[e]=n[e];return r},R=function(t,n,r){for(var e=t(),i=""+t,o=i.slice(i.indexOf("[")+1,i.lastIndexOf("]")).replace(/\s+/g,"").split(","),s=0;s<e.length;++s){var a=e[s],u=o[s];if("function"==typeof a){n+=";"+u+"=";var h=""+a;if(a.prototype)if(-1!=h.indexOf("[native code]")){var f=h.indexOf(" ",8)+1;n+=h.slice(f,h.indexOf("(",f))}else for(var l in n+=h,a.prototype)n+=";"+u+".prototype."+l+"="+a.prototype[l];else n+=h}else r[u]=a}return n},V=[],W=function(t){var n=[];for(var r in t)t[r].buffer&&n.push((t[r]=new t[r].constructor(t[r])).buffer);return n},X=function(n,r,e,i){if(!V[e]){for(var o="",s={},a=n.length-1,u=0;u<a;++u)o=R(n[u],o,s);V[e]={c:R(n[a],o,s),e:s}}var h=Q({},V[e].e);return(0,t.default)(V[e].c+";onmessage=function(e){for(var k in e.data)self[k]=e.data[k];onmessage="+r+"}",e,h,W(h),i)},$=function(){return[n,r,e,i,o,s,h,c,x,k,v,C,y,M,S,A,T,D,I,U,Tt,it,ot]},_=function(){return[n,r,e,i,o,s,f,p,w,m,z,b,v,j,N,y,F,E,Z,q,O,G,L,H,T,D,P,K,kt,it]},tt=function(){return[pt,gt,ct,Y,B]},nt=function(){return[vt,dt]},rt=function(){return[yt,ct,J]},et=function(){return[mt]},it=function(t){return postMessage(t,[t.buffer])},ot=function(t){return t&&{out:t.size&&new n(t.size),dictionary:t.dictionary}},st=function(t,n,r,e,i,o){var s=X(r,e,i,(function(t,n){s.terminate(),o(t,n)}));return s.postMessage([t,n],n.consume?[t.buffer]:[]),function(){s.terminate()}},at=function(t){return t.ondata=function(t,n){return postMessage([t,n],[t.buffer])},function(n){n.data.length?(t.push(n.data[0],n.data[1]),postMessage([n.data[0].length])):t.flush()}},ut=function(t,n,r,e,i,o,s){var a,u=X(t,e,i,(function(t,r){t?(u.terminate(),n.ondata.call(n,t)):Array.isArray(r)?1==r.length?(n.queuedSize-=r[0],n.ondrain&&n.ondrain(r[0])):(r[1]&&u.terminate(),n.ondata.call(n,t,r[0],r[1])):s(r)}));u.postMessage(r),n.queuedSize=0,n.push=function(t,r){n.ondata||I(5),a&&n.ondata(I(4,0,1),null,!!r),n.queuedSize+=t.length,u.postMessage([t,a=r],[t.buffer])},n.terminate=function(){u.terminate()},o&&(n.flush=function(){u.postMessage([])})},ht=function(t,n){return t[n]|t[n+1]<<8},ft=function(t,n){return(t[n]|t[n+1]<<8|t[n+2]<<16|t[n+3]<<24)>>>0},lt=function(t,n){return ft(t,n)+4294967296*ft(t,n+4)},ct=function(t,n,r){for(;r;++n)t[n]=r,r>>>=8},pt=function(t,n){var r=n.filename;if(t[0]=31,t[1]=139,t[2]=8,t[8]=n.level<2?4:9==n.level?2:0,t[9]=3,0!=n.mtime&&ct(t,4,Math.floor(new Date(n.mtime||Date.now())/1e3)),r){t[3]=8;for(var e=0;e<=r.length;++e)t[e+10]=r.charCodeAt(e)}},vt=function(t){31==t[0]&&139==t[1]&&8==t[2]||I(6,"invalid gzip data");var n=t[3],r=10;4&n&&(r+=2+(t[10]|t[11]<<8));for(var e=(n>>3&1)+(n>>4&1);e>0;e-=!t[r++]);return r+(2&n)},dt=function(t){var n=t.length;return(t[n-4]|t[n-3]<<8|t[n-2]<<16|t[n-1]<<24)>>>0},gt=function(t){return 10+(t.filename?t.filename.length+1:0)},yt=function(t,n){var r=n.level,e=0==r?0:r<6?1:9==r?3:2;if(t[0]=120,t[1]=e<<6|(n.dictionary&&32),t[1]|=31-(t[0]<<8|t[1])%31,n.dictionary){var i=J();i.p(n.dictionary),ct(t,2,i.d())}},mt=function(t,n){return(8!=(15&t[0])||t[0]>>4>7||(t[0]<<8|t[1])%31)&&I(6,"invalid zlib data"),(t[1]>>5&1)==+!n&&I(6,"invalid zlib data: "+(32&t[1]?"need":"unexpected")+" dictionary"),2+(t[1]>>3&4)};function bt(t,n){return"function"==typeof t&&(n=t,t={}),this.ondata=n,t}var wt=function(){function t(t,r){if("function"==typeof t&&(r=t,t={}),this.ondata=r,this.o=t||{},this.s={l:0,i:32768,w:32768,z:32768},this.b=new n(98304),this.o.dictionary){var e=this.o.dictionary.subarray(-32768);this.b.set(e,32768-e.length),this.s.i=32768-e.length}}return t.prototype.p=function(t,n){this.ondata(K(t,this.o,0,0,this.s),n)},t.prototype.push=function(t,r){this.ondata||I(5),this.s.l&&I(4);var e=t.length+this.s.z;if(e>this.b.length){if(e>2*this.b.length-32768){var i=new n(-32768&e);i.set(this.b.subarray(0,this.s.z)),this.b=i}var o=this.b.length-this.s.z;this.b.set(t.subarray(0,o),this.s.z),this.s.z=this.b.length,this.p(this.b,!1),this.b.set(this.b.subarray(-32768)),this.b.set(t.subarray(o),32768),this.s.z=t.length-o+32768,this.s.i=32766,this.s.w=32768}else this.b.set(t,this.s.z),this.s.z+=t.length;this.s.l=1&r,(this.s.z>this.s.w+8191||r)&&(this.p(this.b,r||!1),this.s.w=this.s.i,this.s.i-=2)},t.prototype.flush=function(){this.ondata||I(5),this.s.l&&I(4),this.p(this.b,!1),this.s.w=this.s.i,this.s.i-=2},t}();_e.Deflate=wt;var xt=function(){return function(t,n){ut([_,function(){return[at,wt]}],this,bt.call(this,t,n),(function(t){var n=new wt(t.data);onmessage=at(n)}),6,1)}}();function zt(t,n,r){return r||(r=n,n={}),"function"!=typeof r&&I(7),st(t,n,[_],(function(t){return it(kt(t.data[0],t.data[1]))}),0,r)}function kt(t,n){return K(t,n||{},0,0)}_e.AsyncDeflate=xt,_e.deflate=zt,_e.deflateSync=kt;var Mt=function(){function t(t,r){"function"==typeof t&&(r=t,t={}),this.ondata=r;var e=t&&t.dictionary&&t.dictionary.subarray(-32768);this.s={i:0,b:e?e.length:0},this.o=new n(32768),this.p=new n(0),e&&this.o.set(e)}return t.prototype.e=function(t){if(this.ondata||I(5),this.d&&I(4),this.p.length){if(t.length){var r=new n(this.p.length+t.length);r.set(this.p),r.set(t,this.p.length),this.p=r}}else this.p=t},t.prototype.c=function(t){this.s.i=+(this.d=t||!1);var n=this.s.b,r=U(this.p,this.s,this.o);this.ondata(D(r,n,this.s.b),this.d),this.o=D(r,this.s.b-32768),this.s.b=this.o.length,this.p=D(this.p,this.s.p/8|0),this.s.p&=7},t.prototype.push=function(t,n){this.e(t),this.c(n)},t}();_e.Inflate=Mt;var St=function(){return function(t,n){ut([$,function(){return[at,Mt]}],this,bt.call(this,t,n),(function(t){var n=new Mt(t.data);onmessage=at(n)}),7,0)}}();function At(t,n,r){return r||(r=n,n={}),"function"!=typeof r&&I(7),st(t,n,[$],(function(t){return it(Tt(t.data[0],ot(t.data[1])))}),1,r)}function Tt(t,n){return U(t,{i:2},n&&n.out,n&&n.dictionary)}_e.AsyncInflate=St,_e.inflate=At,_e.inflateSync=Tt;var Dt=function(){function t(t,n){this.c=Y(),this.l=0,this.v=1,wt.call(this,t,n)}return t.prototype.push=function(t,n){this.c.p(t),this.l+=t.length,wt.prototype.push.call(this,t,n)},t.prototype.p=function(t,n){var r=K(t,this.o,this.v&&gt(this.o),n&&8,this.s);this.v&&(pt(r,this.o),this.v=0),n&&(ct(r,r.length-8,this.c.d()),ct(r,r.length-4,this.l)),this.ondata(r,n)},t.prototype.flush=function(){wt.prototype.flush.call(this)},t}();_e.Gzip=Dt,_e.Compress=Dt;var Ct=function(){return function(t,n){ut([_,tt,function(){return[at,wt,Dt]}],this,bt.call(this,t,n),(function(t){var n=new Dt(t.data);onmessage=at(n)}),8,1)}}();function It(t,n,r){return r||(r=n,n={}),"function"!=typeof r&&I(7),st(t,n,[_,tt,function(){return[Ut]}],(function(t){return it(Ut(t.data[0],t.data[1]))}),2,r)}function Ut(t,n){n||(n={});var r=Y(),e=t.length;r.p(t);var i=K(t,n,gt(n),8),o=i.length;return pt(i,n),ct(i,o-8,r.d()),ct(i,o-4,e),i}_e.AsyncGzip=Ct,_e.AsyncCompress=Ct,_e.gzip=It,_e.compress=It,_e.gzipSync=Ut,_e.compressSync=Ut;var Ft=function(){function t(t,n){this.v=1,this.r=0,Mt.call(this,t,n)}return t.prototype.push=function(t,r){if(Mt.prototype.e.call(this,t),this.r+=t.length,this.v){var e=this.p.subarray(this.v-1),i=e.length>3?vt(e):4;if(i>e.length){if(!r)return}else this.v>1&&this.onmember&&this.onmember(this.r-e.length);this.p=e.subarray(i),this.v=0}Mt.prototype.c.call(this,r),!this.s.f||this.s.l||r||(this.v=T(this.s.p)+9,this.s={i:0},this.o=new n(0),this.push(new n(0),r))},t}();_e.Gunzip=Ft;var Et=function(){return function(t,n){var r=this;ut([$,nt,function(){return[at,Mt,Ft]}],this,bt.call(this,t,n),(function(t){var n=new Ft(t.data);n.onmember=function(t){return postMessage(t)},onmessage=at(n)}),9,0,(function(t){return r.onmember&&r.onmember(t)}))}}();function Zt(t,n,r){return r||(r=n,n={}),"function"!=typeof r&&I(7),st(t,n,[$,nt,function(){return[qt]}],(function(t){return it(qt(t.data[0],t.data[1]))}),3,r)}function qt(t,r){var e=vt(t);return e+8>t.length&&I(6,"invalid gzip data"),U(t.subarray(e,-8),{i:2},r&&r.out||new n(dt(t)),r&&r.dictionary)}_e.AsyncGunzip=Et,_e.gunzip=Zt,_e.gunzipSync=qt;var Ot=function(){function t(t,n){this.c=J(),this.v=1,wt.call(this,t,n)}return t.prototype.push=function(t,n){this.c.p(t),wt.prototype.push.call(this,t,n)},t.prototype.p=function(t,n){var r=K(t,this.o,this.v&&(this.o.dictionary?6:2),n&&4,this.s);this.v&&(yt(r,this.o),this.v=0),n&&ct(r,r.length-4,this.c.d()),this.ondata(r,n)},t.prototype.flush=function(){wt.prototype.flush.call(this)},t}();_e.Zlib=Ot;var Gt=function(){return function(t,n){ut([_,rt,function(){return[at,wt,Ot]}],this,bt.call(this,t,n),(function(t){var n=new Ot(t.data);onmessage=at(n)}),10,1)}}();function Lt(t,n,r){return r||(r=n,n={}),"function"!=typeof r&&I(7),st(t,n,[_,rt,function(){return[Ht]}],(function(t){return it(Ht(t.data[0],t.data[1]))}),4,r)}function Ht(t,n){n||(n={});var r=J();r.p(t);var e=K(t,n,n.dictionary?6:2,4);return yt(e,n),ct(e,e.length-4,r.d()),e}_e.AsyncZlib=Gt,_e.zlib=Lt,_e.zlibSync=Ht;var jt=function(){function t(t,n){Mt.call(this,t,n),this.v=t&&t.dictionary?2:1}return t.prototype.push=function(t,n){if(Mt.prototype.e.call(this,t),this.v){if(this.p.length<6&&!n)return;this.p=this.p.subarray(mt(this.p,this.v-1)),this.v=0}n&&(this.p.length<4&&I(6,"invalid zlib data"),this.p=this.p.subarray(0,-4)),Mt.prototype.c.call(this,n)},t}();_e.Unzlib=jt;var Nt=function(){return function(t,n){ut([$,et,function(){return[at,Mt,jt]}],this,bt.call(this,t,n),(function(t){var n=new jt(t.data);onmessage=at(n)}),11,0)}}();function Pt(t,n,r){return r||(r=n,n={}),"function"!=typeof r&&I(7),st(t,n,[$,et,function(){return[Bt]}],(function(t){return it(Bt(t.data[0],ot(t.data[1])))}),5,r)}function Bt(t,n){return U(t.subarray(mt(t,n&&n.dictionary),-4),{i:2},n&&n.out,n&&n.dictionary)}_e.AsyncUnzlib=Nt,_e.unzlib=Pt,_e.unzlibSync=Bt;var Yt=function(){function t(t,n){this.o=bt.call(this,t,n)||{},this.G=Ft,this.I=Mt,this.Z=jt}return t.prototype.i=function(){var t=this;this.s.ondata=function(n,r){t.ondata(n,r)}},t.prototype.push=function(t,r){if(this.ondata||I(5),this.s)this.s.push(t,r);else{if(this.p&&this.p.length){var e=new n(this.p.length+t.length);e.set(this.p),e.set(t,this.p.length)}else this.p=t;this.p.length>2&&(this.s=31==this.p[0]&&139==this.p[1]&&8==this.p[2]?new this.G(this.o):8!=(15&this.p[0])||this.p[0]>>4>7||(this.p[0]<<8|this.p[1])%31?new this.I(this.o):new this.Z(this.o),this.i(),this.s.push(this.p,r),this.p=null)}},t}();_e.Decompress=Yt;var Jt=function(){function t(t,n){Yt.call(this,t,n),this.queuedSize=0,this.G=Et,this.I=St,this.Z=Nt}return t.prototype.i=function(){var t=this;this.s.ondata=function(n,r,e){t.ondata(n,r,e)},this.s.ondrain=function(n){t.queuedSize-=n,t.ondrain&&t.ondrain(n)}},t.prototype.push=function(t,n){this.queuedSize+=t.length,Yt.prototype.push.call(this,t,n)},t}();function Kt(t,n,r){return r||(r=n,n={}),"function"!=typeof r&&I(7),31==t[0]&&139==t[1]&&8==t[2]?Zt(t,n,r):8!=(15&t[0])||t[0]>>4>7||(t[0]<<8|t[1])%31?At(t,n,r):Pt(t,n,r)}function Qt(t,n){return 31==t[0]&&139==t[1]&&8==t[2]?qt(t,n):8!=(15&t[0])||t[0]>>4>7||(t[0]<<8|t[1])%31?Tt(t,n):Bt(t,n)}_e.AsyncDecompress=Jt,_e.decompress=Kt,_e.decompressSync=Qt;var Rt=function(t,r,e,i){for(var o in t){var s=t[o],a=r+o,u=i;Array.isArray(s)&&(u=Q(i,s[1]),s=s[0]),s instanceof n?e[a]=[s,u]:(e[a+="/"]=[new n(0),u],Rt(s,a,e,i))}},Vt="undefined"!=typeof TextEncoder&&new TextEncoder,Wt="undefined"!=typeof TextDecoder&&new TextDecoder,Xt=0;try{Wt.decode(N,{stream:!0}),Xt=1}catch(t){}var $t=function(t){for(var n="",r=0;;){var e=t[r++],i=(e>127)+(e>223)+(e>239);if(r+i>t.length)return{s:n,r:D(t,r-1)};i?3==i?(e=((15&e)<<18|(63&t[r++])<<12|(63&t[r++])<<6|63&t[r++])-65536,n+=String.fromCharCode(55296|e>>10,56320|1023&e)):n+=String.fromCharCode(1&i?(31&e)<<6|63&t[r++]:(15&e)<<12|(63&t[r++])<<6|63&t[r++]):n+=String.fromCharCode(e)}},_t=function(){function t(t){this.ondata=t,Xt?this.t=new TextDecoder:this.p=N}return t.prototype.push=function(t,r){if(this.ondata||I(5),r=!!r,this.t)return this.ondata(this.t.decode(t,{stream:!0}),r),void(r&&(this.t.decode().length&&I(8),this.t=null));this.p||I(4);var e=new n(this.p.length+t.length);e.set(this.p),e.set(t,this.p.length);var i=$t(e),o=i.s,s=i.r;r?(s.length&&I(8),this.p=null):this.p=s,this.ondata(o,r)},t}();_e.DecodeUTF8=_t;var tn=function(){function t(t){this.ondata=t}return t.prototype.push=function(t,n){this.ondata||I(5),this.d&&I(4),this.ondata(nn(t),this.d=n||!1)},t}();function nn(t,r){if(r){for(var e=new n(t.length),i=0;i<t.length;++i)e[i]=t.charCodeAt(i);return e}if(Vt)return Vt.encode(t);var o=t.length,s=new n(t.length+(t.length>>1)),a=0,u=function(t){s[a++]=t};for(i=0;i<o;++i){if(a+5>s.length){var h=new n(a+8+(o-i<<1));h.set(s),s=h}var f=t.charCodeAt(i);f<128||r?u(f):f<2048?(u(192|f>>6),u(128|63&f)):f>55295&&f<57344?(u(240|(f=65536+(1047552&f)|1023&t.charCodeAt(++i))>>18),u(128|f>>12&63),u(128|f>>6&63),u(128|63&f)):(u(224|f>>12),u(128|f>>6&63),u(128|63&f))}return D(s,0,a)}function rn(t,n){if(n){for(var r="",e=0;e<t.length;e+=16384)r+=String.fromCharCode.apply(null,t.subarray(e,e+16384));return r}if(Wt)return Wt.decode(t);var i=$t(t),o=i.s;return(r=i.r).length&&I(8),o}_e.EncodeUTF8=tn,_e.strToU8=nn,_e.strFromU8=rn;var en=function(t){return 1==t?3:t<6?2:9==t?1:0},on=function(t,n){return n+30+ht(t,n+26)+ht(t,n+28)},sn=function(t,n,r){var e=ht(t,n+28),i=rn(t.subarray(n+46,n+46+e),!(2048&ht(t,n+8))),o=n+46+e,s=ft(t,n+20),a=r&&4294967295==s?an(t,o):[s,ft(t,n+24),ft(t,n+42)],u=a[0],h=a[1],f=a[2];return[ht(t,n+10),u,h,i,o+ht(t,n+30)+ht(t,n+32),f]},an=function(t,n){for(;1!=ht(t,n);n+=4+ht(t,n+2));return[lt(t,n+12),lt(t,n+4),lt(t,n+20)]},un=function(t){var n=0;if(t)for(var r in t){var e=t[r].length;e>65535&&I(9),n+=e+4}return n},hn=function(t,n,r,e,i,o,s,a){var u=e.length,h=r.extra,f=a&&a.length,l=un(h);ct(t,n,null!=s?33639248:67324752),n+=4,null!=s&&(t[n++]=20,t[n++]=r.os),t[n]=20,n+=2,t[n++]=r.flag<<1|(o<0&&8),t[n++]=i&&8,t[n++]=255&r.compression,t[n++]=r.compression>>8;var c=new Date(null==r.mtime?Date.now():r.mtime),p=c.getFullYear()-1980;if((p<0||p>119)&&I(10),ct(t,n,p<<25|c.getMonth()+1<<21|c.getDate()<<16|c.getHours()<<11|c.getMinutes()<<5|c.getSeconds()>>1),n+=4,-1!=o&&(ct(t,n,r.crc),ct(t,n+4,o<0?-o-2:o),ct(t,n+8,r.size)),ct(t,n+12,u),ct(t,n+14,l),n+=16,null!=s&&(ct(t,n,f),ct(t,n+6,r.attrs),ct(t,n+10,s),n+=14),t.set(e,n),n+=u,l)for(var v in h){var d=h[v],g=d.length;ct(t,n,+v),ct(t,n+2,g),t.set(d,n+4),n+=4+g}return f&&(t.set(a,n),n+=f),n},fn=function(t,n,r,e,i){ct(t,n,101010256),ct(t,n+8,r),ct(t,n+10,r),ct(t,n+12,e),ct(t,n+16,i)},ln=function(){function t(t){this.filename=t,this.c=Y(),this.size=0,this.compression=0}return t.prototype.process=function(t,n){this.ondata(null,t,n)},t.prototype.push=function(t,n){this.ondata||I(5),this.c.p(t),this.size+=t.length,n&&(this.crc=this.c.d()),this.process(t,n||!1)},t}();_e.ZipPassThrough=ln;var cn=function(){function t(t,n){var r=this;n||(n={}),ln.call(this,t),this.d=new wt(n,(function(t,n){r.ondata(null,t,n)})),this.compression=8,this.flag=en(n.level)}return t.prototype.process=function(t,n){try{this.d.push(t,n)}catch(t){this.ondata(t,null,n)}},t.prototype.push=function(t,n){ln.prototype.push.call(this,t,n)},t}();_e.ZipDeflate=cn;var pn=function(){function t(t,n){var r=this;n||(n={}),ln.call(this,t),this.d=new xt(n,(function(t,n,e){r.ondata(t,n,e)})),this.compression=8,this.flag=en(n.level),this.terminate=this.d.terminate}return t.prototype.process=function(t,n){this.d.push(t,n)},t.prototype.push=function(t,n){ln.prototype.push.call(this,t,n)},t}();_e.AsyncZipDeflate=pn;var vn=function(){function t(t){this.ondata=t,this.u=[],this.d=1}return t.prototype.add=function(t){var r=this;if(this.ondata||I(5),2&this.d)this.ondata(I(4+8*(1&this.d),0,1),null,!1);else{var e=nn(t.filename),i=e.length,o=t.comment,s=o&&nn(o),a=i!=t.filename.length||s&&o.length!=s.length,u=i+un(t.extra)+30;i>65535&&this.ondata(I(11,0,1),null,!1);var h=new n(u);hn(h,0,t,e,a,-1);var f=[h],l=function(){for(var t=0,n=f;t<n.length;t++)r.ondata(null,n[t],!1);f=[]},c=this.d;this.d=0;var p=this.u.length,v=Q(t,{f:e,u:a,o:s,t:function(){t.terminate&&t.terminate()},r:function(){if(l(),c){var t=r.u[p+1];t?t.r():r.d=1}c=1}}),d=0;t.ondata=function(e,i,o){if(e)r.ondata(e,i,o),r.terminate();else if(d+=i.length,f.push(i),o){var s=new n(16);ct(s,0,134695760),ct(s,4,t.crc),ct(s,8,d),ct(s,12,t.size),f.push(s),v.c=d,v.b=u+d+16,v.crc=t.crc,v.size=t.size,c&&v.r(),c=1}else c&&l()},this.u.push(v)}},t.prototype.end=function(){var t=this;2&this.d?this.ondata(I(4+8*(1&this.d),0,1),null,!0):(this.d?this.e():this.u.push({r:function(){1&t.d&&(t.u.splice(-1,1),t.e())},t:function(){}}),this.d=3)},t.prototype.e=function(){for(var t=0,r=0,e=0,i=0,o=this.u;i<o.length;i++)e+=46+(h=o[i]).f.length+un(h.extra)+(h.o?h.o.length:0);for(var s=new n(e+22),a=0,u=this.u;a<u.length;a++){var h;hn(s,t,h=u[a],h.f,h.u,-h.c-2,r,h.o),t+=46+h.f.length+un(h.extra)+(h.o?h.o.length:0),r+=h.b}fn(s,t,this.u.length,e,r),this.ondata(null,s,!0),this.d=2},t.prototype.terminate=function(){for(var t=0,n=this.u;t<n.length;t++)n[t].t();this.d=2},t}();function dn(t,r,e){e||(e=r,r={}),"function"!=typeof e&&I(7);var i={};Rt(t,"",i,r);var o=Object.keys(i),s=o.length,a=0,u=0,h=s,f=Array(s),l=[],c=function(){for(var t=0;t<l.length;++t)l[t]()},p=function(t,n){xn((function(){e(t,n)}))};xn((function(){p=e}));var v=function(){var t=new n(u+22),r=a,e=u-a;u=0;for(var i=0;i<h;++i){var o=f[i];try{var s=o.c.length;hn(t,u,o,o.f,o.u,s);var l=30+o.f.length+un(o.extra),c=u+l;t.set(o.c,c),hn(t,a,o,o.f,o.u,s,u,o.m),a+=16+l+(o.m?o.m.length:0),u=c+s}catch(t){return p(t,null)}}fn(t,a,f.length,e,r),p(null,t)};s||v();for(var d=function(t){var n=o[t],r=i[n],e=r[0],h=r[1],d=Y(),g=e.length;d.p(e);var y=nn(n),m=y.length,b=h.comment,w=b&&nn(b),x=w&&w.length,z=un(h.extra),k=0==h.level?0:8,M=function(r,e){if(r)c(),p(r,null);else{var i=e.length;f[t]=Q(h,{size:g,crc:d.d(),c:e,f:y,m:w,u:m!=n.length||w&&b.length!=x,compression:k}),a+=30+m+z+i,u+=76+2*(m+z)+(x||0)+i,--s||v()}};if(m>65535&&M(I(11,0,1),null),k)if(g<16e4)try{M(null,kt(e,h))}catch(t){M(t,null)}else l.push(zt(e,h,M));else M(null,e)},g=0;g<h;++g)d(g);return c}function gn(t,r){r||(r={});var e={},i=[];Rt(t,"",e,r);var o=0,s=0;for(var a in e){var u=e[a],h=u[0],f=u[1],l=0==f.level?0:8,c=(M=nn(a)).length,p=f.comment,v=p&&nn(p),d=v&&v.length,g=un(f.extra);c>65535&&I(11);var y=l?kt(h,f):h,m=y.length,b=Y();b.p(h),i.push(Q(f,{size:h.length,crc:b.d(),c:y,f:M,m:v,u:c!=a.length||v&&p.length!=d,o:o,compression:l})),o+=30+c+g+m,s+=76+2*(c+g)+(d||0)+m}for(var w=new n(s+22),x=o,z=s-o,k=0;k<i.length;++k){var M;hn(w,(M=i[k]).o,M,M.f,M.u,M.c.length);var S=30+M.f.length+un(M.extra);w.set(M.c,M.o+S),hn(w,o,M,M.f,M.u,M.c.length,M.o,M.m),o+=16+S+(M.m?M.m.length:0)}return fn(w,o,i.length,z,x),w}_e.Zip=vn,_e.zip=dn,_e.zipSync=gn;var yn=function(){function t(){}return t.prototype.push=function(t,n){this.ondata(null,t,n)},t.compression=0,t}();_e.UnzipPassThrough=yn;var mn=function(){function t(){var t=this;this.i=new Mt((function(n,r){t.ondata(null,n,r)}))}return t.prototype.push=function(t,n){try{this.i.push(t,n)}catch(t){this.ondata(t,null,n)}},t.compression=8,t}();_e.UnzipInflate=mn;var bn=function(){function t(t,n){var r=this;n<32e4?this.i=new Mt((function(t,n){r.ondata(null,t,n)})):(this.i=new St((function(t,n,e){r.ondata(t,n,e)})),this.terminate=this.i.terminate)}return t.prototype.push=function(t,n){this.i.terminate&&(t=D(t,0)),this.i.push(t,n)},t.compression=8,t}();_e.AsyncUnzipInflate=bn;var wn=function(){function t(t){this.onfile=t,this.k=[],this.o={0:yn},this.p=N}return t.prototype.push=function(t,r){var e=this;if(this.onfile||I(5),this.p||I(4),this.c>0){var i=Math.min(this.c,t.length),o=t.subarray(0,i);if(this.c-=i,this.d?this.d.push(o,!this.c):this.k[0].push(o),(t=t.subarray(i)).length)return this.push(t,r)}else{var s=0,a=0,u=void 0,h=void 0;this.p.length?t.length?((h=new n(this.p.length+t.length)).set(this.p),h.set(t,this.p.length)):h=this.p:h=t;for(var f=h.length,l=this.c,c=l&&this.d,p=function(){var t,n=ft(h,a);if(67324752==n){s=1,u=a,v.d=null,v.c=0;var r=ht(h,a+6),i=ht(h,a+8),o=2048&r,c=8&r,p=ht(h,a+26),d=ht(h,a+28);if(f>a+30+p+d){var g=[];v.k.unshift(g),s=2;var y,m=ft(h,a+18),b=ft(h,a+22),w=rn(h.subarray(a+30,a+=30+p),!o);4294967295==m?(t=c?[-2]:an(h,a),m=t[0],b=t[1]):c&&(m=-1),a+=d,v.c=m;var x={name:w,compression:i,start:function(){if(x.ondata||I(5),m){var t=e.o[i];t||x.ondata(I(14,"unknown compression type "+i,1),null,!1),(y=m<0?new t(w):new t(w,m,b)).ondata=function(t,n,r){x.ondata(t,n,r)};for(var n=0,r=g;n<r.length;n++)y.push(r[n],!1);e.k[0]==g&&e.c?e.d=y:y.push(N,!0)}else x.ondata(null,N,!0)},terminate:function(){y&&y.terminate&&y.terminate()}};m>=0&&(x.size=m,x.originalSize=b),v.onfile(x)}return"break"}if(l){if(134695760==n)return u=a+=12+(-2==l&&8),s=3,v.c=0,"break";if(33639248==n)return u=a-=4,s=3,v.c=0,"break"}},v=this;a<f-4&&"break"!==p();++a);if(this.p=N,l<0){var d=h.subarray(0,s?u-12-(-2==l&&8)-(134695760==ft(h,u-16)&&4):a);c?c.push(d,!!s):this.k[+(2==s)].push(d)}if(2&s)return this.push(h.subarray(a),r);this.p=h.subarray(a)}r&&(this.c&&I(13),this.p=null)},t.prototype.register=function(t){this.o[t.compression]=t},t}();_e.Unzip=wn;var xn="function"==typeof queueMicrotask?queueMicrotask:"function"==typeof setTimeout?setTimeout:function(t){t()};function zn(t,r,e){e||(e=r,r={}),"function"!=typeof e&&I(7);var i=[],o=function(){for(var t=0;t<i.length;++t)i[t]()},s={},a=function(t,n){xn((function(){e(t,n)}))};xn((function(){a=e}));for(var u=t.length-22;101010256!=ft(t,u);--u)if(!u||t.length-u>65558)return a(I(13,0,1),null),o;var h=ht(t,u+8);if(h){var f=h,l=ft(t,u+16),c=4294967295==l||65535==f;if(c){var p=ft(t,u-12);(c=101075792==ft(t,p))&&(f=h=ft(t,p+32),l=ft(t,p+48))}for(var v=r&&r.filter,d=function(r){var e=sn(t,l,c),u=e[0],f=e[1],p=e[2],d=e[3],g=e[4],y=on(t,e[5]);l=g;var m=function(t,n){t?(o(),a(t,null)):(n&&(s[d]=n),--h||a(null,s))};if(!v||v({name:d,size:f,originalSize:p,compression:u}))if(u)if(8==u){var b=t.subarray(y,y+f);if(p<524288||f>.8*p)try{m(null,Tt(b,{out:new n(p)}))}catch(t){m(t,null)}else i.push(At(b,{size:p},m))}else m(I(14,"unknown compression type "+u,1),null);else m(null,D(t,y,y+f));else m(null,null)},g=0;g<f;++g)d()}else a(null,{});return o}function kn(t,r){for(var e={},i=t.length-22;101010256!=ft(t,i);--i)(!i||t.length-i>65558)&&I(13);var o=ht(t,i+8);if(!o)return{};var s=ft(t,i+16),a=4294967295==s||65535==o;if(a){var u=ft(t,i-12);(a=101075792==ft(t,u))&&(o=ft(t,u+32),s=ft(t,u+48))}for(var h=r&&r.filter,f=0;f<o;++f){var l=sn(t,s,a),c=l[0],p=l[1],v=l[2],d=l[3],g=l[4],y=on(t,l[5]);s=g,h&&!h({name:d,size:p,originalSize:v,compression:c})||(c?8==c?e[d]=Tt(t.subarray(y,y+p),{out:new n(v)}):I(14,"unknown compression type "+c):e[d]=D(t,y,y+p))}return e}_e.unzip=zn,_e.unzipSync=kn;return _e});
 </script>
 
 <!-- Golf scorecard photos: browsers (aside from patchy Safari support) can't
@@ -743,6 +751,11 @@ const STORAGE_KEYS = {
   fantasyWatchlist: "dash.fantasyWatchlist",
   fantasySleeper: "dash.fantasySleeper",
   fantasyYahoo: "dash.fantasyYahoo",
+  moLinks: "dash.moLinks",
+  pkiReport: "dash.pkiReport",
+  moSnapshots: "dash.moSnapshots",
+  moPolicies: "dash.moPolicies",
+  deck: "dash.deck",
 };
 
 // "The War Room" fantasy-football port — defaults for the localStorage-backed
@@ -6226,6 +6239,7 @@ const PAGE_META = [
   { id: "goals", label: "Life Goals", icon: <IconFlag size={14} /> },
   { id: "videos", label: "Videos", icon: <IconVideo size={14} /> },
   { id: "journal", label: "Journal", icon: <IconBookOpen size={14} /> },
+  { id: "securityx", label: "SecurityX", icon: <IconAcademic size={14} /> },
 ];
 
 function NavItem({ theme, icon, label, value, active, onClick }) {
@@ -6298,6 +6312,9 @@ function Sidebar({
   fantasyWatchlist,
   fantasySleeper,
   fantasyYahoo,
+  moLinks,
+  setMoLinks,
+  onOpenMoTool,
   page,
   onNavigate,
   setThemeKey,
@@ -6403,6 +6420,7 @@ function Sidebar({
             onClick={() => onNavigate(item.id)}
           />
         ))}
+        <MechanicalOrchardMenu theme={theme} links={moLinks} setLinks={setMoLinks} onOpenTool={onOpenMoTool} />
       </div>
 
       <div className="v-rail-utilities">
@@ -6531,6 +6549,12 @@ function App() {
   const [fantasyWatchlist, setFantasyWatchlist] = usePersistentState(STORAGE_KEYS.fantasyWatchlist, DEFAULT_FANTASY_WATCHLIST);
   const [fantasySleeper, setFantasySleeper] = usePersistentState(STORAGE_KEYS.fantasySleeper, DEFAULT_FANTASY_SLEEPER);
   const [fantasyYahoo, setFantasyYahoo] = usePersistentState(STORAGE_KEYS.fantasyYahoo, DEFAULT_FANTASY_YAHOO);
+  const [moLinks, setMoLinks] = usePersistentState(STORAGE_KEYS.moLinks, DEFAULT_MO_LINKS);
+  const [pkiReport, setPkiReport] = usePersistentState(STORAGE_KEYS.pkiReport, {});
+  const [moSnapshots, setMoSnapshots] = usePersistentState(STORAGE_KEYS.moSnapshots, []);
+  const [moPolicies, setMoPolicies] = usePersistentState(STORAGE_KEYS.moPolicies, moDefaultPolicies());
+  const [deck, setDeck] = usePersistentState(STORAGE_KEYS.deck, null);
+  const [moTool, setMoTool] = useState(null); // "vuln-s1" | "vuln-iru" | "pki" | "policy" | "deck" | null
   const [trackers, setTrackers] = usePersistentState(STORAGE_KEYS.trackers, DEFAULT_TRACKERS);
   const [financial, setFinancial] = usePersistentState(STORAGE_KEYS.financial, DEFAULT_FINANCIAL);
   const [events, setEvents] = usePersistentState(STORAGE_KEYS.upcoming, DEFAULT_UPCOMING_EVENTS);
@@ -6700,6 +6724,9 @@ function App() {
         fantasyWatchlist={fantasyWatchlist}
         fantasySleeper={fantasySleeper}
         fantasyYahoo={fantasyYahoo}
+        moLinks={moLinks}
+        setMoLinks={setMoLinks}
+        onOpenMoTool={setMoTool}
         page={page}
         onNavigate={navigate}
         setThemeKey={setThemeKey}
@@ -6727,11 +6754,15 @@ function App() {
 
       <div className="v-main">
         <div
-          style={{
-            maxWidth: page === "home" ? "1200px" : page === "fantasy" ? "1320px" : "760px",
-            margin: "0 auto",
-            padding: "32px 20px 64px",
-          }}
+          style={
+            page === "securityx"
+              ? { maxWidth: "none", margin: 0, padding: 0 }
+              : {
+                  maxWidth: page === "home" ? "1200px" : page === "fantasy" ? "1320px" : "760px",
+                  margin: "0 auto",
+                  padding: "32px 20px 64px",
+                }
+          }
         >
           {page === "home" && (
             <HomeOverview
@@ -6806,11 +6837,31 @@ function App() {
           {page === "goals" && <GoalsBoardSection theme={theme} data={goals} setData={setGoals} delay={0} />}
           {page === "videos" && <VideoLibrarySection theme={theme} integrations={integrations} setIntegrations={setIntegrations} />}
           {page === "journal" && <JournalSection theme={theme} data={journal} setData={setJournal} delay={0} />}
+          {page === "securityx" && <SecurityXSection theme={theme} />}
         </div>
       </div>
 
       {briefingOpen && suggestions.length > 0 && (
         <BriefingModal theme={theme} suggestions={suggestions} weather={weather} onClose={dismissBriefing} />
+      )}
+
+      {(moTool === "vuln-s1" || moTool === "vuln-iru") && (
+        <VulnerabilityAnalyzerModal
+          theme={theme}
+          initialSource={moTool === "vuln-iru" ? "iru" : "s1"}
+          snapshots={moSnapshots}
+          setSnapshots={setMoSnapshots}
+          onClose={() => setMoTool(null)}
+        />
+      )}
+      {moTool === "pki" && (
+        <PkiReportModal theme={theme} values={pkiReport} setValues={setPkiReport} onClose={() => setMoTool(null)} />
+      )}
+      {moTool === "policy" && (
+        <PolicyTrackerModal theme={theme} policies={moPolicies} setPolicies={setMoPolicies} onClose={() => setMoTool(null)} />
+      )}
+      {moTool === "deck" && (
+        <DeckBuilderModal theme={theme} deck={deck} setDeck={setDeck} onClose={() => setMoTool(null)} />
       )}
     </div>
   );
@@ -9079,6 +9130,1640 @@ function FFShadowRoot({ accent, children }) {
     </div>
   );
 }
+
+/* ----------------------------------------------------------------------
+   MECHANICAL ORCHARD — security tooling suite
+   Pulled in from a separate branch (claude/site-review-t0e6yk) at the
+   user's request: Vulnerability Analyzer (S1/IRU CSV severity breakdown +
+   daily log), PKI Report Generator, Policy & Procedure tracker (with
+   IndexedDB-backed document uploads), and a weekly PowerPoint deck builder
+   (.pptx template filler via the inlined fflate zip library). Ported
+   verbatim from that branch's index.html — none of this depends on or
+   overlaps with the Fantasy tab or anything else in this file.
+---------------------------------------------------------------------- */
+
+const DEFAULT_MO_LINKS = [
+  { id: "pondurance", label: "Pondurance", url: "" },
+  { id: "s1", label: "SentinelOne (S1)", url: "" },
+  { id: "iru", label: "IRU", url: "" },
+  { id: "ravenna", label: "Ravenna", url: "" },
+];
+
+// Starter field set for the PKI report. Edit/extend this list to change the
+// generated report — `multiline: true` renders a textarea. `id` is the
+// persistence key, so keep ids stable when tweaking labels.
+const PKI_REPORT_FIELDS = [
+  { id: "title", label: "Report Title", placeholder: "PKI Certificate Report" },
+  { id: "date", label: "Report Date", placeholder: "2026-08-10" },
+  { id: "preparedBy", label: "Prepared By", placeholder: "Your name" },
+  { id: "environment", label: "Environment / System", placeholder: "Production" },
+  { id: "caName", label: "Certificate Authority (CA) Name", placeholder: "Issuing CA 01" },
+  { id: "caType", label: "CA Type", placeholder: "Root / Issuing / Subordinate" },
+  { id: "commonName", label: "Certificate Common Name (CN)", placeholder: "*.example.com" },
+  { id: "serial", label: "Serial Number", placeholder: "00:a1:b2:c3…" },
+  { id: "validFrom", label: "Valid From", placeholder: "2026-01-01" },
+  { id: "validTo", label: "Valid To", placeholder: "2027-01-01" },
+  { id: "keyAlg", label: "Key Algorithm / Size", placeholder: "RSA 2048 / ECDSA P-256" },
+  { id: "sigAlg", label: "Signature Algorithm", placeholder: "SHA-256 with RSA" },
+  { id: "thumbprint", label: "Thumbprint (SHA-256)", placeholder: "AB:CD:…" },
+  { id: "summary", label: "Summary / Findings", placeholder: "Overview of certificate posture…", multiline: true },
+  { id: "recommendations", label: "Recommendations", placeholder: "Next steps / remediation…", multiline: true },
+];
+
+// Ordered severity buckets + fixed colors that read on any Vantage theme.
+const MO_SEVERITY_ORDER = ["Critical", "High", "Medium", "Low", "Info", "Unrated"];
+const MO_SEVERITY_COLORS = {
+  Critical: "#c0392b",
+  High: "#e07a20",
+  Medium: "#c9a227",
+  Low: "#2f8f4e",
+  Info: "#5b7a99",
+  Unrated: "#9a9a94",
+};
+
+function moNormalizeSeverity(raw) {
+  const s = String(raw == null ? "" : raw).toLowerCase().trim();
+  if (!s) return "Unrated";
+  if (s.includes("crit")) return "Critical";
+  if (s.includes("high")) return "High";
+  if (s.includes("med") || s.includes("mod")) return "Medium";
+  if (s.includes("low")) return "Low";
+  if (s.includes("info") || s.includes("none") || s.includes("negli")) return "Info";
+  // Fall back to a CVSS-style numeric score if present.
+  const n = parseFloat(s);
+  if (!isNaN(n)) {
+    if (n >= 9) return "Critical";
+    if (n >= 7) return "High";
+    if (n >= 4) return "Medium";
+    if (n > 0) return "Low";
+    return "Info";
+  }
+  return "Unrated";
+}
+
+// Minimal RFC-4180-ish CSV parser (handles quoted fields, embedded commas,
+// escaped quotes, and CRLF). Returns an array of string rows.
+function moParseCSV(text) {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else {
+        field += c;
+      }
+    } else if (c === '"') {
+      inQuotes = true;
+    } else if (c === ",") {
+      row.push(field); field = "";
+    } else if (c === "\n") {
+      row.push(field); rows.push(row); row = []; field = "";
+    } else if (c !== "\r") {
+      field += c;
+    }
+  }
+  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+// First non-empty row becomes headers; the rest become {header: value} records.
+function moRowsToRecords(rows) {
+  const clean = rows.filter((r) => r.some((c) => String(c).trim() !== ""));
+  if (clean.length === 0) return { headers: [], records: [] };
+  const headers = clean[0].map((h, i) => String(h).trim() || `Column ${i + 1}`);
+  const records = clean.slice(1).map((r) => {
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = r[i] == null ? "" : String(r[i]); });
+    return obj;
+  });
+  return { headers, records };
+}
+
+// Best-guess column match: first header whose lowercased name contains any
+// of the candidate substrings.
+function moDetectColumn(headers, candidates) {
+  const lower = headers.map((h) => h.toLowerCase());
+  for (const cand of candidates) {
+    const idx = lower.findIndex((h) => h.includes(cand));
+    if (idx !== -1) return headers[idx];
+  }
+  return "";
+}
+
+// Column hints per source. Auto-detection tries these in order, but the user
+// can always override via the mapping dropdowns.
+const MO_SOURCE_HINTS = {
+  s1: {
+    label: "SentinelOne (S1)",
+    severity: ["severity", "risk", "cvss"],
+    asset: ["endpoint", "host", "device", "agent", "machine", "computer"],
+    name: ["cve", "vulnerability", "name", "title", "application", "package"],
+  },
+  iru: {
+    label: "IRU",
+    severity: ["severity", "risk", "criticality", "cvss"],
+    asset: ["asset", "host", "ip", "system", "resource"],
+    name: ["cve", "vulnerability", "finding", "name", "title", "plugin"],
+  },
+};
+
+// Lazily pull SheetJS from its CDN only when an .xlsx/.xls file is dropped —
+// CSV never needs it, and this keeps the initial page weightless.
+function moLoadSheetJS() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  if (window.__moXlsxPromise) return window.__moXlsxPromise;
+  window.__moXlsxPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js";
+    s.onload = () => (window.XLSX ? resolve(window.XLSX) : reject(new Error("Spreadsheet library failed to initialize.")));
+    s.onerror = () => { window.__moXlsxPromise = null; reject(new Error("Couldn't load the spreadsheet library (are you offline?). Export as CSV and try again.")); };
+    document.head.appendChild(s);
+  });
+  return window.__moXlsxPromise;
+}
+
+async function moParseSpreadsheet(file) {
+  const name = (file.name || "").toLowerCase();
+  const isCsv = name.endsWith(".csv") || file.type === "text/csv" || name.endsWith(".txt");
+  if (isCsv) {
+    const text = await file.text();
+    return moRowsToRecords(moParseCSV(text));
+  }
+  const XLSX = await moLoadSheetJS();
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: "array" });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const arr = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: "" });
+  return moRowsToRecords(arr.map((r) => r.map((c) => (c == null ? "" : String(c)))));
+}
+
+function moDownload(filename, text, mime) {
+  const blob = new Blob([text], { type: mime || "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function moCsvCell(v) {
+  const s = String(v == null ? "" : v);
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function moFormatTs(ts) {
+  try {
+    return new Date(ts).toLocaleString(undefined, {
+      month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
+    });
+  } catch (e) {
+    return ts;
+  }
+}
+
+/* ---- Policy & Procedure tracker: statuses, starter catalog, doc storage ---- */
+const POLICY_STATUSES = [
+  { id: "todo", label: "Not started", color: "#9a9a94" },
+  { id: "in_progress", label: "In progress", color: "#c9a227" },
+  { id: "review", label: "In review", color: "#5b7a99" },
+  { id: "done", label: "Complete", color: "#2f8f4e" },
+];
+const POLICY_STATUS_LABEL = {};
+const POLICY_STATUS_COLOR = {};
+POLICY_STATUSES.forEach((s) => { POLICY_STATUS_LABEL[s.id] = s.label; POLICY_STATUS_COLOR[s.id] = s.color; });
+
+// ~20 policies/procedures a security program is commonly expected to maintain
+// (mapped loosely to ISO 27001 / NIST CSF / SOC 2 themes). Seeded on first run;
+// fully editable — add your own, delete what doesn't apply.
+const DEFAULT_MO_POLICIES = [
+  { id: "pol-infosec", name: "Information Security Policy (master)", category: "Governance" },
+  { id: "pol-risk", name: "Risk Management Policy", category: "Governance" },
+  { id: "pol-aup", name: "Acceptable Use Policy", category: "Governance" },
+  { id: "pol-awareness", name: "Security Awareness & Training Policy", category: "Governance" },
+  { id: "pol-vendor", name: "Third-Party / Vendor Risk Management Policy", category: "Governance" },
+  { id: "pol-access", name: "Access Control Policy", category: "Access & Identity" },
+  { id: "pol-iam", name: "Identity & Access Management (Provisioning/Deprovisioning) Procedure", category: "Access & Identity" },
+  { id: "pol-password", name: "Password & Authentication Policy", category: "Access & Identity" },
+  { id: "pol-dataclass", name: "Data Classification & Handling Policy", category: "Data Protection" },
+  { id: "pol-retention", name: "Data Retention & Disposal Policy", category: "Data Protection" },
+  { id: "pol-crypto", name: "Encryption & Key Management Policy", category: "Data Protection" },
+  { id: "pol-vuln", name: "Vulnerability Management Policy", category: "Operations" },
+  { id: "pol-patch", name: "Patch Management Procedure", category: "Operations" },
+  { id: "pol-change", name: "Change Management Policy", category: "Operations" },
+  { id: "pol-logging", name: "Logging & Monitoring Policy", category: "Operations" },
+  { id: "pol-backup", name: "Backup & Recovery Policy", category: "Operations" },
+  { id: "pol-ir", name: "Incident Response Plan & Procedure", category: "Resilience" },
+  { id: "pol-bcdr", name: "Business Continuity & Disaster Recovery Plan", category: "Resilience" },
+  { id: "pol-endpoint", name: "Endpoint Security & Malware Protection Policy", category: "Infrastructure" },
+  { id: "pol-network", name: "Network Security Policy", category: "Infrastructure" },
+];
+
+function moDefaultPolicies() {
+  return DEFAULT_MO_POLICIES.map((p) => ({ ...p, status: "todo", owner: "", notes: "", hasFile: false, fileName: "", fileType: "", fileSize: 0, updatedAt: null }));
+}
+
+// Uploaded policy documents live in IndexedDB (like the video library) so real
+// PDFs/DOCX don't blow the localStorage quota. Metadata stays on the record.
+const POLICY_DB_NAME = "vantage-policydocs";
+const POLICY_STORE = "docs";
+function openPolicyDB() {
+  return new Promise((resolve, reject) => {
+    if (!window.indexedDB) { reject(new Error("This browser doesn't support local document storage.")); return; }
+    const req = indexedDB.open(POLICY_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(POLICY_STORE)) db.createObjectStore(POLICY_STORE, { keyPath: "id" });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function dbPutPolicyDoc(record) {
+  const db = await openPolicyDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(POLICY_STORE, "readwrite");
+    tx.objectStore(POLICY_STORE).put(record);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbGetPolicyDoc(id) {
+  const db = await openPolicyDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(POLICY_STORE, "readonly");
+    const req = tx.objectStore(POLICY_STORE).get(id);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function dbDeletePolicyDoc(id) {
+  const db = await openPolicyDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(POLICY_STORE, "readwrite");
+    tx.objectStore(POLICY_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/* ---- PowerPoint (.pptx) template filler ----
+   A .pptx is a zip of XML. We find {{token}} placeholders in the slide XML,
+   collect them into a form, then swap the typed values back in and re-zip a
+   fresh deck — layout/fonts/branding untouched. All in-browser via fflate.
+   The template blob is reused from the policy IndexedDB store under a
+   reserved id; the token list + typed values persist in localStorage. */
+const DECK_TEMPLATE_ID = "__deck_template__";
+// Which parts of the package we scan/fill (slide + speaker-note text).
+const DECK_XML_RE = /^ppt\/(slides|notesSlides)\/[^/]+\.xml$/;
+
+function xmlEscape(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&apos;")
+    .replace(/\r?\n/g, " ");
+}
+
+// PowerPoint often splits a typed token across runs (…{{bloc</a:t>…<a:t>ked}}).
+// Stripping the tags that fall *inside* a {{…}} span re-joins it into one run
+// so token matching is reliable.
+function deckDesplitTokens(xml) {
+  return xml.replace(/\{\{[\s\S]*?\}\}/g, (m) => m.replace(/<[^>]*>/g, ""));
+}
+
+function deckFindTokens(xml) {
+  const clean = deckDesplitTokens(xml);
+  const out = [];
+  const re = /\{\{\s*([^}]+?)\s*\}\}/g;
+  let m;
+  while ((m = re.exec(clean)) !== null) out.push(m[1].trim());
+  return out;
+}
+
+function deckFillXml(xml, values) {
+  const clean = deckDesplitTokens(xml);
+  return clean.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (full, name) => {
+    const key = name.trim();
+    return Object.prototype.hasOwnProperty.call(values, key) ? xmlEscape(values[key]) : full;
+  });
+}
+
+// Read a .pptx File → { tokens: [unique, in first-seen order], fileCount }.
+async function deckScanTemplate(file) {
+  const buf = new Uint8Array(await file.arrayBuffer());
+  const files = window.fflate.unzipSync(buf);
+  const dec = new TextDecoder();
+  const seen = new Set();
+  const tokens = [];
+  Object.keys(files).forEach((path) => {
+    if (!DECK_XML_RE.test(path)) return;
+    deckFindTokens(dec.decode(files[path])).forEach((t) => {
+      if (!seen.has(t)) { seen.add(t); tokens.push(t); }
+    });
+  });
+  return { tokens };
+}
+
+// Read the stored template blob, fill every slide, and return a new .pptx Blob.
+async function deckGenerate(values) {
+  const rec = await dbGetPolicyDoc(DECK_TEMPLATE_ID);
+  if (!rec || !rec.blob) throw new Error("No template stored — upload your deck first.");
+  const buf = new Uint8Array(await rec.blob.arrayBuffer());
+  const files = window.fflate.unzipSync(buf);
+  const dec = new TextDecoder();
+  const enc = new TextEncoder();
+  Object.keys(files).forEach((path) => {
+    if (!DECK_XML_RE.test(path)) return;
+    const filled = deckFillXml(dec.decode(files[path]), values);
+    files[path] = enc.encode(filled);
+  });
+  const out = window.fflate.zipSync(files);
+  return new Blob([out], { type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" });
+}
+
+/* ---- Icons for the Mechanical Orchard hub ---- */
+function IconOrchard({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22v-6" />
+      <path d="M12 16a6 6 0 0 0 6-6c0-3-2.5-6-6-6S6 7 6 10a6 6 0 0 0 6 6z" />
+      <path d="M12 10.5l2-2M12 12.5l-2-2" />
+    </svg>
+  );
+}
+function IconShield({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3l7 3v5c0 4.4-3 8.2-7 9-4-.8-7-4.6-7-9V6l7-3z" />
+      <path d="M9.5 12l1.8 1.8L15 10" />
+    </svg>
+  );
+}
+function IconCertificate({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="9" r="5" />
+      <path d="M9 13.5L8 21l4-2 4 2-1-7.5" />
+      <path d="M12 7.2l.8 1.5 1.7.2-1.2 1.2.3 1.7-1.6-.9-1.6.9.3-1.7L9.5 8.9l1.7-.2z" />
+    </svg>
+  );
+}
+function IconExternal({ size = 13 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 4h6v6M20 4l-8 8" />
+      <path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" />
+    </svg>
+  );
+}
+function IconAcademic({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 4L2 9l10 5 10-5-10-5z" />
+      <path d="M6 11.5V16c0 1.1 2.7 2.5 6 2.5s6-1.4 6-2.5v-4.5" />
+      <path d="M22 9v5" />
+    </svg>
+  );
+}
+function IconClipboard({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="5" y="4" width="14" height="17" rx="2" />
+      <path d="M9 4a3 3 0 0 1 6 0" />
+      <path d="M9 11h6M9 15h4" />
+    </svg>
+  );
+}
+function IconDeck({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="12" rx="2" />
+      <path d="M12 16v3M8 21h8" />
+    </svg>
+  );
+}
+
+/* ---- Shared modal shell for MO tools ---- */
+function MoModal({ theme, title, subtitle, icon, onClose, children, footer }) {
+  useEffect(() => {
+    function onKey(e) { if (e.key === "Escape") onClose(); }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return ReactDOM.createPortal(
+    <div
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      style={{
+        position: "fixed", inset: 0, zIndex: 120, display: "flex",
+        alignItems: "flex-start", justifyContent: "center",
+        padding: "min(6vh, 48px) 16px", background: "rgba(0,0,0,0.6)",
+      }}
+    >
+      <div
+        className="v-scroll"
+        style={{
+          width: "100%", maxWidth: "820px", maxHeight: "88vh", overflowY: "auto",
+          "--scroll-thumb": theme.divider, ...cardBackgroundStyle(theme), padding: "26px 28px",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", marginBottom: "18px" }}>
+          <span style={{ color: theme.accent, marginTop: "2px", display: "inline-flex" }}>{icon}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: "19px", fontWeight: 800, color: theme.text, lineHeight: 1.2 }}>{title}</div>
+            {subtitle && <div style={{ fontSize: "13px", color: theme.textMuted, marginTop: "4px", lineHeight: 1.45 }}>{subtitle}</div>}
+          </div>
+          <button
+            onClick={onClose}
+            className="v-btn"
+            title="Close"
+            style={{
+              border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.textMuted,
+              borderRadius: "10px", width: "32px", height: "32px", display: "inline-flex",
+              alignItems: "center", justifyContent: "center", flexShrink: 0, lineHeight: 1,
+            }}
+          >
+            <IconClose />
+          </button>
+        </div>
+        {children}
+        {footer && <div style={{ marginTop: "22px" }}>{footer}</div>}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+/* ---- Small primitives reused across MO tools ---- */
+function MoButton({ theme, onClick, children, variant, disabled, style }) {
+  const primary = variant === "primary";
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="v-btn"
+      style={{
+        display: "inline-flex", alignItems: "center", gap: "7px",
+        padding: "9px 15px", borderRadius: "10px", fontSize: "13px", fontWeight: 700,
+        border: `1px solid ${primary ? theme.accent : theme.cardBorder}`,
+        background: primary ? theme.accent : theme.accentSoft,
+        color: primary ? theme.accentText : theme.text,
+        opacity: disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "pointer",
+        ...style,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function MoSelect({ theme, value, onChange, options, includeBlank }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="v-input"
+      style={{
+        width: "100%", padding: "8px 10px", borderRadius: "9px", fontSize: "13px",
+        background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`,
+        "--focus-ring": theme.accentSoft, "--focus-border": theme.accent,
+      }}
+    >
+      {includeBlank && <option value="">— none —</option>}
+      {options.map((o) => <option key={o} value={o}>{o}</option>)}
+    </select>
+  );
+}
+
+/* ---- Vulnerability Analyzer ---- */
+function VulnerabilityAnalyzerModal({ theme, initialSource, snapshots, setSnapshots, onClose }) {
+  const [source, setSource] = useState(initialSource === "iru" ? "iru" : "s1");
+  // Each source keeps its OWN dataset + column mapping so S1 and IRU never
+  // bleed into one another — switching the toggle just swaps which one shows.
+  const [bySource, setBySource] = useState({
+    s1: { data: null, fileName: "", severityCol: "", assetCol: "", nameCol: "" },
+    iru: { data: null, fileName: "", severityCol: "", assetCol: "", nameCol: "" },
+  });
+  const [status, setStatus] = useState(null); // {type, message} — per active source
+  const [activeFilter, setActiveFilter] = useState(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [savedNote, setSavedNote] = useState(false);
+  const fileRef = useRef(null);
+
+  const cur = bySource[source];
+  const { data, fileName, severityCol, assetCol, nameCol } = cur;
+
+  function patchSource(src, patch) {
+    setBySource((prev) => ({ ...prev, [src]: { ...prev[src], ...patch } }));
+  }
+  const setSeverityCol = (v) => patchSource(source, { severityCol: v });
+  const setAssetCol = (v) => patchSource(source, { assetCol: v });
+  const setNameCol = (v) => patchSource(source, { nameCol: v });
+
+  // Follow the source the popover opened us with (S1 vs IRU) without wiping
+  // the other source's already-loaded data.
+  useEffect(() => {
+    setSource(initialSource === "iru" ? "iru" : "s1");
+    setActiveFilter(null);
+    setStatus(null);
+  }, [initialSource]);
+
+  function switchSource(src) {
+    if (src === source) return;
+    setSource(src);
+    setActiveFilter(null);
+    setStatus(null);
+  }
+
+  function autodetect(headers, src) {
+    const h = MO_SOURCE_HINTS[src];
+    return {
+      severityCol: moDetectColumn(headers, h.severity),
+      assetCol: moDetectColumn(headers, h.asset),
+      nameCol: moDetectColumn(headers, h.name),
+    };
+  }
+
+  async function ingest(file) {
+    if (!file) return;
+    const src = source;
+    setStatus({ type: "loading", message: `Reading ${file.name}…` });
+    try {
+      const parsed = await moParseSpreadsheet(file);
+      if (parsed.records.length === 0) {
+        setStatus({ type: "error", message: "No data rows found in that file." });
+        return;
+      }
+      patchSource(src, { data: parsed, fileName: file.name, ...autodetect(parsed.headers, src) });
+      setActiveFilter(null);
+      setStatus({ type: "success", message: `Loaded ${parsed.records.length} rows into ${MO_SOURCE_HINTS[src].label}.` });
+    } catch (err) {
+      setStatus({ type: "error", message: err.message || "Couldn't read that file." });
+    }
+  }
+
+  function reset() {
+    patchSource(source, { data: null, fileName: "", severityCol: "", assetCol: "", nameCol: "" });
+    setStatus(null);
+    setActiveFilter(null);
+  }
+
+  const analysis = useMemo(() => {
+    if (!data) return null;
+    const counts = {}; MO_SEVERITY_ORDER.forEach((s) => (counts[s] = 0));
+    const rows = data.records.map((r) => ({
+      severity: moNormalizeSeverity(severityCol ? r[severityCol] : ""),
+      asset: assetCol ? r[assetCol] : "",
+      name: nameCol ? r[nameCol] : "",
+      raw: r,
+    }));
+    rows.forEach((r) => { counts[r.severity] = (counts[r.severity] || 0) + 1; });
+    const uniqueAssets = new Set(rows.map((r) => (r.asset || "").trim()).filter(Boolean)).size;
+    return { rows, counts, total: rows.length, uniqueAssets };
+  }, [data, severityCol, assetCol, nameCol]);
+
+  const visibleRows = useMemo(() => {
+    if (!analysis) return [];
+    const rows = activeFilter ? analysis.rows.filter((r) => r.severity === activeFilter) : analysis.rows;
+    const rank = (s) => MO_SEVERITY_ORDER.indexOf(s);
+    return [...rows].sort((a, b) => rank(a.severity) - rank(b.severity));
+  }, [analysis, activeFilter]);
+
+  // Snapshots (daily log) for the currently-active source, newest first.
+  const sourceSnapshots = useMemo(
+    () => (snapshots || []).filter((s) => s.source === source),
+    [snapshots, source]
+  );
+
+  function exportSummary() {
+    if (!analysis) return;
+    const lines = [];
+    lines.push(`Vulnerability Summary — ${MO_SOURCE_HINTS[source].label}`);
+    lines.push(`Source file: ${fileName}`);
+    lines.push(`Total findings: ${analysis.total}`);
+    lines.push(`Affected assets: ${analysis.uniqueAssets}`);
+    lines.push("");
+    lines.push("Severity,Count");
+    MO_SEVERITY_ORDER.forEach((s) => { if (analysis.counts[s]) lines.push(`${s},${analysis.counts[s]}`); });
+    lines.push("");
+    lines.push(["Severity", "Asset", "Vulnerability"].map(moCsvCell).join(","));
+    visibleRows.forEach((r) => lines.push([r.severity, r.asset, r.name].map(moCsvCell).join(",")));
+    moDownload(`vuln-summary-${source}.csv`, lines.join("\n"), "text/csv;charset=utf-8");
+  }
+
+  // Save the current breakdown as a dated snapshot for the daily log.
+  function saveSnapshot() {
+    if (!analysis) return;
+    const now = new Date();
+    const snap = {
+      id: "snap" + now.getTime() + "-" + Math.round(Math.random() * 100000),
+      ts: now.toISOString(),
+      source,
+      fileName,
+      total: analysis.total,
+      uniqueAssets: analysis.uniqueAssets,
+      counts: { ...analysis.counts },
+    };
+    setSnapshots((prev) => [snap, ...(prev || [])]);
+    setSavedNote(true);
+    setTimeout(() => setSavedNote(false), 1600);
+  }
+
+  function deleteSnapshot(id) {
+    setSnapshots((prev) => (prev || []).filter((s) => s.id !== id));
+  }
+
+  function exportLog() {
+    const rows = sourceSnapshots;
+    if (rows.length === 0) return;
+    const header = ["Date", "Source", "File", "Total", "Assets", ...MO_SEVERITY_ORDER];
+    const lines = [header.map(moCsvCell).join(",")];
+    rows.forEach((s) => {
+      const vals = [
+        moFormatTs(s.ts), MO_SOURCE_HINTS[s.source].label, s.fileName, s.total, s.uniqueAssets,
+        ...MO_SEVERITY_ORDER.map((sev) => s.counts[sev] || 0),
+      ];
+      lines.push(vals.map(moCsvCell).join(","));
+    });
+    moDownload(`vuln-daily-log-${source}.csv`, lines.join("\n"), "text/csv;charset=utf-8");
+  }
+
+  const dropStyle = {
+    border: `2px dashed ${dragOver ? theme.accent : theme.inputBorder}`,
+    borderRadius: "14px", padding: "30px 20px", textAlign: "center",
+    background: dragOver ? theme.accentSoft : "transparent", transition: "all 0.15s ease", cursor: "pointer",
+  };
+
+  return (
+    <MoModal
+      theme={theme}
+      icon={<IconShield size={20} />}
+      title="Vulnerability Analyzer"
+      subtitle="Drop a vulnerability export and get an instant severity breakdown. Works with SentinelOne (S1) and IRU spreadsheets."
+      onClose={onClose}
+    >
+      {/* Source toggle */}
+      <div style={{ display: "flex", gap: "8px", marginBottom: "18px" }}>
+        {["s1", "iru"].map((src) => (
+          <button
+            key={src}
+            onClick={() => switchSource(src)}
+            className="v-btn"
+            style={{
+              display: "inline-flex", alignItems: "center", gap: "7px",
+              padding: "7px 16px", borderRadius: "999px", fontSize: "13px", fontWeight: 700,
+              border: `1px solid ${source === src ? theme.accent : theme.cardBorder}`,
+              background: source === src ? theme.accent : "transparent",
+              color: source === src ? theme.accentText : theme.textMuted,
+            }}
+          >
+            {MO_SOURCE_HINTS[src].label}
+            {bySource[src].data && (
+              <span
+                title="Data loaded"
+                style={{
+                  width: "7px", height: "7px", borderRadius: "50%",
+                  background: source === src ? theme.accentText : theme.positive,
+                }}
+              />
+            )}
+          </button>
+        ))}
+      </div>
+
+      {!data && (
+        <div
+          onClick={() => fileRef.current && fileRef.current.click()}
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => { e.preventDefault(); setDragOver(false); ingest(e.dataTransfer.files[0]); }}
+          style={dropStyle}
+        >
+          <div style={{ color: theme.textMuted, marginBottom: "6px", display: "inline-flex" }}><IconUpload /></div>
+          <div style={{ fontSize: "14px", fontWeight: 600, color: theme.text }}>Drop a spreadsheet here, or click to browse</div>
+          <div style={{ fontSize: "12px", color: theme.textFaint, marginTop: "6px" }}>.csv, .xlsx, or .xls</div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv,.xlsx,.xls,text/csv"
+            style={{ display: "none" }}
+            onChange={(e) => ingest(e.target.files[0])}
+          />
+        </div>
+      )}
+
+      {status && (
+        <div
+          style={{
+            marginTop: "14px", fontSize: "13px", fontWeight: 600, padding: "10px 14px", borderRadius: "10px",
+            color: status.type === "error" ? theme.danger : status.type === "success" ? theme.positive : theme.textMuted,
+            background: status.type === "error" ? theme.dangerSoft : theme.accentSoft,
+          }}
+        >
+          {status.message}
+        </div>
+      )}
+
+      {data && analysis && (
+        <div style={{ marginTop: "20px" }}>
+          {/* File + column mapping */}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "13px", fontWeight: 700, color: theme.text }}>{fileName}</span>
+            <span style={{ fontSize: "12px", color: theme.textFaint }}>{analysis.total} findings · {analysis.uniqueAssets} assets</span>
+            <button onClick={reset} className="v-btn" style={{ marginLeft: "auto", fontSize: "12px", fontWeight: 700, color: theme.textMuted, background: "transparent", border: `1px solid ${theme.cardBorder}`, borderRadius: "8px", padding: "5px 10px" }}>
+              Load different file
+            </button>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "10px", marginBottom: "20px" }}>
+            {[
+              ["Severity column", severityCol, setSeverityCol],
+              ["Asset / host column", assetCol, setAssetCol],
+              ["Vulnerability column", nameCol, setNameCol],
+            ].map(([label, val, setter]) => (
+              <div key={label}>
+                <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: theme.textMuted, marginBottom: "5px" }}>{label}</div>
+                <MoSelect theme={theme} value={val} onChange={setter} options={data.headers} includeBlank />
+              </div>
+            ))}
+          </div>
+
+          {/* Severity summary tiles */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))", gap: "10px", marginBottom: "18px" }}>
+            {MO_SEVERITY_ORDER.filter((s) => analysis.counts[s] > 0).map((s) => {
+              const active = activeFilter === s;
+              return (
+                <button
+                  key={s}
+                  onClick={() => setActiveFilter(active ? null : s)}
+                  className="v-btn v-card"
+                  style={{
+                    ...cardBackgroundStyle(theme), padding: "12px", textAlign: "left",
+                    "--accent-line": MO_SEVERITY_COLORS[s],
+                    outline: active ? `2px solid ${MO_SEVERITY_COLORS[s]}` : "none", outlineOffset: "1px",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+                    <span style={{ width: "9px", height: "9px", borderRadius: "50%", background: MO_SEVERITY_COLORS[s] }} />
+                    <span style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: theme.textMuted }}>{s}</span>
+                  </div>
+                  <div className="v-tabular" style={{ fontSize: "24px", fontWeight: 800, color: theme.text }}>{analysis.counts[s]}</div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "12px", color: theme.textMuted }}>
+              {activeFilter ? `Showing ${visibleRows.length} ${activeFilter} findings` : `Showing all ${visibleRows.length} findings`}
+            </span>
+            {activeFilter && (
+              <button onClick={() => setActiveFilter(null)} className="v-btn" style={{ fontSize: "12px", fontWeight: 700, color: theme.accent, background: "transparent", border: "none", padding: 0 }}>Clear filter</button>
+            )}
+            <div style={{ display: "flex", gap: "8px", marginLeft: "auto" }}>
+              <MoButton theme={theme} variant="primary" onClick={saveSnapshot} style={{ padding: "6px 12px" }}>{savedNote ? "Saved!" : "Save snapshot"}</MoButton>
+              <MoButton theme={theme} onClick={exportSummary} style={{ padding: "6px 12px" }}><IconShare size={13} /> Export CSV</MoButton>
+            </div>
+          </div>
+
+          {/* Findings table */}
+          <div className="v-scroll" style={{ maxHeight: "320px", overflow: "auto", border: `1px solid ${theme.cardBorder}`, borderRadius: "12px", "--scroll-thumb": theme.divider }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+              <thead>
+                <tr>
+                  {["Severity", "Asset", "Vulnerability"].map((h) => (
+                    <th key={h} style={{ position: "sticky", top: 0, textAlign: "left", padding: "9px 12px", background: theme.cardBg, color: theme.textMuted, fontSize: "11px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", borderBottom: `1px solid ${theme.divider}` }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {visibleRows.slice(0, 300).map((r, i) => (
+                  <tr key={i} style={{ borderBottom: `1px solid ${theme.divider}` }}>
+                    <td style={{ padding: "8px 12px", whiteSpace: "nowrap" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: 700, color: MO_SEVERITY_COLORS[r.severity] }}>
+                        <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: MO_SEVERITY_COLORS[r.severity] }} />
+                        {r.severity}
+                      </span>
+                    </td>
+                    <td style={{ padding: "8px 12px", color: theme.text }}>{r.asset || <span style={{ color: theme.textFaint }}>—</span>}</td>
+                    <td style={{ padding: "8px 12px", color: theme.text }}>{r.name || <span style={{ color: theme.textFaint }}>—</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {visibleRows.length > 300 && (
+            <div style={{ fontSize: "12px", color: theme.textFaint, marginTop: "8px", textAlign: "center" }}>Showing first 300 rows — export the CSV for the full list.</div>
+          )}
+        </div>
+      )}
+
+      {/* Daily log — dated snapshots for this source, persisted across sessions */}
+      <div style={{ marginTop: "24px", borderTop: `1px solid ${theme.divider}`, paddingTop: "18px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px", flexWrap: "wrap" }}>
+          <SectionLabel theme={theme} icon={<IconChecklist size={14} />} style={{ margin: 0 }}>
+            {MO_SOURCE_HINTS[source].label} Daily Log
+          </SectionLabel>
+          <span style={{ fontSize: "12px", color: theme.textFaint }}>{sourceSnapshots.length} saved</span>
+          {sourceSnapshots.length > 0 && (
+            <MoButton theme={theme} onClick={exportLog} style={{ marginLeft: "auto", padding: "6px 12px" }}>
+              <IconShare size={13} /> Export log
+            </MoButton>
+          )}
+        </div>
+
+        {sourceSnapshots.length === 0 ? (
+          <div style={{ fontSize: "12.5px", color: theme.textFaint, lineHeight: 1.5 }}>
+            No snapshots yet. Load a file above and hit <strong style={{ color: theme.textMuted }}>Save snapshot</strong> to start tracking {MO_SOURCE_HINTS[source].label} findings day over day.
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {sourceSnapshots.map((s) => (
+              <div
+                key={s.id}
+                style={{
+                  display: "flex", alignItems: "center", gap: "12px", padding: "10px 12px",
+                  border: `1px solid ${theme.cardBorder}`, borderRadius: "10px", background: theme.accentSoft,
+                }}
+              >
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: theme.text }}>{moFormatTs(s.ts)}</div>
+                  <div style={{ fontSize: "11.5px", color: theme.textFaint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {s.fileName || "—"} · {s.total} findings · {s.uniqueAssets} assets
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  {MO_SEVERITY_ORDER.filter((sev) => s.counts[sev] > 0).map((sev) => (
+                    <span key={sev} title={sev} style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11.5px", fontWeight: 700, color: MO_SEVERITY_COLORS[sev] }}>
+                      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: MO_SEVERITY_COLORS[sev] }} />
+                      {s.counts[sev]}
+                    </span>
+                  ))}
+                </div>
+                <button
+                  onClick={() => deleteSnapshot(s.id)}
+                  className="v-btn"
+                  title="Delete snapshot"
+                  style={{ border: "none", background: "transparent", color: theme.textMuted, padding: "4px", display: "inline-flex", flexShrink: 0 }}
+                >
+                  <IconClose />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </MoModal>
+  );
+}
+
+/* ---- PKI Report Info Generator ---- */
+function PkiReportModal({ theme, values, setValues, onClose }) {
+  const [copied, setCopied] = useState(false);
+
+  function update(id, val) { setValues((prev) => ({ ...prev, [id]: val })); }
+
+  const report = useMemo(() => {
+    const lines = [];
+    const title = (values.title || "").trim() || "PKI Certificate Report";
+    lines.push(title);
+    lines.push("=".repeat(title.length));
+    lines.push("");
+    PKI_REPORT_FIELDS.forEach((f) => {
+      if (f.id === "title") return;
+      const v = (values[f.id] || "").trim();
+      if (!v) return;
+      if (f.multiline) {
+        lines.push(`${f.label}:`);
+        v.split("\n").forEach((l) => lines.push(`  ${l}`));
+        lines.push("");
+      } else {
+        lines.push(`${f.label}: ${v}`);
+      }
+    });
+    return lines.join("\n");
+  }, [values]);
+
+  function copyReport() {
+    const done = () => { setCopied(true); setTimeout(() => setCopied(false), 1600); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(report).then(done).catch(done);
+    } else {
+      done();
+    }
+  }
+
+  function clearAll() {
+    const blank = {};
+    PKI_REPORT_FIELDS.forEach((f) => (blank[f.id] = ""));
+    setValues(blank);
+  }
+
+  return (
+    <MoModal
+      theme={theme}
+      icon={<IconCertificate size={20} />}
+      title="PKI Report Info Generator"
+      subtitle="Fill in the certificate details and generate a formatted report you can copy or download. (Fields are placeholders — easy to adjust later.)"
+      onClose={onClose}
+      footer={
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          <MoButton theme={theme} variant="primary" onClick={copyReport}>{copied ? "Copied!" : "Copy report"}</MoButton>
+          <MoButton theme={theme} onClick={() => moDownload(`pki-report-${new Date().toISOString().slice(0, 10)}.txt`, report)}><IconUpload size={13} /> Download .txt</MoButton>
+          <MoButton theme={theme} onClick={clearAll} style={{ marginLeft: "auto", color: theme.danger, background: theme.dangerSoft, borderColor: "transparent" }}>Clear all</MoButton>
+        </div>
+      }
+    >
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px" }}>
+        {PKI_REPORT_FIELDS.map((f) => (
+          <div key={f.id} style={{ gridColumn: f.multiline ? "1 / -1" : "auto" }}>
+            <label style={{ display: "block", fontSize: "11px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: theme.textMuted, marginBottom: "5px" }}>{f.label}</label>
+            {f.multiline ? (
+              <textarea
+                value={values[f.id] || ""}
+                onChange={(e) => update(f.id, e.target.value)}
+                placeholder={f.placeholder}
+                rows={3}
+                className="v-input v-scroll"
+                style={{ width: "100%", resize: "vertical", padding: "9px 11px", borderRadius: "9px", fontSize: "13px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent, "--scroll-thumb": theme.divider }}
+              />
+            ) : (
+              <input
+                value={values[f.id] || ""}
+                onChange={(e) => update(f.id, e.target.value)}
+                placeholder={f.placeholder}
+                className="v-input"
+                style={{ width: "100%", padding: "9px 11px", borderRadius: "9px", fontSize: "13px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent }}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div style={{ marginTop: "22px" }}>
+        <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: theme.sectionLabelColor, marginBottom: "8px" }}>Preview</div>
+        <pre
+          className="v-scroll"
+          style={{
+            margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: "12.5px", lineHeight: 1.55,
+            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", color: theme.text,
+            background: theme.inputBg, border: `1px solid ${theme.inputBorder}`, borderRadius: "12px",
+            padding: "16px", maxHeight: "260px", overflow: "auto", "--scroll-thumb": theme.divider,
+          }}
+        >
+          {report}
+        </pre>
+      </div>
+    </MoModal>
+  );
+}
+
+/* ---- Policy & Procedure Writeup tracker ---- */
+function PolicyStatusSelect({ theme, value, onChange }) {
+  const color = POLICY_STATUS_COLOR[value] || theme.textMuted;
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="v-input"
+      style={{
+        width: "132px", flexShrink: 0, padding: "7px 8px", borderRadius: "8px", fontSize: "12.5px", fontWeight: 700,
+        background: theme.inputBg, color: theme.inputText,
+        border: `1px solid ${theme.inputBorder}`, borderLeft: `4px solid ${color}`,
+        "--focus-ring": theme.accentSoft, "--focus-border": theme.accent,
+      }}
+    >
+      {POLICY_STATUSES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+    </select>
+  );
+}
+
+function PolicyTrackerModal({ theme, policies, setPolicies, onClose }) {
+  const [filter, setFilter] = useState("all");
+  const [newName, setNewName] = useState("");
+  const [msg, setMsg] = useState(null);
+
+  function note(m) { setMsg(m); setTimeout(() => setMsg(null), 2200); }
+  function patch(id, changes) {
+    setPolicies((prev) => prev.map((p) => (p.id === id ? { ...p, ...changes, updatedAt: Date.now() } : p)));
+  }
+
+  function addPolicy() {
+    const name = newName.trim();
+    if (!name) return;
+    setPolicies((prev) => [
+      ...prev,
+      { id: "pol-custom-" + Date.now(), name, category: "Custom", status: "todo", owner: "", notes: "", hasFile: false, fileName: "", fileType: "", fileSize: 0, updatedAt: Date.now() },
+    ]);
+    setNewName("");
+  }
+
+  async function deletePolicy(id) {
+    setPolicies((prev) => prev.filter((p) => p.id !== id));
+    try { await dbDeletePolicyDoc(id); } catch (e) { /* nothing stored */ }
+  }
+
+  async function uploadDoc(id, file) {
+    if (!file) return;
+    try {
+      await dbPutPolicyDoc({ id, blob: file, name: file.name, type: file.type, size: file.size });
+      patch(id, { hasFile: true, fileName: file.name, fileType: file.type, fileSize: file.size });
+      note({ type: "success", message: `Stored “${file.name}”.` });
+    } catch (e) {
+      note({ type: "error", message: e.message || "Couldn't store that file." });
+    }
+  }
+
+  async function downloadDoc(p) {
+    try {
+      const rec = await dbGetPolicyDoc(p.id);
+      if (!rec || !rec.blob) { note({ type: "error", message: "File isn't in local storage anymore." }); return; }
+      const url = URL.createObjectURL(rec.blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = p.fileName || rec.name || "policy";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      note({ type: "error", message: "Couldn't open the file." });
+    }
+  }
+
+  async function removeDoc(id) {
+    try { await dbDeletePolicyDoc(id); } catch (e) { /* ignore */ }
+    patch(id, { hasFile: false, fileName: "", fileType: "", fileSize: 0 });
+  }
+
+  function addStarterSet() {
+    setPolicies((prev) => {
+      const have = new Set(prev.map((p) => p.name.toLowerCase()));
+      const missing = moDefaultPolicies().filter((d) => !have.has(d.name.toLowerCase()));
+      if (missing.length === 0) { note({ type: "success", message: "Starter list already present." }); return prev; }
+      note({ type: "success", message: `Added ${missing.length} starter ${missing.length === 1 ? "policy" : "policies"}.` });
+      return [...prev, ...missing];
+    });
+  }
+
+  function exportCSV() {
+    const header = ["Policy / Procedure", "Category", "Status", "Document", "Last updated"];
+    const lines = [header.map(moCsvCell).join(",")];
+    policies.forEach((p) => lines.push([
+      p.name, p.category, POLICY_STATUS_LABEL[p.status] || p.status, p.hasFile ? p.fileName : "", p.updatedAt ? moFormatTs(p.updatedAt) : "",
+    ].map(moCsvCell).join(",")));
+    moDownload("policy-tracker.csv", lines.join("\n"), "text/csv;charset=utf-8");
+  }
+
+  const counts = useMemo(() => {
+    const c = { total: policies.length };
+    POLICY_STATUSES.forEach((s) => (c[s.id] = 0));
+    policies.forEach((p) => { c[p.status] = (c[p.status] || 0) + 1; });
+    return c;
+  }, [policies]);
+  const pct = counts.total ? Math.round(((counts.done || 0) / counts.total) * 100) : 0;
+
+  const visible = useMemo(
+    () => (filter === "all" ? policies : policies.filter((p) => p.status === filter)),
+    [policies, filter]
+  );
+  const grouped = useMemo(() => {
+    const order = ["Governance", "Access & Identity", "Data Protection", "Operations", "Resilience", "Infrastructure", "Custom"];
+    const map = {};
+    visible.forEach((p) => { (map[p.category] = map[p.category] || []).push(p); });
+    return Object.keys(map)
+      .sort((a, b) => {
+        const ia = order.indexOf(a), ib = order.indexOf(b);
+        return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+      })
+      .map((c) => ({ category: c, items: map[c] }));
+  }, [visible]);
+
+  return (
+    <MoModal
+      theme={theme}
+      icon={<IconClipboard size={20} />}
+      title="Policy & Procedure Writeup"
+      subtitle="Track which security policies and procedures are written, in progress, or still to do — and upload the finished documents to keep them in one place."
+      onClose={onClose}
+    >
+      {/* Progress summary */}
+      <div style={{ marginBottom: "16px" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginBottom: "8px", flexWrap: "wrap" }}>
+          <span className="v-tabular" style={{ fontSize: "24px", fontWeight: 800, color: theme.text }}>{counts.done || 0}<span style={{ fontSize: "15px", color: theme.textMuted }}> / {counts.total} complete</span></span>
+          <span style={{ fontSize: "13px", fontWeight: 700, color: theme.accent, marginLeft: "auto" }}>{pct}%</span>
+        </div>
+        <div style={{ height: "8px", borderRadius: "999px", background: theme.progressTrack, overflow: "hidden" }}>
+          <div style={{ width: `${pct}%`, height: "100%", background: theme.progressFill, transition: "width 0.3s ease" }} />
+        </div>
+      </div>
+
+      {/* Status filter chips */}
+      <div style={{ display: "flex", gap: "7px", flexWrap: "wrap", marginBottom: "14px" }}>
+        {[{ id: "all", label: `All (${counts.total})` }].concat(POLICY_STATUSES.map((s) => ({ id: s.id, label: `${s.label} (${counts[s.id] || 0})`, color: s.color }))).map((f) => {
+          const active = filter === f.id;
+          return (
+            <button
+              key={f.id}
+              onClick={() => setFilter(f.id)}
+              className="v-btn"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 12px", borderRadius: "999px",
+                fontSize: "12px", fontWeight: 700,
+                border: `1px solid ${active ? theme.accent : theme.cardBorder}`,
+                background: active ? theme.accent : "transparent",
+                color: active ? theme.accentText : theme.textMuted,
+              }}
+            >
+              {f.color && <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: f.color }} />}
+              {f.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Add + export toolbar */}
+      <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
+        <input
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") addPolicy(); }}
+          placeholder="Add a policy or procedure…"
+          className="v-input"
+          style={{ flex: 1, minWidth: "180px", padding: "8px 11px", borderRadius: "9px", fontSize: "13px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent }}
+        />
+        <MoButton theme={theme} variant="primary" onClick={addPolicy}>Add</MoButton>
+        <MoButton theme={theme} onClick={exportCSV}><IconShare size={13} /> Export CSV</MoButton>
+      </div>
+
+      {msg && (
+        <div style={{ marginBottom: "12px", fontSize: "13px", fontWeight: 600, padding: "9px 13px", borderRadius: "9px", color: msg.type === "error" ? theme.danger : theme.positive, background: msg.type === "error" ? theme.dangerSoft : theme.accentSoft }}>
+          {msg.message}
+        </div>
+      )}
+
+      {/* Grouped list */}
+      {policies.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "28px 16px", color: theme.textFaint, fontSize: "13px" }}>
+          Your list is empty. <button onClick={addStarterSet} className="v-btn" style={{ color: theme.accent, background: "transparent", border: "none", fontWeight: 700, padding: 0 }}>Add the starter set</button> or add your own above.
+        </div>
+      ) : (
+        grouped.map((g) => (
+          <div key={g.category} style={{ marginBottom: "16px" }}>
+            <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: theme.sectionLabelColor, marginBottom: "8px" }}>{g.category}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {g.items.map((p) => (
+                <div key={p.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "9px 11px", border: `1px solid ${theme.cardBorder}`, borderRadius: "10px", flexWrap: "wrap" }}>
+                  <PolicyStatusSelect theme={theme} value={p.status} onChange={(s) => patch(p.id, { status: s })} />
+                  <div style={{ flex: 1, minWidth: "160px" }}>
+                    <div style={{ fontSize: "13.5px", fontWeight: 600, color: theme.text, lineHeight: 1.3 }}>{p.name}</div>
+                    {p.hasFile ? (
+                      <button
+                        onClick={() => downloadDoc(p)}
+                        className="v-btn"
+                        title="Download stored document"
+                        style={{ display: "inline-flex", alignItems: "center", gap: "6px", marginTop: "3px", padding: 0, border: "none", background: "transparent", color: theme.accent, fontSize: "11.5px", fontWeight: 600 }}
+                      >
+                        <IconBookOpen size={12} /> {p.fileName} <span style={{ color: theme.textFaint, fontWeight: 500 }}>({formatBytes(p.fileSize)})</span>
+                      </button>
+                    ) : (
+                      <div style={{ fontSize: "11.5px", color: theme.textFaint, marginTop: "2px" }}>No document uploaded</div>
+                    )}
+                  </div>
+                  {p.hasFile ? (
+                    <button onClick={() => removeDoc(p.id)} className="v-btn" title="Remove document" style={{ fontSize: "12px", fontWeight: 700, color: theme.textMuted, background: "transparent", border: `1px solid ${theme.cardBorder}`, borderRadius: "8px", padding: "6px 10px" }}>
+                      Remove file
+                    </button>
+                  ) : (
+                    <label className="v-btn" style={{ display: "inline-flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: theme.text, background: theme.accentSoft, border: `1px solid ${theme.cardBorder}`, borderRadius: "8px", padding: "6px 10px" }}>
+                      <IconUpload size={13} /> Upload
+                      <input type="file" accept=".pdf,.doc,.docx,.txt,.md,.rtf,.odt,.pages" style={{ display: "none" }} onChange={(e) => { uploadDoc(p.id, e.target.files[0]); e.target.value = ""; }} />
+                    </label>
+                  )}
+                  <button onClick={() => deletePolicy(p.id)} className="v-btn" title="Delete from list" style={{ border: "none", background: "transparent", color: theme.textMuted, padding: "4px", display: "inline-flex", flexShrink: 0 }}>
+                    <IconClose />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))
+      )}
+
+      {policies.length > 0 && (
+        <div style={{ marginTop: "6px" }}>
+          <button onClick={addStarterSet} className="v-btn" style={{ fontSize: "12px", fontWeight: 700, color: theme.textMuted, background: "transparent", border: `1px solid ${theme.cardBorder}`, borderRadius: "8px", padding: "6px 12px" }}>
+            + Add any missing starter policies
+          </button>
+        </div>
+      )}
+    </MoModal>
+  );
+}
+
+/* ---- Weekly PowerPoint deck builder (template filler) ---- */
+function DeckBuilderModal({ theme, deck, setDeck, onClose }) {
+  const [status, setStatus] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileRef = useRef(null);
+
+  const hasTemplate = !!(deck && deck.name && deck.tokens);
+
+  async function ingestTemplate(file) {
+    if (!file) return;
+    if (!/\.pptx$/i.test(file.name)) {
+      setStatus({ type: "error", message: "Please upload a .pptx file (PowerPoint)." });
+      return;
+    }
+    if (!window.fflate) {
+      setStatus({ type: "error", message: "Zip engine didn't load — reload the page and try again." });
+      return;
+    }
+    setBusy(true);
+    setStatus({ type: "loading", message: `Reading ${file.name}…` });
+    try {
+      const { tokens } = await deckScanTemplate(file);
+      await dbPutPolicyDoc({ id: DECK_TEMPLATE_ID, blob: file, name: file.name, type: file.type, size: file.size });
+      setDeck((prev) => {
+        const keepVals = prev && prev.values ? prev.values : {};
+        const values = {};
+        tokens.forEach((t) => { values[t] = keepVals[t] || ""; });
+        return { name: file.name, tokens, values };
+      });
+      setStatus(
+        tokens.length
+          ? { type: "success", message: `Found ${tokens.length} placeholder${tokens.length === 1 ? "" : "s"}.` }
+          : { type: "error", message: "No {{placeholders}} found. Add tokens like {{critical}} to your slides, then re-upload." }
+      );
+    } catch (e) {
+      setStatus({ type: "error", message: e.message || "Couldn't read that .pptx." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function setValue(token, val) {
+    setDeck((prev) => ({ ...prev, values: { ...prev.values, [token]: val } }));
+  }
+
+  async function generate() {
+    setBusy(true);
+    setStatus({ type: "loading", message: "Building your deck…" });
+    try {
+      const blob = await deckGenerate(deck.values || {});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const iso = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = (deck.name || "report").replace(/\.pptx$/i, "") + `-${iso}.pptx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+      setStatus({ type: "success", message: "Generated — check your downloads." });
+    } catch (e) {
+      setStatus({ type: "error", message: e.message || "Couldn't generate the deck." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function replaceTemplate() {
+    try { await dbDeletePolicyDoc(DECK_TEMPLATE_ID); } catch (e) { /* ignore */ }
+    setDeck(null);
+    setStatus(null);
+  }
+
+  const dropStyle = {
+    border: `2px dashed ${dragOver ? theme.accent : theme.inputBorder}`,
+    borderRadius: "14px", padding: "30px 20px", textAlign: "center",
+    background: dragOver ? theme.accentSoft : "transparent", transition: "all 0.15s ease", cursor: "pointer",
+  };
+
+  return (
+    <MoModal
+      theme={theme}
+      icon={<IconDeck size={20} />}
+      title="Weekly Report Deck Builder"
+      subtitle="Upload your PowerPoint once, fill in this week's numbers, and download a fresh deck with your exact layout. Put placeholders like {{critical}} or {{week_of}} in the slides where the values go."
+      onClose={onClose}
+      footer={
+        hasTemplate ? (
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+            <MoButton theme={theme} variant="primary" onClick={generate} disabled={busy || deck.tokens.length === 0}>
+              <IconUpload size={13} /> {busy ? "Working…" : "Generate PowerPoint"}
+            </MoButton>
+            <MoButton theme={theme} onClick={() => fileRef.current && fileRef.current.click()} disabled={busy}>Replace template</MoButton>
+            <button onClick={replaceTemplate} disabled={busy} className="v-btn" style={{ marginLeft: "auto", fontSize: "12px", fontWeight: 700, color: theme.danger, background: theme.dangerSoft, border: "none", borderRadius: "8px", padding: "8px 12px" }}>
+              Remove template
+            </button>
+            <input ref={fileRef} type="file" accept=".pptx" style={{ display: "none" }} onChange={(e) => { ingestTemplate(e.target.files[0]); e.target.value = ""; }} />
+          </div>
+        ) : null
+      }
+    >
+      {!hasTemplate && (
+        <div
+          onClick={() => fileRef.current && fileRef.current.click()}
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => { e.preventDefault(); setDragOver(false); ingestTemplate(e.dataTransfer.files[0]); }}
+          style={dropStyle}
+        >
+          <div style={{ color: theme.textMuted, marginBottom: "6px", display: "inline-flex" }}><IconUpload /></div>
+          <div style={{ fontSize: "14px", fontWeight: 600, color: theme.text }}>Drop your .pptx template here, or click to browse</div>
+          <div style={{ fontSize: "12px", color: theme.textFaint, marginTop: "6px" }}>Stored locally on this device — it never leaves your browser.</div>
+          <input ref={fileRef} type="file" accept=".pptx" style={{ display: "none" }} onChange={(e) => { ingestTemplate(e.target.files[0]); e.target.value = ""; }} />
+        </div>
+      )}
+
+      {status && (
+        <div style={{ marginTop: "14px", marginBottom: hasTemplate ? "16px" : 0, fontSize: "13px", fontWeight: 600, padding: "10px 14px", borderRadius: "10px", color: status.type === "error" ? theme.danger : status.type === "success" ? theme.positive : theme.textMuted, background: status.type === "error" ? theme.dangerSoft : theme.accentSoft }}>
+          {status.message}
+        </div>
+      )}
+
+      {hasTemplate && (
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px", flexWrap: "wrap" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "7px", fontSize: "13px", fontWeight: 700, color: theme.text }}>
+              <IconDeck size={14} /> {deck.name}
+            </span>
+            <span style={{ fontSize: "12px", color: theme.textFaint }}>{deck.tokens.length} field{deck.tokens.length === 1 ? "" : "s"}</span>
+          </div>
+
+          {deck.tokens.length === 0 ? (
+            <div style={{ fontSize: "13px", color: theme.textFaint, lineHeight: 1.5 }}>
+              This deck has no <code style={{ fontFamily: "ui-monospace,Menlo,monospace" }}>{"{{placeholders}}"}</code> yet. Add tokens like{" "}
+              <code style={{ fontFamily: "ui-monospace,Menlo,monospace" }}>{"{{critical}}"}</code> where the numbers go, save, then use <strong style={{ color: theme.textMuted }}>Replace template</strong> to re-upload.
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px" }}>
+              {deck.tokens.map((t) => (
+                <div key={t}>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: 700, letterSpacing: "0.03em", color: theme.textMuted, marginBottom: "5px", fontFamily: "ui-monospace,SFMono-Regular,Menlo,monospace" }}>
+                    {"{{"}{t}{"}}"}
+                  </label>
+                  <input
+                    value={(deck.values && deck.values[t]) || ""}
+                    onChange={(e) => setValue(t, e.target.value)}
+                    placeholder="value…"
+                    className="v-input"
+                    style={{ width: "100%", padding: "9px 11px", borderRadius: "9px", fontSize: "13px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </MoModal>
+  );
+}
+
+/* ---- The nav-tab popover that ties it all together ---- */
+function MechanicalOrchardMenu({ theme, links, setLinks, onOpenTool }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);
+  const [editingLinks, setEditingLinks] = useState(false);
+  const btnRef = useRef(null);
+  const popRef = useRef(null);
+
+  function place() {
+    const el = btnRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const width = 300;
+    const wide = window.innerWidth > 900;
+    let left = wide ? r.right + 10 : r.left;
+    let top = wide ? r.top : r.bottom + 8;
+    left = Math.max(12, Math.min(left, window.innerWidth - width - 12));
+    top = Math.max(12, Math.min(top, window.innerHeight - 360));
+    setPos({ top, left, width });
+  }
+
+  function toggle() {
+    if (open) { setOpen(false); return; }
+    place();
+    setOpen(true);
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e) {
+      if (popRef.current && !popRef.current.contains(e.target) && btnRef.current && !btnRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    }
+    function onKey(e) { if (e.key === "Escape") setOpen(false); }
+    function onResize() { setOpen(false); }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [open]);
+
+  function pick(toolId) { setOpen(false); onOpenTool(toolId); }
+  function updateLink(id, url) { setLinks((prev) => prev.map((l) => (l.id === id ? { ...l, url } : l))); }
+
+  const tools = [
+    { id: "vuln-s1", icon: <IconShield size={15} />, label: "Vulnerability Analyzer — S1", desc: "SentinelOne export" },
+    { id: "vuln-iru", icon: <IconShield size={15} />, label: "Vulnerability Analyzer — IRU", desc: "IRU export" },
+    { id: "pki", icon: <IconCertificate size={15} />, label: "PKI Report Generator", desc: "Build a PKI report" },
+    { id: "policy", icon: <IconClipboard size={15} />, label: "Policy & Procedure Writeup", desc: "Track & store policies" },
+    { id: "deck", icon: <IconDeck size={15} />, label: "Weekly Report Deck", desc: "Fill a PPTX template" },
+  ];
+
+  return (
+    <React.Fragment>
+      <button
+        ref={btnRef}
+        onClick={toggle}
+        className="v-btn v-navitem"
+        style={{
+          color: open ? theme.accent : theme.text,
+          background: open ? theme.accentSoft : "transparent",
+          "--navitem-hover": theme.accentSoft,
+        }}
+      >
+        <span style={{ color: open ? theme.accent : theme.textMuted, flexShrink: 0, display: "inline-flex" }}><IconOrchard size={14} /></span>
+        <span style={{ fontSize: "13.5px", fontWeight: open ? 700 : 600, flex: 1, textAlign: "left" }}>Mechanical Orchard</span>
+        <span style={{ fontSize: "9px", color: theme.textMuted, flexShrink: 0, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s ease" }}>&#9662;</span>
+      </button>
+
+      {open && pos && ReactDOM.createPortal(
+        <div
+          ref={popRef}
+          className="v-scroll"
+          style={{
+            position: "fixed", top: pos.top, left: pos.left, width: pos.width, zIndex: 90,
+            maxHeight: "min(78vh, 560px)", overflowY: "auto", "--scroll-thumb": theme.divider,
+            ...cardBackgroundStyle(theme), padding: "12px", animation: "vFadeInUp 0.16s ease both",
+          }}
+        >
+          <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: theme.sectionLabelColor, padding: "4px 8px 8px" }}>Tools</div>
+          {tools.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => pick(t.id)}
+              className="v-btn"
+              style={{
+                display: "flex", alignItems: "center", gap: "10px", width: "100%", textAlign: "left",
+                border: "none", background: "transparent", color: theme.text, padding: "9px 8px", borderRadius: "9px",
+                "--navitem-hover": theme.accentSoft,
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = theme.accentSoft)}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            >
+              <span style={{ color: theme.accent, display: "inline-flex", flexShrink: 0 }}>{t.icon}</span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: "13px", fontWeight: 600 }}>{t.label}</span>
+                <span style={{ display: "block", fontSize: "11px", color: theme.textFaint }}>{t.desc}</span>
+              </span>
+            </button>
+          ))}
+
+          <div style={{ height: "1px", background: theme.divider, margin: "10px 4px" }} />
+
+          <div style={{ display: "flex", alignItems: "center", padding: "0 8px 8px" }}>
+            <span style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: theme.sectionLabelColor, flex: 1 }}>Links</span>
+            <button onClick={() => setEditingLinks((v) => !v)} className="v-btn" style={{ fontSize: "11px", fontWeight: 700, color: theme.accent, background: "transparent", border: "none", padding: 0 }}>
+              {editingLinks ? "Done" : "Edit"}
+            </button>
+          </div>
+
+          {links.map((l) => (
+            editingLinks ? (
+              <div key={l.id} style={{ padding: "4px 8px 8px" }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: theme.textMuted, marginBottom: "4px" }}>{l.label}</div>
+                <input
+                  value={l.url}
+                  onChange={(e) => updateLink(l.id, e.target.value)}
+                  placeholder="https://…"
+                  className="v-input"
+                  style={{ width: "100%", padding: "7px 9px", borderRadius: "8px", fontSize: "12px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent }}
+                />
+              </div>
+            ) : (
+              <a
+                key={l.id}
+                href={l.url || undefined}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => { if (!l.url) { e.preventDefault(); setEditingLinks(true); } else { setOpen(false); } }}
+                className="v-btn"
+                style={{
+                  display: "flex", alignItems: "center", gap: "10px", width: "100%", textDecoration: "none",
+                  color: l.url ? theme.text : theme.textFaint, padding: "9px 8px", borderRadius: "9px",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = theme.accentSoft)}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                <span style={{ color: theme.textMuted, display: "inline-flex", flexShrink: 0 }}><IconLink /></span>
+                <span style={{ flex: 1, fontSize: "13px", fontWeight: 600 }}>{l.label}</span>
+                <span style={{ color: theme.textFaint, display: "inline-flex", flexShrink: 0 }}>
+                  {l.url ? <IconExternal size={13} /> : <span style={{ fontSize: "11px" }}>set link</span>}
+                </span>
+              </a>
+            )
+          ))}
+        </div>,
+        document.body
+      )}
+    </React.Fragment>
+  );
+}
+
+
+/* ----------------------------------------------------------------------
+   SECURITYX — CompTIA SecurityX (CAS-005) study tool
+   Thin iframe wrapper around securityx.html (a separate self-contained
+   file, also pulled in from claude/site-review-t0e6yk) that re-skins the
+   embedded page's CSS variables to match Vantage's active theme.
+---------------------------------------------------------------------- */
+
+function secxThemeCSS(theme) {
+  const sysFont = '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif';
+  const bodyBg = theme.pageBgGradient && theme.pageBgGradient !== "none" ? theme.pageBgGradient : theme.pageBg;
+  return `
+  :root{
+    --ink:${theme.pageBg}!important;
+    --s1:${theme.cardBg}!important; --s2:${theme.cardBg}!important; --s3:${theme.accentSoft}!important;
+    --glass:${theme.cardBg}!important; --glass-hi:${theme.cardBg}!important;
+    --blur:none!important;
+    --line:${theme.divider}!important; --line2:${theme.cardBorder}!important; --line3:${theme.cardBorder}!important;
+    --fg:${theme.text}!important; --fg2:${theme.textMuted}!important; --fg3:${theme.textMuted}!important; --fg4:${theme.textFaint}!important;
+    --ok:${theme.positive}!important; --no:${theme.danger}!important;
+    --gold:${theme.accent}!important; --gold-dim:${theme.accentSoft}!important; --gold-line:${theme.divider}!important;
+    --ac:${theme.accent}!important; --ac-dim:${theme.accentSoft}!important; --ac-line:${theme.divider}!important;
+    --sans:${sysFont}!important;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace!important;
+    --e1:${theme.cardShadow}!important; --e2:${theme.cardShadow}!important; --e3:${theme.cardShadow}!important;
+  }
+  body{ background:${bodyBg}!important; color:${theme.text}!important; }
+  body::before{ background:none!important; }
+  ::selection{ background:${theme.accentSoft}!important; color:${theme.text}!important; }
+  /* The primary button hardcodes a gold gradient + dark text; flatten it to
+     the theme accent so it reads correctly on light or dark themes. */
+  .btn.pri, .btn.pri:hover{ background:${theme.accent}!important; color:${theme.accentText}!important; border-color:${theme.accent}!important; box-shadow:${theme.cardShadow}!important; filter:none!important; }
+  `;
+}
+
+function SecurityXSection({ theme }) {
+  const frameRef = useRef(null);
+  const css = useMemo(() => secxThemeCSS(theme), [theme]);
+
+  function applySkin() {
+    const frame = frameRef.current;
+    if (!frame) return;
+    try {
+      const doc = frame.contentDocument;
+      if (!doc || !doc.head) return;
+      let el = doc.getElementById("vantage-skin");
+      if (!el) {
+        el = doc.createElement("style");
+        el.id = "vantage-skin";
+        doc.head.appendChild(el);
+      }
+      el.textContent = css;
+    } catch (e) {
+      /* frame not ready yet — onLoad will re-apply */
+    }
+  }
+
+  // Re-skin whenever the Vantage theme changes (frame stays mounted). A large
+  // srcdoc/src document can finish loading after onLoad timing is missed, so
+  // poll briefly until the injection lands (applySkin is idempotent).
+  useEffect(() => {
+    applySkin();
+    const id = setInterval(applySkin, 250);
+    const stop = setTimeout(() => clearInterval(id), 5000);
+    return () => { clearInterval(id); clearTimeout(stop); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [css]);
+
+  return (
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+      <iframe
+        ref={frameRef}
+        onLoad={applySkin}
+        title="SecurityX Readiness — CompTIA CAS-005 study tool"
+        src="securityx.html"
+        style={{ flex: 1, width: "100%", border: "none", display: "block", background: theme.pageBg }}
+      />
+    </div>
+  );
+}
+
 
 // Top-level sub-pages the original app exposed in its sidebar nav (player
 // profile/comparison/league-detail are reached via links from these, same
