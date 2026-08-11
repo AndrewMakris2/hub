@@ -30,6 +30,8 @@
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
   #root { min-height: 100vh; }
   ::selection { background: rgba(120,120,255,0.3); }
@@ -65,18 +67,18 @@
   .v-btn:active { filter: brightness(0.95); transform: translateY(0); }
 
   .v-input { transition: border-color 0.15s ease, box-shadow 0.15s ease; }
-  .v-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
-  .v-scroll::-webkit-scrollbar-track { background: transparent; }
-  .v-scroll::-webkit-scrollbar-thumb { background: var(--scroll-thumb, rgba(128,128,128,0.35)); border-radius: 999px; }
   .v-input:focus {
     outline: none;
     box-shadow: 0 0 0 3px var(--focus-ring, rgba(0,0,0,0.12));
     border-color: var(--focus-border, currentColor) !important;
   }
 
+  /* Thin, theme-tinted scrollbars (Firefox + WebKit) */
+  .v-scroll { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb, rgba(128,128,128,0.35)) transparent; }
   .v-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
   .v-scroll::-webkit-scrollbar-track { background: transparent; }
   .v-scroll::-webkit-scrollbar-thumb { background: var(--scroll-thumb, rgba(128,128,128,0.35)); border-radius: 999px; }
+  .v-scroll::-webkit-scrollbar-thumb:hover { filter: brightness(1.25); }
 
   .v-swatch-box { transition: transform 0.15s ease; }
   .v-swatch:hover .v-swatch-box { transform: scale(1.08); }
@@ -184,6 +186,23 @@
     transition: transform 0.15s ease;
   }
   .v-hometile:hover { transform: translateY(-2px); }
+
+  /* Keyboard focus ring for interactive elements (mouse clicks stay clean) */
+  .v-btn:focus-visible, .v-navitem:focus-visible, .v-swatch:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--focus-ring, rgba(120,120,255,0.4));
+  }
+
+  /* Respect users who prefer reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+    .v-card:hover, .v-btn:hover, .v-hometile:hover { transform: none !important; }
+  }
 </style>
 </head>
 <body>
@@ -730,6 +749,192 @@ const THEMES = {
     headerWeight: 700,
     cardStyle: "flat",
   },
+  latte: {
+    name: "Latte",
+    pageBg: "#f4ede4",
+    pageBgGradient: "linear-gradient(165deg, #f6f0e7 0%, #efe6d8 100%)",
+    text: "#3a2f28",
+    textMuted: "#8a7a6d",
+    textFaint: "#b5a596",
+    cardBg: "#fffaf3",
+    cardBorder: "#e6dccd",
+    cardShadow: "0 1px 2px rgba(60,40,20,0.05)",
+    cardRadius: "14px",
+    sectionLabelColor: "#a07a4f",
+    accent: "#b5651d",
+    accentText: "#ffffff",
+    accentSoft: "rgba(181,101,29,0.12)",
+    divider: "#ece3d6",
+    inputBg: "#fffaf3",
+    inputBorder: "#ddd0bd",
+    inputText: "#3a2f28",
+    danger: "#c0392b",
+    dangerSoft: "#f7e8e5",
+    chip: "#efe6d8",
+    chipText: "#6b5b4d",
+    themeBarBg: "rgba(255,250,243,0.7)",
+    themeBarBorder: "#e6dccd",
+    positive: "#5a7d3c",
+    progressTrack: "#ece3d6",
+    progressFill: "#b5651d",
+    headerWeight: 700,
+    cardStyle: "flat",
+  },
+  sky: {
+    name: "Sky",
+    pageBg: "#eef4fb",
+    pageBgGradient: "linear-gradient(165deg, #eff5fc 0%, #e3edf8 100%)",
+    text: "#17202a",
+    textMuted: "#5f7387",
+    textFaint: "#93a4b5",
+    cardBg: "#ffffff",
+    cardBorder: "#dce6f0",
+    cardShadow: "0 1px 2px rgba(20,40,70,0.05)",
+    cardRadius: "14px",
+    sectionLabelColor: "#5885c9",
+    accent: "#2f6fed",
+    accentText: "#ffffff",
+    accentSoft: "rgba(47,111,237,0.1)",
+    divider: "#e5edf5",
+    inputBg: "#ffffff",
+    inputBorder: "#d3dfec",
+    inputText: "#17202a",
+    danger: "#d64545",
+    dangerSoft: "#fbeaea",
+    chip: "#eef2f8",
+    chipText: "#56657a",
+    themeBarBg: "rgba(255,255,255,0.72)",
+    themeBarBorder: "#dce6f0",
+    positive: "#2f8f5b",
+    progressTrack: "#e5edf5",
+    progressFill: "#2f6fed",
+    headerWeight: 700,
+    cardStyle: "flat",
+  },
+  nord: {
+    name: "Nord",
+    pageBg: "#2e3440",
+    pageBgGradient: "none",
+    text: "#eceff4",
+    textMuted: "#a9b1c2",
+    textFaint: "#6f7a90",
+    cardBg: "#3b4252",
+    cardBorder: "#434c5e",
+    cardShadow: "0 1px 3px rgba(0,0,0,0.4)",
+    cardRadius: "12px",
+    sectionLabelColor: "#88c0d0",
+    accent: "#88c0d0",
+    accentText: "#2e3440",
+    accentSoft: "rgba(136,192,208,0.14)",
+    divider: "#3b4252",
+    inputBg: "#2e3440",
+    inputBorder: "#434c5e",
+    inputText: "#eceff4",
+    danger: "#bf616a",
+    dangerSoft: "rgba(191,97,106,0.15)",
+    chip: "#434c5e",
+    chipText: "#d8dee9",
+    themeBarBg: "rgba(46,52,64,0.85)",
+    themeBarBorder: "#434c5e",
+    positive: "#a3be8c",
+    progressTrack: "#3b4252",
+    progressFill: "linear-gradient(90deg, #88c0d0, #8fbcbb)",
+    headerWeight: 600,
+    cardStyle: "flat",
+  },
+  dracula: {
+    name: "Dracula",
+    pageBg: "#282a36",
+    pageBgGradient: "none",
+    text: "#f8f8f2",
+    textMuted: "#a9adc4",
+    textFaint: "#6d7089",
+    cardBg: "#343746",
+    cardBorder: "#44475a",
+    cardShadow: "0 1px 3px rgba(0,0,0,0.4)",
+    cardRadius: "12px",
+    sectionLabelColor: "#ff79c6",
+    accent: "#bd93f9",
+    accentText: "#282a36",
+    accentSoft: "rgba(189,147,249,0.16)",
+    divider: "#3a3d4d",
+    inputBg: "#21222c",
+    inputBorder: "#44475a",
+    inputText: "#f8f8f2",
+    danger: "#ff5555",
+    dangerSoft: "rgba(255,85,85,0.14)",
+    chip: "#44475a",
+    chipText: "#f8f8f2",
+    themeBarBg: "rgba(40,42,54,0.85)",
+    themeBarBorder: "#44475a",
+    positive: "#50fa7b",
+    progressTrack: "#3a3d4d",
+    progressFill: "linear-gradient(90deg, #bd93f9, #ff79c6)",
+    headerWeight: 600,
+    cardStyle: "flat",
+  },
+  tokyoNight: {
+    name: "Tokyo Night",
+    pageBg: "#1a1b26",
+    pageBgGradient: "none",
+    text: "#c0caf5",
+    textMuted: "#8189af",
+    textFaint: "#565f89",
+    cardBg: "#1f2335",
+    cardBorder: "#2a2f45",
+    cardShadow: "0 1px 3px rgba(0,0,0,0.45)",
+    cardRadius: "12px",
+    sectionLabelColor: "#bb9af7",
+    accent: "#7aa2f7",
+    accentText: "#1a1b26",
+    accentSoft: "rgba(122,162,247,0.14)",
+    divider: "#232741",
+    inputBg: "#16161e",
+    inputBorder: "#2a2f45",
+    inputText: "#c0caf5",
+    danger: "#f7768e",
+    dangerSoft: "rgba(247,118,142,0.14)",
+    chip: "#2a2f45",
+    chipText: "#c0caf5",
+    themeBarBg: "rgba(26,27,38,0.85)",
+    themeBarBorder: "#2a2f45",
+    positive: "#9ece6a",
+    progressTrack: "#232741",
+    progressFill: "linear-gradient(90deg, #7aa2f7, #bb9af7)",
+    headerWeight: 600,
+    cardStyle: "flat",
+  },
+  gruvbox: {
+    name: "Gruvbox",
+    pageBg: "#282828",
+    pageBgGradient: "none",
+    text: "#ebdbb2",
+    textMuted: "#a89984",
+    textFaint: "#7c6f64",
+    cardBg: "#32302f",
+    cardBorder: "#3c3836",
+    cardShadow: "0 1px 3px rgba(0,0,0,0.42)",
+    cardRadius: "12px",
+    sectionLabelColor: "#fe8019",
+    accent: "#fabd2f",
+    accentText: "#282828",
+    accentSoft: "rgba(250,189,47,0.14)",
+    divider: "#3c3836",
+    inputBg: "#1d2021",
+    inputBorder: "#504945",
+    inputText: "#ebdbb2",
+    danger: "#fb4934",
+    dangerSoft: "rgba(251,73,52,0.14)",
+    chip: "#3c3836",
+    chipText: "#ebdbb2",
+    themeBarBg: "rgba(40,40,40,0.85)",
+    themeBarBorder: "#3c3836",
+    positive: "#b8bb26",
+    progressTrack: "#3c3836",
+    progressFill: "linear-gradient(90deg, #fabd2f, #fe8019)",
+    headerWeight: 600,
+    cardStyle: "flat",
+  },
 };
 
 /* ----------------------------------------------------------------------
@@ -755,6 +960,7 @@ const STORAGE_KEYS = {
   youtube: "dash.youtube",
   golfSimRounds: "dash.golfSimRounds",
   golfOutdoorRounds: "dash.golfOutdoorRounds",
+  golfScorecards: "dash.golfScorecards",
   fantasyCheatSheets: "dash.fantasyCheatSheets",
   fantasyCustomRankings: "dash.fantasyCustomRankings",
   fantasyWatchlist: "dash.fantasyWatchlist",
@@ -765,6 +971,18 @@ const STORAGE_KEYS = {
   moSnapshots: "dash.moSnapshots",
   moPolicies: "dash.moPolicies",
   deck: "dash.deck",
+  appNotice: "dash.appNotice",
+  habits: "dash.habits",
+  reading: "dash.reading",
+  games: "dash.games",
+  dailyLog: "dash.dailyLog",
+  kev: "dash.kev",
+  sports: "dash.sports",
+  subscriptions: "dash.subscriptions",
+  news: "dash.news",
+  lock: "dash.lock",
+  reminders: "dash.reminders",
+  navCollapsed: "dash.navCollapsed",
   ravenProducts: "dash.ravenProducts",
 };
 
@@ -2166,6 +2384,163 @@ function GolfSection({ theme, data, setData, history, onRecordHandicap }) {
         />
       </MetricGrid>
       <Sparkline theme={theme} data={history} label="Handicap trend" goodDirection="down" />
+    </Card>
+  );
+}
+
+/* ----------------------------------------------------------------------
+   GOLF SCORECARDS — hole-by-hole entry with stats (fully local)
+---------------------------------------------------------------------- */
+const GOLF_PAR72 = [4, 5, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 3, 4, 4, 5, 3, 4];
+function golfBlankCard() {
+  return { date: new Date().toISOString().slice(0, 10), course: "", tee: "", holes: GOLF_PAR72.map((p) => ({ par: p, strokes: "" })) };
+}
+function golfCardStats(card) {
+  const holes = card.holes || [];
+  let strokes = 0, par = 0, played = 0;
+  holes.forEach((h) => {
+    const st = parseInt(h.strokes, 10);
+    if (!isNaN(st) && st > 0) { strokes += st; par += Number(h.par) || 0; played++; }
+  });
+  const front = holes.slice(0, 9).reduce((a, h) => a + (parseInt(h.strokes, 10) > 0 ? parseInt(h.strokes, 10) : 0), 0);
+  const back = holes.slice(9, 18).reduce((a, h) => a + (parseInt(h.strokes, 10) > 0 ? parseInt(h.strokes, 10) : 0), 0);
+  const totalPar = holes.reduce((a, h) => a + (Number(h.par) || 0), 0);
+  return { strokes, par, played, vs: strokes - par, front, back, totalPar, complete: played === holes.length };
+}
+function golfVsLabel(vs) { return vs === 0 ? "E" : vs > 0 ? `+${vs}` : `${vs}`; }
+
+function GolfScorecards({ theme, cards, setCards, delay }) {
+  const list = cards || [];
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(golfBlankCard);
+  const [expandedId, setExpandedId] = useState(null);
+
+  function setHole(i, key, val) {
+    setForm((f) => ({ ...f, holes: f.holes.map((h, idx) => (idx === i ? { ...h, [key]: val } : h)) }));
+  }
+  function save() {
+    const st = golfCardStats(form);
+    if (st.played === 0) return;
+    setCards([{ id: "sc" + Date.now(), ...form }, ...list]);
+    setForm(golfBlankCard());
+    setShowForm(false);
+  }
+  function remove(id) { setCards(list.filter((c) => c.id !== id)); }
+
+  const completed = list.map((c) => ({ c, s: golfCardStats(c) })).filter((x) => x.s.complete);
+  const best = completed.length ? completed.reduce((a, b) => (b.s.strokes < a.s.strokes ? b : a)) : null;
+  const avg = completed.length ? Math.round((completed.reduce((a, x) => a + x.s.strokes, 0) / completed.length) * 10) / 10 : null;
+  const avgVs = completed.length ? Math.round((completed.reduce((a, x) => a + x.s.vs, 0) / completed.length) * 10) / 10 : null;
+
+  const small = { width: "100%", padding: "5px 2px", borderRadius: "6px", fontSize: "13px", textAlign: "center", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent };
+  const inputStyle = { padding: "8px 10px", borderRadius: "9px", fontSize: "13px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent };
+  const formStats = golfCardStats(form);
+
+  function HoleGrid({ holes, editable }) {
+    const cell = (h, i) => {
+      const st = golfCardStats({ holes: [h] });
+      const diff = parseInt(h.strokes, 10) > 0 ? parseInt(h.strokes, 10) - (Number(h.par) || 0) : null;
+      const dColor = diff == null ? theme.textFaint : diff < 0 ? theme.positive : diff === 0 ? theme.textMuted : theme.danger;
+      return (
+        <div key={i} style={{ width: "40px", flexShrink: 0, textAlign: "center" }}>
+          <div style={{ fontSize: "10px", color: theme.textFaint, marginBottom: "2px" }}>{i + 1}</div>
+          {editable ? (
+            <React.Fragment>
+              <input value={h.par} onChange={(e) => setHole(i, "par", e.target.value)} inputMode="numeric" className="v-input" style={{ ...small, marginBottom: "3px", color: theme.textMuted }} title={`Hole ${i + 1} par`} />
+              <input value={h.strokes} onChange={(e) => setHole(i, "strokes", e.target.value)} inputMode="numeric" placeholder="–" className="v-input" style={small} title={`Hole ${i + 1} strokes`} />
+            </React.Fragment>
+          ) : (
+            <React.Fragment>
+              <div style={{ fontSize: "10px", color: theme.textFaint }}>par {h.par}</div>
+              <div style={{ fontSize: "14px", fontWeight: 700, color: dColor }}>{h.strokes || "–"}</div>
+            </React.Fragment>
+          )}
+        </div>
+      );
+    };
+    return (
+      <div className="v-scroll" style={{ overflowX: "auto", "--scroll-thumb": theme.divider, paddingBottom: "4px" }}>
+        <div style={{ display: "flex", gap: "4px", marginBottom: "6px" }}>
+          {holes.slice(0, 9).map(cell)}
+          <div style={{ width: "48px", flexShrink: 0, textAlign: "center", alignSelf: "flex-end", fontSize: "12px", fontWeight: 700, color: theme.text }}>
+            <div style={{ fontSize: "10px", color: theme.textFaint }}>OUT</div>
+            {holes.slice(0, 9).reduce((a, h) => a + (parseInt(h.strokes, 10) > 0 ? parseInt(h.strokes, 10) : 0), 0) || "–"}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: "4px" }}>
+          {holes.slice(9, 18).map((h, i) => cell(h, i + 9))}
+          <div style={{ width: "48px", flexShrink: 0, textAlign: "center", alignSelf: "flex-end", fontSize: "12px", fontWeight: 700, color: theme.text }}>
+            <div style={{ fontSize: "10px", color: theme.textFaint }}>IN</div>
+            {holes.slice(9, 18).reduce((a, h) => a + (parseInt(h.strokes, 10) > 0 ? parseInt(h.strokes, 10) : 0), 0) || "–"}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Card theme={theme} delay={delay}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "6px" }}>
+        <SectionLabel theme={theme} icon={<IconGolf />} style={{ margin: 0 }}>Scorecards</SectionLabel>
+        <button onClick={() => { setShowForm((v) => !v); setForm(golfBlankCard()); }} className="v-btn" style={{ marginLeft: "auto", padding: "7px 14px", borderRadius: "10px", fontSize: "13px", fontWeight: 700, border: showForm ? `1px solid ${theme.cardBorder}` : "none", background: showForm ? "transparent" : theme.accent, color: showForm ? theme.textMuted : theme.accentText }}>
+          {showForm ? "Cancel" : "New scorecard"}
+        </button>
+      </div>
+
+      {completed.length > 0 && (
+        <div style={{ display: "flex", gap: "18px", flexWrap: "wrap", marginBottom: "14px" }}>
+          <div><div style={{ fontSize: "11px", color: theme.textFaint }}>Best</div><div className="v-tabular" style={{ fontSize: "20px", fontWeight: 800, color: theme.text }}>{best.s.strokes} <span style={{ fontSize: "13px", color: theme.textMuted }}>{golfVsLabel(best.s.vs)}</span></div></div>
+          <div><div style={{ fontSize: "11px", color: theme.textFaint }}>Average</div><div className="v-tabular" style={{ fontSize: "20px", fontWeight: 800, color: theme.text }}>{avg} <span style={{ fontSize: "13px", color: theme.textMuted }}>{golfVsLabel(avgVs)}</span></div></div>
+          <div><div style={{ fontSize: "11px", color: theme.textFaint }}>Rounds</div><div className="v-tabular" style={{ fontSize: "20px", fontWeight: 800, color: theme.text }}>{completed.length}</div></div>
+        </div>
+      )}
+
+      {showForm && (
+        <div style={{ border: `1px solid ${theme.cardBorder}`, borderRadius: "12px", padding: "14px", marginBottom: "14px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "8px", marginBottom: "12px" }}>
+            <input type="date" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} className="v-input" style={inputStyle} />
+            <input value={form.course} onChange={(e) => setForm((f) => ({ ...f, course: e.target.value }))} placeholder="Course" className="v-input" style={{ ...inputStyle, gridColumn: "span 2" }} />
+            <input value={form.tee} onChange={(e) => setForm((f) => ({ ...f, tee: e.target.value }))} placeholder="Tees (optional)" className="v-input" style={inputStyle} />
+          </div>
+          <HoleGrid holes={form.holes} editable />
+          <div style={{ display: "flex", alignItems: "center", gap: "14px", marginTop: "12px", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "14px", fontWeight: 800, color: theme.text }}>{formStats.strokes || "–"} strokes <span style={{ color: theme.textMuted, fontWeight: 600 }}>({golfVsLabel(formStats.vs)} · par {formStats.totalPar})</span></span>
+            <button onClick={save} className="v-btn" style={{ marginLeft: "auto", padding: "8px 18px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText }}>Save round</button>
+          </div>
+        </div>
+      )}
+
+      {list.length === 0 ? (
+        !showForm && <div style={{ textAlign: "center", padding: "18px", color: theme.textFaint, fontSize: "13px" }}>No scorecards yet — tap “New scorecard” to log a round hole-by-hole.</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {list.map((c) => {
+            const st = golfCardStats(c);
+            const open = expandedId === c.id;
+            return (
+              <div key={c.id} style={{ border: `1px solid ${theme.cardBorder}`, borderRadius: "10px", overflow: "hidden" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "11px 12px", cursor: "pointer" }} onClick={() => setExpandedId(open ? null : c.id)}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: "14px", fontWeight: 700, color: theme.text }}>{c.course || "Round"}</div>
+                    <div style={{ fontSize: "11.5px", color: theme.textFaint, marginTop: "2px" }}>{c.date}{c.tee ? " · " + c.tee : ""}{!st.complete ? ` · ${st.played}/18 holes` : ""}</div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div className="v-tabular" style={{ fontSize: "16px", fontWeight: 800, color: theme.text }}>{st.strokes}</div>
+                    <div style={{ fontSize: "11.5px", fontWeight: 700, color: st.vs < 0 ? theme.positive : st.vs === 0 ? theme.textMuted : theme.danger }}>{golfVsLabel(st.vs)}</div>
+                  </div>
+                  <button onClick={(e) => { e.stopPropagation(); remove(c.id); }} className="v-btn" title="Remove" style={{ border: "none", background: "transparent", color: theme.textMuted, padding: "4px", display: "inline-flex", flexShrink: 0 }}><IconClose /></button>
+                </div>
+                {open && (
+                  <div style={{ padding: "0 12px 12px" }}>
+                    <HoleGrid holes={c.holes} editable={false} />
+                    <div style={{ fontSize: "12px", color: theme.textMuted, marginTop: "6px" }}>Out {st.front} · In {st.back} · Total {st.strokes} ({golfVsLabel(st.vs)})</div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </Card>
   );
 }
@@ -4887,7 +5262,7 @@ function SuggestionsSection({ theme, suggestions, onOpenBriefing, weather, weath
 ---------------------------------------------------------------------- */
 
 const THEME_GROUPS = [
-  { label: "Light", keys: ["minimal", "sunset", "forest", "pastel", "glass"] },
+  { label: "Light", keys: ["minimal", "latte", "sky", "sunset", "forest", "pastel", "glass"] },
   {
     label: "Dark",
     keys: [
@@ -4902,6 +5277,10 @@ const THEME_GROUPS = [
       "oceanAbyss",
       "roseGold",
       "slateSteel",
+      "nord",
+      "tokyoNight",
+      "dracula",
+      "gruvbox",
     ],
   },
 ];
@@ -6310,9 +6689,35 @@ const PAGE_META = [
   { id: "goals", label: "Life Goals", icon: <IconFlag size={14} /> },
   { id: "videos", label: "Videos", icon: <IconVideo size={14} /> },
   { id: "journal", label: "Journal", icon: <IconBookOpen size={14} /> },
+  { id: "habits", label: "Habits", icon: <IconFlame size={14} /> },
+  { id: "reading", label: "Reading", icon: <IconBook size={14} /> },
+  { id: "games", label: "Games", icon: <IconGamepad size={14} /> },
+  { id: "news", label: "News", icon: <IconNews size={14} /> },
+  { id: "sports", label: "Sports", icon: <IconTrophy size={14} /> },
+  { id: "subscriptions", label: "Subscriptions", icon: <IconCreditCard size={14} /> },
   { id: "securityx", label: "SecurityX", icon: <IconAcademic size={14} /> },
   { id: "ravenseye", label: "Raven's Eye", icon: <IconRavenEye size={14} /> },
 ];
+
+// Sidebar navigation grouped into collapsible sections. Any PAGE_META id not
+// listed here still renders (see the "ungrouped" fallback in Sidebar), so
+// adding a page without touching this list never drops it from the nav.
+const NAV_GROUPS = [
+  { id: "health", label: "Health & Play", ids: ["fitness", "golf", "fantasy", "sports"] },
+  { id: "money", label: "Money", ids: ["financial", "transactions", "subscriptions"] },
+  { id: "schedule", label: "Schedule", ids: ["upcoming", "agenda"] },
+  { id: "media", label: "Media", ids: ["youtube", "news", "watchlist", "videos", "reading", "games"] },
+  { id: "personal", label: "Personal", ids: ["profile", "trackers", "goals", "journal", "habits"] },
+  { id: "work", label: "Security & Work", ids: ["securityx", "ravenseye"] },
+];
+
+function NavChevron({ collapsed }) {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: collapsed ? "rotate(-90deg)" : "none", transition: "transform 0.15s", flexShrink: 0 }}>
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
 
 function NavItem({ theme, icon, label, value, active, onClick }) {
   return (
@@ -6388,6 +6793,12 @@ function Sidebar({
   moLinks,
   setMoLinks,
   onOpenMoTool,
+  lock,
+  setLock,
+  onLockNow,
+  onOpenPalette,
+  reminders,
+  setReminders,
   page,
   onNavigate,
   setThemeKey,
@@ -6414,6 +6825,7 @@ function Sidebar({
   setRavenProducts,
 }) {
   const doneGoals = goals.filter((g) => g.status === "done").length;
+  const [navCollapsed, setNavCollapsed] = usePersistentState(STORAGE_KEYS.navCollapsed, {});
   const valueByPage = {
     fitness: fitness.currentWeight,
     golf: golf.handicap,
@@ -6475,6 +6887,11 @@ function Sidebar({
       </button>
 
       <div className="v-rail-nav">
+        <button onClick={onOpenPalette} className="v-btn" title="Search (Cmd-K)" style={{ display: "flex", alignItems: "center", gap: "9px", width: "100%", padding: "9px 10px", marginBottom: "4px", borderRadius: "10px", border: `1px solid ${theme.cardBorder}`, background: theme.inputBg, color: theme.textMuted, cursor: "pointer" }}>
+          <IconSearch size={14} />
+          <span style={{ flex: 1, textAlign: "left", fontSize: "13px" }}>Search…</span>
+          <span style={{ fontSize: "10.5px", border: `1px solid ${theme.cardBorder}`, borderRadius: "5px", padding: "1px 5px" }}>⌘K</span>
+        </button>
         <NavItem
           theme={theme}
           icon={<IconBulb size={14} />}
@@ -6483,17 +6900,58 @@ function Sidebar({
           active={page === "home"}
           onClick={() => onNavigate("home")}
         />
-        {PAGE_META.map((item) => (
-          <NavItem
-            key={item.id}
-            theme={theme}
-            icon={item.icon}
-            label={item.label}
-            value={valueByPage[item.id]}
-            active={page === item.id}
-            onClick={() => onNavigate(item.id)}
-          />
-        ))}
+        {NAV_GROUPS.map((group) => {
+          const items = group.ids
+            .map((id) => PAGE_META.find((p) => p.id === id))
+            .filter(Boolean);
+          if (!items.length) return null;
+          const collapsed = !!navCollapsed[group.id];
+          return (
+            <div key={group.id} style={{ marginTop: "8px" }}>
+              <button
+                onClick={() => setNavCollapsed((s) => ({ ...s, [group.id]: !s[group.id] }))}
+                className="v-btn"
+                title={collapsed ? "Expand" : "Collapse"}
+                style={{ display: "flex", alignItems: "center", gap: "6px", width: "100%", padding: "4px 10px 3px", background: "transparent", border: "none", color: theme.textMuted, cursor: "pointer", fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}
+              >
+                <NavChevron collapsed={collapsed} />
+                <span style={{ flex: 1, textAlign: "left" }}>{group.label}</span>
+              </button>
+              {!collapsed &&
+                items.map((item) => (
+                  <NavItem
+                    key={item.id}
+                    theme={theme}
+                    icon={item.icon}
+                    label={item.label}
+                    value={valueByPage[item.id]}
+                    active={page === item.id}
+                    onClick={() => onNavigate(item.id)}
+                  />
+                ))}
+            </div>
+          );
+        })}
+        {(() => {
+          const grouped = new Set(NAV_GROUPS.flatMap((g) => g.ids));
+          const rest = PAGE_META.filter((p) => !grouped.has(p.id));
+          if (!rest.length) return null;
+          return (
+            <div style={{ marginTop: "8px" }}>
+              {rest.map((item) => (
+                <NavItem
+                  key={item.id}
+                  theme={theme}
+                  icon={item.icon}
+                  label={item.label}
+                  value={valueByPage[item.id]}
+                  active={page === item.id}
+                  onClick={() => onNavigate(item.id)}
+                />
+              ))}
+            </div>
+          );
+        })()}
         <MechanicalOrchardMenu theme={theme} links={moLinks} setLinks={setMoLinks} onOpenTool={onOpenMoTool} />
       </div>
 
@@ -6553,7 +7011,9 @@ function Sidebar({
           setFantasyYahoo={setFantasyYahoo}
           setRavenProducts={setRavenProducts}
         />
+        <RemindersMenu theme={theme} reminders={reminders} setReminders={setReminders} events={events} />
         <ThemePicker theme={theme} themeKey={themeKey} setThemeKey={setThemeKey} />
+        <LockMenu theme={theme} lock={lock} setLock={setLock} onLockNow={onLockNow} />
       </div>
     </div>
   );
@@ -6605,6 +7065,1571 @@ function HomeOverview({ theme, suggestions, weather, weatherStatus, onEnableWeat
 }
 
 /* ----------------------------------------------------------------------
+   SPORTS — team & league headlines via ESPN's public JSON API
+
+   ESPN's site.api.espn.com news endpoints are CORS-enabled and need no key,
+   so this works client-side. Results cache to localStorage. Live fetches
+   only happen on the deployed site — the sandbox/preview blocks outbound
+   requests, so the tab shows a friendly note there.
+---------------------------------------------------------------------- */
+function IconTrophy({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 4h8v4a4 4 0 0 1-8 0V4z" />
+      <path d="M8 5H5a2 2 0 0 0 0 4h1M16 5h3a2 2 0 0 1 0 4h-1" />
+      <path d="M12 12v4M9 20h6M10 20v-2h4v2" />
+    </svg>
+  );
+}
+function IconCreditCard({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <path d="M2 10h20M6 15h4" />
+    </svg>
+  );
+}
+
+function relTimeFrom(iso) {
+  try {
+    const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+    if (mins < 60) return mins + "m ago";
+    const hrs = Math.round(mins / 60);
+    if (hrs < 24) return hrs + "h ago";
+    return Math.round(hrs / 24) + "d ago";
+  } catch (e) { return ""; }
+}
+
+const ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports";
+// Team news uses ESPN team ids; league news omits the team param.
+const SPORTS_FEEDS = [
+  { id: "celtics", label: "Boston Celtics", league: "NBA", path: "basketball/nba/news?team=2" },
+  { id: "redsox", label: "Boston Red Sox", league: "MLB", path: "baseball/mlb/news?team=2" },
+  { id: "bruins", label: "Boston Bruins", league: "NHL", path: "hockey/nhl/news?team=1" },
+  { id: "colts", label: "Indianapolis Colts", league: "NFL", path: "football/nfl/news?team=11" },
+  { id: "nba", label: "NBA — around the league", league: "NBA", path: "basketball/nba/news" },
+  { id: "mlb", label: "MLB — around the league", league: "MLB", path: "baseball/mlb/news" },
+  { id: "nfl", label: "NFL — around the league", league: "NFL", path: "football/nfl/news" },
+];
+const SPORTS_STALE_MS = 30 * 60 * 1000;
+
+async function fetchSportsFeed(feed) {
+  const r = await fetch(`${ESPN_BASE}/${feed.path}`);
+  if (!r.ok) throw new Error("Sports request failed (" + r.status + ")");
+  const data = await r.json();
+  return (data.articles || [])
+    .filter((a) => a.headline)
+    .slice(0, 8)
+    .map((a) => ({
+      id: String(a.id || a.headline),
+      headline: a.headline,
+      description: a.description || "",
+      published: a.published || a.lastModified || null,
+      link: (a.links && a.links.web && a.links.web.href) || (a.links && a.links.mobile && a.links.mobile.href) || "#",
+    }));
+}
+
+// --- Schedule & scores (ESPN team schedule endpoint; CORS-enabled, no key) ---
+const SPORTS_TEAMS = [
+  { id: "celtics", label: "Boston Celtics", league: "NBA", sport: "basketball", lg: "nba", teamId: "2" },
+  { id: "redsox", label: "Boston Red Sox", league: "MLB", sport: "baseball", lg: "mlb", teamId: "2" },
+  { id: "bruins", label: "Boston Bruins", league: "NHL", sport: "hockey", lg: "nhl", teamId: "1" },
+  { id: "colts", label: "Indianapolis Colts", league: "NFL", sport: "football", lg: "nfl", teamId: "11" },
+];
+
+function espnScore(c) {
+  if (!c || c.score == null) return null;
+  const s = typeof c.score === "object" ? c.score.value : c.score;
+  const n = Number(s);
+  return isNaN(n) ? null : n;
+}
+
+async function fetchTeamSchedule(team) {
+  const r = await fetch(`${ESPN_BASE}/${team.sport}/${team.lg}/teams/${team.teamId}/schedule`);
+  if (!r.ok) throw new Error("Schedule request failed (" + r.status + ")");
+  const data = await r.json();
+  const events = data.events || [];
+  const games = events.map((ev) => {
+    const comp = (ev.competitions && ev.competitions[0]) || {};
+    const comps = comp.competitors || [];
+    const me = comps.find((c) => String(c.team && c.team.id) === String(team.teamId)) || comps[0] || {};
+    const opp = comps.find((c) => c !== me) || {};
+    const st = (comp.status && comp.status.type) || (ev.status && ev.status.type) || {};
+    return {
+      id: String(ev.id || ev.date),
+      date: ev.date || comp.date || null,
+      completed: !!st.completed,
+      state: st.state || "pre",
+      detail: st.shortDetail || "",
+      home: me.homeAway === "home",
+      opp: (opp.team && (opp.team.shortDisplayName || opp.team.displayName || opp.team.name)) || "TBD",
+      myScore: espnScore(me),
+      oppScore: espnScore(opp),
+      win: me.winner === true ? true : opp.winner === true ? false : null,
+    };
+  });
+  const completed = games.filter((g) => g.completed);
+  const upcoming = games.filter((g) => !g.completed && g.date);
+  upcoming.sort((a, b) => new Date(a.date) - new Date(b.date));
+  return { next: upcoming[0] || null, recent: completed.slice(-5).reverse() };
+}
+
+function schedDate(iso, withTime) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const base = d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  return withTime ? `${base} · ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}` : base;
+}
+
+function GameLine({ theme, g }) {
+  const res = g.win === true ? "W" : g.win === false ? "L" : "—";
+  const resColor = g.win === true ? theme.positive : g.win === false ? theme.danger : theme.textMuted;
+  const scoreTxt = g.myScore != null && g.oppScore != null ? `${g.myScore}–${g.oppScore}` : "";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 0", borderTop: `1px solid ${theme.divider}` }}>
+      <span style={{ fontSize: "13px", fontWeight: 800, color: resColor, width: "16px", flexShrink: 0 }}>{res}</span>
+      <span style={{ fontSize: "13px", color: theme.text, flex: 1, minWidth: 0 }}>{g.home ? "vs" : "@"} {g.opp}</span>
+      <span className="v-tabular" style={{ fontSize: "13px", fontWeight: 700, color: theme.text }}>{scoreTxt}</span>
+      <span style={{ fontSize: "11px", color: theme.textFaint, width: "70px", textAlign: "right", flexShrink: 0 }}>{schedDate(g.date)}</span>
+    </div>
+  );
+}
+
+function SportsScheduleView({ theme, sched, loading, error, onRefresh, fetchedAt }) {
+  return (
+    <React.Fragment>
+      <Card theme={theme} delay={0}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+          <SectionLabel theme={theme} icon={<IconCalendar />} style={{ margin: 0 }}>Schedule &amp; scores</SectionLabel>
+          <span style={{ fontSize: "12px", color: theme.textFaint }}>{fetchedAt ? `Updated ${relTimeFrom(new Date(fetchedAt).toISOString())}` : "Not loaded yet"}</span>
+          <button onClick={onRefresh} disabled={loading} className="v-btn" style={{ marginLeft: "auto", padding: "7px 14px", borderRadius: "10px", fontSize: "13px", fontWeight: 700, border: `1px solid ${theme.accent}`, background: theme.accent, color: theme.accentText, opacity: loading ? 0.6 : 1 }}>{loading ? "Refreshing…" : "Refresh"}</button>
+        </div>
+        {error && <div style={{ marginTop: "12px", fontSize: "12.5px", fontWeight: 600, padding: "10px 13px", borderRadius: "9px", color: theme.textMuted, background: theme.accentSoft, lineHeight: 1.45 }}>{error}</div>}
+      </Card>
+
+      {SPORTS_TEAMS.map((t, i) => {
+        const s = (sched || {})[t.id];
+        return (
+          <Card theme={theme} key={t.id} delay={40 * (i + 1)}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+              <span style={{ fontSize: "13px", fontWeight: 800, color: theme.text }}>{t.label}</span>
+              <span style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.05em", color: theme.chipText, background: theme.chip, padding: "2px 7px", borderRadius: "999px" }}>{t.league}</span>
+            </div>
+            {!s ? (
+              <div style={{ fontSize: "12.5px", color: theme.textFaint }}>{loading ? "Loading schedule…" : "Nothing cached — hit Refresh on the live site."}</div>
+            ) : (
+              <React.Fragment>
+                {s.next ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "10px", background: theme.accentSoft, marginBottom: s.recent.length ? "10px" : 0 }}>
+                    <span style={{ fontSize: "10px", fontWeight: 800, letterSpacing: "0.06em", color: theme.accent, textTransform: "uppercase" }}>Next</span>
+                    <span style={{ fontSize: "14px", fontWeight: 700, color: theme.text, flex: 1, minWidth: 0 }}>{s.next.home ? "vs" : "@"} {s.next.opp}</span>
+                    <span style={{ fontSize: "12px", color: theme.textMuted, textAlign: "right" }}>{schedDate(s.next.date, true)}</span>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: "12.5px", color: theme.textFaint, marginBottom: s.recent.length ? "6px" : 0 }}>No upcoming game scheduled.</div>
+                )}
+                {s.recent.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: theme.sectionLabelColor, marginBottom: "2px" }}>Recent results</div>
+                    {s.recent.map((g) => <GameLine key={g.id} theme={theme} g={g} />)}
+                  </div>
+                )}
+              </React.Fragment>
+            )}
+          </Card>
+        );
+      })}
+    </React.Fragment>
+  );
+}
+
+function SportsSection({ theme, state, setState }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [view, setView] = useState("news");
+  const [schedLoading, setSchedLoading] = useState(false);
+  const [schedError, setSchedError] = useState(null);
+  const cache = state.cache || {};
+
+  async function refreshSchedule() {
+    setSchedLoading(true);
+    setSchedError(null);
+    try {
+      const prev = state.schedule || {};
+      const results = await Promise.all(
+        SPORTS_TEAMS.map((t) => fetchTeamSchedule(t).then((r) => [t.id, r]).catch(() => [t.id, null]))
+      );
+      const next = {};
+      let anyOk = false;
+      results.forEach(([id, r]) => { if (r) { next[id] = r; anyOk = true; } else if (prev[id]) next[id] = prev[id]; });
+      if (!anyOk) setSchedError("Couldn't reach ESPN. On the live site this loads automatically; the preview/sandbox blocks outside requests.");
+      setState((s) => ({ ...s, schedule: next, schedFetchedAt: Date.now() }));
+    } catch (e) {
+      setSchedError(e.message || "Couldn't load schedules.");
+    } finally {
+      setSchedLoading(false);
+    }
+  }
+
+  async function refresh() {
+    setLoading(true);
+    setError(null);
+    try {
+      const results = await Promise.all(
+        SPORTS_FEEDS.map((f) => fetchSportsFeed(f).then((items) => [f.id, items]).catch(() => [f.id, null]))
+      );
+      const next = {};
+      let anyOk = false;
+      results.forEach(([id, items]) => {
+        if (items) { next[id] = items; anyOk = true; }
+        else if (cache[id]) next[id] = cache[id];
+      });
+      if (!anyOk) setError("Couldn't reach ESPN. On the live site this loads automatically; the preview/sandbox blocks outside requests.");
+      setState((s) => ({ ...s, cache: next, fetchedAt: Date.now() }));
+    } catch (e) {
+      setError(e.message || "Couldn't load sports news.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    const stale = !state.fetchedAt || Date.now() - state.fetchedAt > SPORTS_STALE_MS;
+    if (Object.keys(cache).length === 0 || stale) refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (view !== "schedule") return;
+    const stale = !state.schedFetchedAt || Date.now() - state.schedFetchedAt > SPORTS_STALE_MS;
+    if (!state.schedule || Object.keys(state.schedule).length === 0 || stale) refreshSchedule();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <Card theme={theme} delay={0}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+          <SectionLabel theme={theme} icon={<IconTrophy />} style={{ margin: 0 }}>My teams &amp; leagues</SectionLabel>
+          <span style={{ fontSize: "12px", color: theme.textFaint }}>
+            {state.fetchedAt ? `Updated ${relTimeFrom(new Date(state.fetchedAt).toISOString())}` : "Not loaded yet"}
+          </span>
+          <button onClick={refresh} disabled={loading} className="v-btn" style={{ marginLeft: "auto", padding: "7px 14px", borderRadius: "10px", fontSize: "13px", fontWeight: 700, border: `1px solid ${theme.accent}`, background: theme.accent, color: theme.accentText, opacity: loading ? 0.6 : 1 }}>
+            {loading ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
+        <div style={{ fontSize: "12px", color: theme.textMuted, marginTop: "10px", lineHeight: 1.4 }}>
+          Celtics, Red Sox, Bruins, and Colts — plus the latest around the NBA, MLB, and NFL. Headlines from ESPN.
+        </div>
+        <div style={{ display: "flex", gap: "6px", marginTop: "12px" }}>
+          {[["news", "Headlines"], ["schedule", "Schedule & Scores"]].map(([id, lbl]) => (
+            <button key={id} onClick={() => setView(id)} className="v-btn" style={{ padding: "7px 14px", borderRadius: "9px", fontSize: "12.5px", fontWeight: 700, cursor: "pointer", border: `1px solid ${view === id ? theme.accent : theme.cardBorder}`, background: view === id ? theme.accentSoft : "transparent", color: view === id ? theme.accent : theme.textMuted }}>{lbl}</button>
+          ))}
+        </div>
+        {error && (
+          <div style={{ marginTop: "12px", fontSize: "12.5px", fontWeight: 600, padding: "10px 13px", borderRadius: "9px", color: theme.textMuted, background: theme.accentSoft, lineHeight: 1.45 }}>{error}</div>
+        )}
+      </Card>
+
+      {view === "news" && SPORTS_FEEDS.map((feed, fi) => {
+        const items = cache[feed.id] || [];
+        return (
+          <Card theme={theme} key={feed.id} delay={40 * (fi + 1)}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+              <span style={{ fontSize: "13px", fontWeight: 800, color: theme.text }}>{feed.label}</span>
+              <span style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.05em", color: theme.chipText, background: theme.chip, padding: "2px 7px", borderRadius: "999px" }}>{feed.league}</span>
+              <span style={{ fontSize: "11px", color: theme.textFaint, marginLeft: "auto" }}>{items.length ? `${items.length} stories` : loading ? "loading…" : ""}</span>
+            </div>
+            {items.length === 0 ? (
+              <div style={{ fontSize: "12.5px", color: theme.textFaint }}>{loading ? "Fetching headlines…" : "Nothing cached — hit Refresh on the live site."}</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                {items.map((it, i) => (
+                  <a key={it.id} href={it.link} target="_blank" rel="noopener noreferrer" style={{ display: "block", textDecoration: "none", padding: "10px 0", borderTop: i === 0 ? "none" : `1px solid ${theme.divider}` }}>
+                    <div style={{ fontSize: "14px", fontWeight: 600, color: theme.text, lineHeight: 1.4 }}>{it.headline}</div>
+                    {it.description && <div style={{ fontSize: "12.5px", color: theme.textMuted, marginTop: "3px", lineHeight: 1.4 }}>{truncateText(it.description, 160)}</div>}
+                    <div style={{ fontSize: "11.5px", color: theme.textFaint, marginTop: "4px" }}>{it.published ? relTimeFrom(it.published) : ""}</div>
+                  </a>
+                ))}
+              </div>
+            )}
+          </Card>
+        );
+      })}
+      {view === "schedule" && (
+        <SportsScheduleView theme={theme} sched={state.schedule || {}} loading={schedLoading} error={schedError} onRefresh={refreshSchedule} fetchedAt={state.schedFetchedAt} />
+      )}
+    </div>
+  );
+}
+
+function truncateText(s, n) {
+  s = String(s || "");
+  return s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s;
+}
+
+/* ----------------------------------------------------------------------
+   SUBSCRIPTIONS — recurring costs with monthly/yearly totals
+---------------------------------------------------------------------- */
+const SUB_CYCLES = [
+  { id: "monthly", label: "Monthly", per: 1 },
+  { id: "yearly", label: "Yearly", per: 1 / 12 },
+  { id: "weekly", label: "Weekly", per: 52 / 12 },
+  { id: "quarterly", label: "Quarterly", per: 1 / 3 },
+];
+const DEFAULT_SUBSCRIPTIONS = [];
+function subPerMonth(s) {
+  const c = SUB_CYCLES.find((x) => x.id === s.cycle) || SUB_CYCLES[0];
+  return (Number(s.cost) || 0) * c.per;
+}
+function fmtMoney(n) {
+  return "$" + (Number(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function subDaysUntil(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr + "T00:00:00").getTime();
+  if (isNaN(d)) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  return Math.round((d - today.getTime()) / 86400000);
+}
+
+/* ----------------------------------------------------------------------
+   HABITS — daily check-off grid with streaks (fully local)
+---------------------------------------------------------------------- */
+const DEFAULT_HABITS = { items: [], done: {} };
+const HABIT_SUGGESTIONS = ["Gym", "Read", "Meditate", "Water", "Walk", "No sugar"];
+
+function IconFlame({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3c1 3 4 4.6 4 8a4 4 0 0 1-8 0c0-1 .3-1.9.8-2.6C9 10 9.6 11 10.6 11 10 9 11 5 12 3z" />
+      <path d="M8.6 14.2a3.4 3.4 0 0 0 6.8 0c0-1.5-.9-2.5-1.6-3.2" />
+    </svg>
+  );
+}
+
+function habitDayKey(dt) {
+  const d = new Date(dt);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function habitLastDays(n) {
+  const out = [];
+  const today = new Date();
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    out.push(d);
+  }
+  return out;
+}
+function habitStreak(doneMap) {
+  if (!doneMap) return 0;
+  let streak = 0;
+  const d = new Date();
+  if (!doneMap[habitDayKey(d)]) d.setDate(d.getDate() - 1); // grace: today not checked yet
+  while (doneMap[habitDayKey(d)]) { streak++; d.setDate(d.getDate() - 1); }
+  return streak;
+}
+function habitBestStreak(doneMap) {
+  const keys = Object.keys(doneMap || {}).filter((k) => doneMap[k]).sort();
+  let best = 0, run = 0, prev = null;
+  for (const k of keys) {
+    if (prev) {
+      const gap = (new Date(k) - new Date(prev)) / 86400000;
+      run = gap === 1 ? run + 1 : 1;
+    } else run = 1;
+    best = Math.max(best, run);
+    prev = k;
+  }
+  return best;
+}
+
+function HabitsSection({ theme, state, setState }) {
+  const s = state && state.items ? state : DEFAULT_HABITS;
+  const [name, setName] = useState("");
+  const todayKey = habitDayKey(new Date());
+  const days = useMemo(() => habitLastDays(14), []);
+
+  function addHabit(label) {
+    const n = (label != null ? label : name).trim();
+    if (!n) return;
+    if ((s.items || []).some((h) => h.name.toLowerCase() === n.toLowerCase())) { setName(""); return; }
+    setState((prev) => {
+      const p = prev && prev.items ? prev : DEFAULT_HABITS;
+      return { ...p, items: [...p.items, { id: "hab" + Date.now() + Math.round(performance.now()), name: n }] };
+    });
+    setName("");
+  }
+  function removeHabit(id) {
+    setState((prev) => {
+      const p = prev && prev.items ? prev : DEFAULT_HABITS;
+      const done = { ...p.done }; delete done[id];
+      return { ...p, items: p.items.filter((h) => h.id !== id), done };
+    });
+  }
+  function toggle(id, key) {
+    setState((prev) => {
+      const p = prev && prev.items ? prev : DEFAULT_HABITS;
+      const hd = { ...(p.done[id] || {}) };
+      if (hd[key]) delete hd[key]; else hd[key] = 1;
+      return { ...p, done: { ...p.done, [id]: hd } };
+    });
+  }
+
+  const items = s.items || [];
+  const doneToday = items.filter((h) => s.done[h.id] && s.done[h.id][todayKey]).length;
+  const inputStyle = { padding: "8px 10px", borderRadius: "9px", fontSize: "13px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <Card theme={theme} delay={0}>
+        <SectionLabel theme={theme} icon={<IconFlame />}>Habits</SectionLabel>
+        <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap", marginBottom: "6px" }}>
+          <span className="v-tabular" style={{ fontSize: "30px", fontWeight: 800, color: theme.text }}>{doneToday}/{items.length || 0}</span>
+          <span style={{ fontSize: "13px", color: theme.textMuted }}>done today</span>
+          {items.length > 0 && doneToday === items.length && (
+            <span style={{ fontSize: "13px", color: theme.positive, fontWeight: 700, marginLeft: "auto" }}>All done — nice! 🔥</span>
+          )}
+        </div>
+
+        <div style={{ display: "flex", gap: "8px", marginTop: "12px", flexWrap: "wrap" }}>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") addHabit(); }}
+            placeholder="New habit (e.g. Gym)"
+            className="v-input"
+            style={{ ...inputStyle, flex: 1, minWidth: "160px" }}
+          />
+          <button onClick={() => addHabit()} className="v-btn" style={{ padding: "8px 16px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText }}>Add</button>
+        </div>
+        {items.length === 0 && (
+          <div style={{ display: "flex", gap: "6px", marginTop: "10px", flexWrap: "wrap" }}>
+            {HABIT_SUGGESTIONS.map((sug) => (
+              <button key={sug} onClick={() => addHabit(sug)} className="v-btn" style={{ padding: "5px 11px", borderRadius: "999px", fontSize: "12px", fontWeight: 600, border: `1px solid ${theme.cardBorder}`, background: theme.chip, color: theme.chipText }}>+ {sug}</button>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {items.length === 0 ? (
+        <Card theme={theme} delay={80}>
+          <div style={{ textAlign: "center", padding: "20px", color: theme.textFaint, fontSize: "13px" }}>No habits yet — add one above (or tap a suggestion) and start your first streak.</div>
+        </Card>
+      ) : (
+        <Card theme={theme} delay={80}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            {items.map((h) => {
+              const dmap = s.done[h.id] || {};
+              const streak = habitStreak(dmap);
+              const best = habitBestStreak(dmap);
+              const doneTodayH = !!dmap[todayKey];
+              return (
+                <div key={h.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "11px 12px", border: `1px solid ${theme.cardBorder}`, borderRadius: "10px", flexWrap: "wrap" }}>
+                  <div style={{ flex: 1, minWidth: "150px" }}>
+                    <div style={{ fontSize: "14px", fontWeight: 700, color: theme.text }}>{h.name}</div>
+                    <div style={{ fontSize: "11.5px", color: theme.textFaint, marginTop: "2px", display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{ color: streak > 0 ? theme.accent : theme.textFaint, fontWeight: 700 }}>{streak > 0 ? `${streak}-day streak 🔥` : "no streak yet"}</span>
+                      {best > 0 && <span>· best {best}</span>}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: "3px", alignItems: "center" }}>
+                    {days.map((d) => {
+                      const key = habitDayKey(d);
+                      const on = !!dmap[key];
+                      const isToday = key === todayKey;
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => toggle(h.id, key)}
+                          className="v-btn"
+                          title={d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) + (on ? " · done" : "")}
+                          style={{
+                            width: "18px", height: "18px", borderRadius: "5px", padding: 0, flexShrink: 0,
+                            border: isToday ? `1.5px solid ${theme.accent}` : `1px solid ${theme.cardBorder}`,
+                            background: on ? theme.accent : "transparent",
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                  <button
+                    onClick={() => toggle(h.id, todayKey)}
+                    className="v-btn"
+                    style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, flexShrink: 0, border: `1px solid ${doneTodayH ? "transparent" : theme.cardBorder}`, background: doneTodayH ? theme.accentSoft : "transparent", color: doneTodayH ? theme.accent : theme.textMuted }}
+                  >
+                    {doneTodayH ? "✓ Today" : "Mark today"}
+                  </button>
+                  <button onClick={() => removeHabit(h.id)} className="v-btn" title="Remove" style={{ border: "none", background: "transparent", color: theme.textMuted, padding: "4px", display: "inline-flex", flexShrink: 0 }}><IconClose /></button>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: "11px", color: theme.textFaint, marginTop: "10px", textAlign: "right" }}>Last 14 days · tap any square to toggle</div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------------
+   READING — book log with Open Library search (CORS-friendly, no key)
+---------------------------------------------------------------------- */
+const DEFAULT_READING = { books: [], goal: 12 };
+const READING_SHELVES = [
+  { id: "reading", label: "Reading" },
+  { id: "finished", label: "Finished" },
+  { id: "want", label: "Want to read" },
+];
+
+function IconBook({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v18H6.5A2.5 2.5 0 0 0 4 22.5z" />
+      <path d="M4 4.5A2.5 2.5 0 0 0 6.5 7H20" />
+    </svg>
+  );
+}
+
+function bookCoverUrl(coverId) {
+  return coverId ? `https://covers.openlibrary.org/b/id/${coverId}-M.jpg` : null;
+}
+async function searchBooks(q) {
+  const r = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=6&fields=key,title,author_name,first_publish_year,cover_i,number_of_pages_median`);
+  if (!r.ok) throw new Error("Search failed (" + r.status + ")");
+  const d = await r.json();
+  return (d.docs || []).map((doc) => ({
+    key: doc.key,
+    title: doc.title || "Untitled",
+    author: (doc.author_name && doc.author_name[0]) || "",
+    year: doc.first_publish_year || "",
+    pages: doc.number_of_pages_median || "",
+    coverId: doc.cover_i || null,
+  }));
+}
+
+function BookStars({ theme, value, onChange }) {
+  return (
+    <span style={{ display: "inline-flex", gap: "1px" }}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button key={n} onClick={() => onChange(n === value ? 0 : n)} className="v-btn" title={`${n} star${n > 1 ? "s" : ""}`} style={{ border: "none", background: "transparent", padding: "0 1px", cursor: "pointer", color: n <= value ? theme.accent : theme.textFaint, fontSize: "15px", lineHeight: 1 }}>
+          {n <= value ? "★" : "☆"}
+        </button>
+      ))}
+    </span>
+  );
+}
+
+function BookCover({ theme, url, w = 40, h = 58 }) {
+  const [broke, setBroke] = useState(false);
+  if (!url || broke) {
+    return <div style={{ width: w, height: h, borderRadius: "5px", background: theme.chip, border: `1px solid ${theme.cardBorder}`, display: "flex", alignItems: "center", justifyContent: "center", color: theme.textFaint, flexShrink: 0 }}><IconBook size={16} /></div>;
+  }
+  return <img src={url} alt="" onError={() => setBroke(true)} style={{ width: w, height: h, objectFit: "cover", borderRadius: "5px", border: `1px solid ${theme.cardBorder}`, flexShrink: 0 }} />;
+}
+
+function ReadingSection({ theme, state, setState }) {
+  const s = state && state.books ? state : DEFAULT_READING;
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState(null);
+  const [searching, setSearching] = useState(false);
+  const [searchErr, setSearchErr] = useState(null);
+  const [filter, setFilter] = useState("all");
+  const [manualTitle, setManualTitle] = useState("");
+  const [manualAuthor, setManualAuthor] = useState("");
+
+  const thisYear = new Date().getFullYear();
+  const books = s.books || [];
+  const finishedThisYear = books.filter((b) => b.status === "finished" && b.finishedAt && new Date(b.finishedAt).getFullYear() === thisYear).length;
+  const counts = {
+    reading: books.filter((b) => b.status === "reading").length,
+    finished: books.filter((b) => b.status === "finished").length,
+    want: books.filter((b) => b.status === "want").length,
+  };
+
+  function addBook(book, status) {
+    const exists = books.some((b) => b.title === book.title && b.author === book.author);
+    if (exists) return;
+    const entry = {
+      id: "bk" + Date.now() + Math.round(performance.now()),
+      title: book.title, author: book.author || "", year: book.year || "", pages: book.pages || "",
+      coverId: book.coverId || null, status, rating: 0,
+      addedAt: new Date().toISOString(),
+      finishedAt: status === "finished" ? new Date().toISOString() : null,
+    };
+    setState((prev) => ({ ...(prev && prev.books ? prev : DEFAULT_READING), books: [entry, ...(prev && prev.books ? prev.books : [])] }));
+  }
+  function updateBook(id, patch) {
+    setState((prev) => {
+      const p = prev && prev.books ? prev : DEFAULT_READING;
+      return { ...p, books: p.books.map((b) => (b.id === id ? { ...b, ...patch } : b)) };
+    });
+  }
+  function setStatus(id, status) {
+    updateBook(id, { status, finishedAt: status === "finished" ? (books.find((b) => b.id === id) || {}).finishedAt || new Date().toISOString() : null });
+  }
+  function removeBook(id) {
+    setState((prev) => { const p = prev && prev.books ? prev : DEFAULT_READING; return { ...p, books: p.books.filter((b) => b.id !== id) }; });
+  }
+  function addManual() {
+    const t = manualTitle.trim();
+    if (!t) return;
+    addBook({ title: t, author: manualAuthor.trim() }, "want");
+    setManualTitle(""); setManualAuthor("");
+  }
+
+  async function runSearch() {
+    const q = query.trim();
+    if (!q) return;
+    setSearching(true); setSearchErr(null);
+    try {
+      const res = await searchBooks(q);
+      setResults(res);
+      if (res.length === 0) setSearchErr("No matches. You can add it manually below.");
+    } catch (e) {
+      setSearchErr("Couldn't reach Open Library (the preview/sandbox blocks outside requests — this works on the live site). Add the book manually below.");
+      setResults([]);
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  const inputStyle = { padding: "9px 11px", borderRadius: "9px", fontSize: "13px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent };
+  const shown = filter === "all" ? books : books.filter((b) => b.status === filter);
+  const goalPct = s.goal ? Math.min(100, Math.round((finishedThisYear / s.goal) * 100)) : 0;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <Card theme={theme} delay={0}>
+        <SectionLabel theme={theme} icon={<IconBook />}>Reading</SectionLabel>
+        <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap", marginBottom: "8px" }}>
+          <span className="v-tabular" style={{ fontSize: "30px", fontWeight: 800, color: theme.text }}>{finishedThisYear}</span>
+          <span style={{ fontSize: "13px", color: theme.textMuted }}>of</span>
+          <input value={s.goal} onChange={(e) => setState((prev) => ({ ...(prev && prev.books ? prev : DEFAULT_READING), goal: Math.max(0, parseInt(e.target.value, 10) || 0) }))} inputMode="numeric" className="v-input" style={{ ...inputStyle, width: "58px", padding: "4px 8px", fontSize: "15px", fontWeight: 700 }} />
+          <span style={{ fontSize: "13px", color: theme.textMuted }}>books in {thisYear}</span>
+          <span style={{ fontSize: "12.5px", color: theme.textFaint, marginLeft: "auto" }}>{counts.reading} reading · {counts.finished} finished · {counts.want} to read</span>
+        </div>
+        <div style={{ height: "8px", borderRadius: "999px", background: theme.progressTrack, overflow: "hidden" }}>
+          <div style={{ width: goalPct + "%", height: "100%", background: theme.progressFill }} />
+        </div>
+
+        {/* Search */}
+        <div style={{ display: "flex", gap: "8px", marginTop: "16px", flexWrap: "wrap" }}>
+          <input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") runSearch(); }} placeholder="Search a book by title or author…" className="v-input" style={{ ...inputStyle, flex: 1, minWidth: "180px" }} />
+          <button onClick={runSearch} disabled={searching} className="v-btn" style={{ padding: "9px 16px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText, opacity: searching ? 0.6 : 1 }}>{searching ? "Searching…" : "Search"}</button>
+        </div>
+        {searchErr && <div style={{ marginTop: "10px", fontSize: "12.5px", color: theme.textMuted, background: theme.accentSoft, borderRadius: "9px", padding: "9px 12px", lineHeight: 1.45 }}>{searchErr}</div>}
+
+        {results && results.length > 0 && (
+          <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+            {results.map((r) => (
+              <div key={r.key} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 10px", border: `1px solid ${theme.cardBorder}`, borderRadius: "10px" }}>
+                <BookCover theme={theme} url={bookCoverUrl(r.coverId)} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: "13.5px", fontWeight: 700, color: theme.text }}>{r.title}</div>
+                  <div style={{ fontSize: "12px", color: theme.textFaint }}>{[r.author, r.year].filter(Boolean).join(" · ")}</div>
+                </div>
+                <div style={{ display: "flex", gap: "5px", flexShrink: 0 }}>
+                  <button onClick={() => addBook(r, "want")} className="v-btn" title="Add to Want to read" style={{ padding: "6px 10px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.textMuted }}>Want</button>
+                  <button onClick={() => addBook(r, "reading")} className="v-btn" title="Add to Reading" style={{ padding: "6px 10px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText }}>Reading</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Manual add */}
+        <div style={{ display: "flex", gap: "8px", marginTop: "12px", flexWrap: "wrap" }}>
+          <input value={manualTitle} onChange={(e) => setManualTitle(e.target.value)} placeholder="…or add manually — title" className="v-input" style={{ ...inputStyle, flex: 1, minWidth: "140px" }} />
+          <input value={manualAuthor} onChange={(e) => setManualAuthor(e.target.value)} placeholder="author (optional)" className="v-input" style={{ ...inputStyle, flex: 1, minWidth: "120px" }} />
+          <button onClick={addManual} className="v-btn" style={{ padding: "9px 14px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.text }}>Add</button>
+        </div>
+      </Card>
+
+      <Card theme={theme} delay={80}>
+        <div style={{ display: "flex", gap: "6px", marginBottom: "12px", flexWrap: "wrap" }}>
+          {[{ id: "all", label: "All" }, ...READING_SHELVES].map((f) => (
+            <button key={f.id} onClick={() => setFilter(f.id)} className="v-btn" style={{ padding: "6px 12px", borderRadius: "999px", fontSize: "12px", fontWeight: 700, border: `1px solid ${filter === f.id ? theme.accent : theme.cardBorder}`, background: filter === f.id ? theme.accentSoft : "transparent", color: filter === f.id ? theme.accent : theme.textMuted }}>{f.label}</button>
+          ))}
+        </div>
+        {shown.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "18px", color: theme.textFaint, fontSize: "13px" }}>{books.length === 0 ? "No books yet — search above to build your shelf." : "Nothing on this shelf."}</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {shown.map((bk) => (
+              <div key={bk.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 12px", border: `1px solid ${theme.cardBorder}`, borderRadius: "10px", flexWrap: "wrap" }}>
+                <BookCover theme={theme} url={bookCoverUrl(bk.coverId)} />
+                <div style={{ flex: 1, minWidth: "150px" }}>
+                  <div style={{ fontSize: "14px", fontWeight: 700, color: theme.text }}>{bk.title}</div>
+                  <div style={{ fontSize: "12px", color: theme.textFaint, marginTop: "1px" }}>{[bk.author, bk.year].filter(Boolean).join(" · ")}</div>
+                  {bk.status === "finished" && <div style={{ marginTop: "4px" }}><BookStars theme={theme} value={bk.rating || 0} onChange={(v) => updateBook(bk.id, { rating: v })} /></div>}
+                </div>
+                <select value={bk.status} onChange={(e) => setStatus(bk.id, e.target.value)} className="v-input" style={{ ...inputStyle, padding: "6px 8px", flexShrink: 0 }}>
+                  {READING_SHELVES.map((sh) => <option key={sh.id} value={sh.id}>{sh.label}</option>)}
+                </select>
+                <button onClick={() => removeBook(bk.id)} className="v-btn" title="Remove" style={{ border: "none", background: "transparent", color: theme.textMuted, padding: "4px", display: "inline-flex", flexShrink: 0 }}><IconClose /></button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------------
+   GAMES — backlog / playing / beaten tracker (fully local)
+---------------------------------------------------------------------- */
+const DEFAULT_GAMES = { games: [] };
+const GAME_STATUSES = [
+  { id: "backlog", label: "Backlog" },
+  { id: "playing", label: "Playing" },
+  { id: "beaten", label: "Beaten" },
+  { id: "dropped", label: "Dropped" },
+];
+const GAME_PLATFORMS = ["PC", "PS5", "PS4", "Xbox", "Switch", "Mobile"];
+
+function IconGamepad({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="6" y1="11" x2="10" y2="11" />
+      <line x1="8" y1="9" x2="8" y2="13" />
+      <line x1="15" y1="12" x2="15.01" y2="12" />
+      <line x1="18" y1="10" x2="18.01" y2="10" />
+      <rect x="2" y="6" width="20" height="12" rx="4" />
+    </svg>
+  );
+}
+
+function GamesSection({ theme, state, setState }) {
+  const s = state && state.games ? state : DEFAULT_GAMES;
+  const [title, setTitle] = useState("");
+  const [platform, setPlatform] = useState("PC");
+  const [status, setStatus] = useState("backlog");
+  const [filter, setFilter] = useState("all");
+
+  const games = s.games || [];
+  const counts = {};
+  GAME_STATUSES.forEach((st) => (counts[st.id] = games.filter((g) => g.status === st.id).length));
+  const totalHours = games.reduce((a, g) => a + (Number(g.hours) || 0), 0);
+
+  function addGame() {
+    const t = title.trim();
+    if (!t) return;
+    const entry = { id: "gm" + Date.now() + Math.round(performance.now()), title: t, platform, status, rating: 0, hours: "", addedAt: new Date().toISOString() };
+    setState((prev) => ({ ...(prev && prev.games ? prev : DEFAULT_GAMES), games: [entry, ...(prev && prev.games ? prev.games : [])] }));
+    setTitle("");
+  }
+  function updateGame(id, patch) {
+    setState((prev) => { const p = prev && prev.games ? prev : DEFAULT_GAMES; return { ...p, games: p.games.map((g) => (g.id === id ? { ...g, ...patch } : g)) }; });
+  }
+  function removeGame(id) {
+    setState((prev) => { const p = prev && prev.games ? prev : DEFAULT_GAMES; return { ...p, games: p.games.filter((g) => g.id !== id) }; });
+  }
+
+  const inputStyle = { padding: "9px 11px", borderRadius: "9px", fontSize: "13px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent };
+  const shown = filter === "all" ? games : games.filter((g) => g.status === filter);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <Card theme={theme} delay={0}>
+        <SectionLabel theme={theme} icon={<IconGamepad />}>Games</SectionLabel>
+        <div style={{ display: "flex", gap: "18px", flexWrap: "wrap", marginBottom: "6px" }}>
+          <div><div style={{ fontSize: "11px", color: theme.textFaint }}>Backlog</div><div className="v-tabular" style={{ fontSize: "24px", fontWeight: 800, color: theme.text }}>{counts.backlog}</div></div>
+          <div><div style={{ fontSize: "11px", color: theme.textFaint }}>Playing</div><div className="v-tabular" style={{ fontSize: "24px", fontWeight: 800, color: theme.text }}>{counts.playing}</div></div>
+          <div><div style={{ fontSize: "11px", color: theme.textFaint }}>Beaten</div><div className="v-tabular" style={{ fontSize: "24px", fontWeight: 800, color: theme.text }}>{counts.beaten}</div></div>
+          <div><div style={{ fontSize: "11px", color: theme.textFaint }}>Hours</div><div className="v-tabular" style={{ fontSize: "24px", fontWeight: 800, color: theme.text }}>{totalHours}</div></div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "8px", marginTop: "12px" }}>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addGame(); }} placeholder="Game title" className="v-input" style={{ ...inputStyle, gridColumn: "span 2" }} />
+          <select value={platform} onChange={(e) => setPlatform(e.target.value)} className="v-input" style={inputStyle}>
+            {GAME_PLATFORMS.map((pf) => <option key={pf} value={pf}>{pf}</option>)}
+          </select>
+          <select value={status} onChange={(e) => setStatus(e.target.value)} className="v-input" style={inputStyle}>
+            {GAME_STATUSES.map((st) => <option key={st.id} value={st.id}>{st.label}</option>)}
+          </select>
+          <button onClick={addGame} className="v-btn" style={{ padding: "9px 14px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText }}>Add</button>
+        </div>
+      </Card>
+
+      <Card theme={theme} delay={80}>
+        <div style={{ display: "flex", gap: "6px", marginBottom: "12px", flexWrap: "wrap" }}>
+          {[{ id: "all", label: "All" }, ...GAME_STATUSES].map((f) => (
+            <button key={f.id} onClick={() => setFilter(f.id)} className="v-btn" style={{ padding: "6px 12px", borderRadius: "999px", fontSize: "12px", fontWeight: 700, border: `1px solid ${filter === f.id ? theme.accent : theme.cardBorder}`, background: filter === f.id ? theme.accentSoft : "transparent", color: filter === f.id ? theme.accent : theme.textMuted }}>{f.label}</button>
+          ))}
+        </div>
+        {shown.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "18px", color: theme.textFaint, fontSize: "13px" }}>{games.length === 0 ? "No games yet — add one above to start your backlog." : "Nothing on this shelf."}</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {shown.map((g) => (
+              <div key={g.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 12px", border: `1px solid ${theme.cardBorder}`, borderRadius: "10px", flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: "150px" }}>
+                  <div style={{ fontSize: "14px", fontWeight: 700, color: theme.text }}>{g.title}</div>
+                  <div style={{ fontSize: "12px", color: theme.textFaint, marginTop: "1px" }}>{g.platform}</div>
+                  {g.status === "beaten" && <div style={{ marginTop: "4px" }}><BookStars theme={theme} value={g.rating || 0} onChange={(v) => updateGame(g.id, { rating: v })} /></div>}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "3px", flexShrink: 0 }}>
+                  <input value={g.hours} onChange={(e) => updateGame(g.id, { hours: e.target.value.replace(/[^0-9]/g, "") })} inputMode="numeric" placeholder="0" title="Hours played" className="v-input" style={{ ...inputStyle, width: "52px", padding: "6px 8px", textAlign: "center" }} />
+                  <span style={{ fontSize: "11px", color: theme.textFaint }}>hrs</span>
+                </div>
+                <select value={g.status} onChange={(e) => updateGame(g.id, { status: e.target.value })} className="v-input" style={{ ...inputStyle, padding: "6px 8px", flexShrink: 0 }}>
+                  {GAME_STATUSES.map((st) => <option key={st.id} value={st.id}>{st.label}</option>)}
+                </select>
+                <button onClick={() => removeGame(g.id)} className="v-btn" title="Remove" style={{ border: "none", background: "transparent", color: theme.textMuted, padding: "4px", display: "inline-flex", flexShrink: 0 }}><IconClose /></button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function SubscriptionsSection({ theme, subs, setSubs }) {
+  const [name, setName] = useState("");
+  const [cost, setCost] = useState("");
+  const [cycle, setCycle] = useState("monthly");
+  const [renewal, setRenewal] = useState("");
+  const [category, setCategory] = useState("");
+
+  function addSub() {
+    const n = name.trim();
+    const c = parseFloat(cost);
+    if (!n || isNaN(c)) return;
+    setSubs([...(subs || []), { id: "sub" + Date.now(), name: n, cost: c, cycle, renewal, category: category.trim() }]);
+    setName(""); setCost(""); setCycle("monthly"); setRenewal(""); setCategory("");
+  }
+  function removeSub(id) { setSubs((subs || []).filter((s) => s.id !== id)); }
+
+  const monthly = useMemo(() => (subs || []).reduce((sum, s) => sum + subPerMonth(s), 0), [subs]);
+  const sorted = useMemo(() => {
+    return [...(subs || [])].sort((a, b) => {
+      const da = subDaysUntil(a.renewal), db = subDaysUntil(b.renewal);
+      if (da == null && db == null) return b.cost - a.cost;
+      if (da == null) return 1;
+      if (db == null) return -1;
+      return da - db;
+    });
+  }, [subs]);
+
+  const inputStyle = { padding: "8px 10px", borderRadius: "9px", fontSize: "13px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <Card theme={theme} delay={0}>
+        <SectionLabel theme={theme} icon={<IconCreditCard />}>Subscriptions</SectionLabel>
+        <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap", marginBottom: "6px" }}>
+          <span className="v-tabular" style={{ fontSize: "30px", fontWeight: 800, color: theme.text }}>{fmtMoney(monthly)}</span>
+          <span style={{ fontSize: "13px", color: theme.textMuted }}>/ month</span>
+          <span style={{ fontSize: "13px", color: theme.textFaint, marginLeft: "auto" }}>{fmtMoney(monthly * 12)} / year · {(subs || []).length} active</span>
+        </div>
+
+        {/* Add form */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "8px", marginTop: "14px" }}>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name (e.g. Netflix)" className="v-input" style={{ ...inputStyle, gridColumn: "span 2" }} />
+          <input value={cost} onChange={(e) => setCost(e.target.value)} placeholder="Cost" inputMode="decimal" className="v-input" style={inputStyle} />
+          <select value={cycle} onChange={(e) => setCycle(e.target.value)} className="v-input" style={inputStyle}>
+            {SUB_CYCLES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+          </select>
+          <input type="date" value={renewal} onChange={(e) => setRenewal(e.target.value)} title="Next renewal" className="v-input" style={inputStyle} />
+          <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Category (optional)" className="v-input" style={inputStyle} />
+          <button onClick={addSub} className="v-btn" style={{ padding: "8px 14px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText }}>Add</button>
+        </div>
+      </Card>
+
+      {sorted.length === 0 ? (
+        <Card theme={theme} delay={80}>
+          <div style={{ textAlign: "center", padding: "20px", color: theme.textFaint, fontSize: "13px" }}>No subscriptions yet — add your first one above to see your monthly total.</div>
+        </Card>
+      ) : (
+        <Card theme={theme} delay={80}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {sorted.map((s) => {
+              const dleft = subDaysUntil(s.renewal);
+              const renewLabel = dleft == null ? "" : dleft < 0 ? "overdue" : dleft === 0 ? "renews today" : dleft === 1 ? "renews tomorrow" : `renews in ${dleft}d`;
+              return (
+                <div key={s.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "11px 12px", border: `1px solid ${theme.cardBorder}`, borderRadius: "10px", flexWrap: "wrap" }}>
+                  <div style={{ flex: 1, minWidth: "140px" }}>
+                    <div style={{ fontSize: "14px", fontWeight: 700, color: theme.text }}>{s.name}</div>
+                    <div style={{ fontSize: "11.5px", color: theme.textFaint, marginTop: "2px" }}>
+                      {s.category ? s.category + " · " : ""}{renewLabel}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div className="v-tabular" style={{ fontSize: "14px", fontWeight: 700, color: theme.text }}>{fmtMoney(s.cost)}<span style={{ fontSize: "11px", color: theme.textMuted, fontWeight: 500 }}> /{(SUB_CYCLES.find((c) => c.id === s.cycle) || SUB_CYCLES[0]).label.toLowerCase().replace("ly", "")}</span></div>
+                    <div style={{ fontSize: "11px", color: theme.textFaint }}>≈ {fmtMoney(subPerMonth(s))}/mo</div>
+                  </div>
+                  <button onClick={() => removeSub(s.id)} className="v-btn" title="Remove" style={{ border: "none", background: "transparent", color: theme.textMuted, padding: "4px", display: "inline-flex", flexShrink: 0 }}><IconClose /></button>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------------
+   NEWS — daily headlines by topic
+
+   Uses the Hacker News (Algolia) search API: CORS-enabled, no key, no
+   backend. You give it topics; it returns recent stories (which surface a
+   lot of security-press and CVE coverage). Results cache to localStorage so
+   the tab loads instantly and survives brief offline spells. Live fetches
+   only work on the deployed site — the sandbox/preview blocks outbound
+   requests, so the tab shows a friendly note there.
+---------------------------------------------------------------------- */
+const DEFAULT_NEWS_TOPICS = ["cybersecurity", "ransomware", "vulnerability", "data breach"];
+const NEWS_STALE_MS = 60 * 60 * 1000; // refetch if the cache is older than an hour
+
+function IconNews({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 5h13v14a2 2 0 0 1-2 2H5a2 2 0 0 1-1-1.7V5z" />
+      <path d="M17 8h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2" />
+      <path d="M7 8h7M7 12h7M7 16h5" />
+    </svg>
+  );
+}
+
+function newsRelTime(iso) {
+  try {
+    const then = new Date(iso).getTime();
+    const mins = Math.max(0, Math.round((Date.now() - then) / 60000));
+    if (mins < 60) return mins + "m ago";
+    const hrs = Math.round(mins / 60);
+    if (hrs < 24) return hrs + "h ago";
+    return Math.round(hrs / 24) + "d ago";
+  } catch (e) { return ""; }
+}
+function newsDomain(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ""); } catch (e) { return ""; }
+}
+
+async function fetchNewsTopic(topic, limit = 8) {
+  const url = `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(topic)}&tags=story&hitsPerPage=${limit}`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error("News request failed (" + r.status + ")");
+  const data = await r.json();
+  return (data.hits || [])
+    .filter((h) => h.title)
+    .map((h) => ({
+      id: h.objectID,
+      title: h.title,
+      url: h.url || `https://news.ycombinator.com/item?id=${h.objectID}`,
+      points: h.points || 0,
+      comments: h.num_comments || 0,
+      date: h.created_at,
+    }));
+}
+
+function NewsSection({ theme, state, setState }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [topicInput, setTopicInput] = useState("");
+  const topics = state.topics || DEFAULT_NEWS_TOPICS;
+  const cache = state.cache || {};
+
+  async function refresh(topicList) {
+    const list = topicList || topics;
+    if (list.length === 0) { setState((s) => ({ ...s, cache: {}, fetchedAt: Date.now() })); return; }
+    setLoading(true);
+    setError(null);
+    try {
+      const results = await Promise.all(
+        list.map((t) => fetchNewsTopic(t).then((items) => [t, items]).catch(() => [t, null]))
+      );
+      const next = {};
+      let anyOk = false;
+      results.forEach(([t, items]) => {
+        if (items) { next[t] = items; anyOk = true; }
+        else if (cache[t]) next[t] = cache[t]; // keep prior on per-topic failure
+      });
+      if (!anyOk) {
+        setError("Couldn't reach the news source. On the live site this loads automatically; the preview/sandbox blocks outside requests.");
+      }
+      setState((s) => ({ ...s, topics: list, cache: next, fetchedAt: Date.now() }));
+    } catch (e) {
+      setError(e.message || "Couldn't load news.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Fetch on first open if we have nothing cached or the cache is stale.
+  useEffect(() => {
+    const stale = !state.fetchedAt || Date.now() - state.fetchedAt > NEWS_STALE_MS;
+    if (topics.length && (Object.keys(cache).length === 0 || stale)) refresh(topics);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function addTopic() {
+    const t = topicInput.trim();
+    if (!t) return;
+    if (topics.some((x) => x.toLowerCase() === t.toLowerCase())) { setTopicInput(""); return; }
+    const next = [...topics, t];
+    setTopicInput("");
+    refresh(next);
+  }
+  function removeTopic(t) {
+    const next = topics.filter((x) => x !== t);
+    const nextCache = { ...cache };
+    delete nextCache[t];
+    setState((s) => ({ ...s, topics: next, cache: nextCache }));
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <Card theme={theme} delay={0}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+          <SectionLabel theme={theme} icon={<IconNews />} style={{ margin: 0 }}>News by topic</SectionLabel>
+          <span style={{ fontSize: "12px", color: theme.textFaint }}>
+            {state.fetchedAt ? `Updated ${newsRelTime(new Date(state.fetchedAt).toISOString())}` : "Not loaded yet"}
+          </span>
+          <button
+            onClick={() => refresh()}
+            disabled={loading}
+            className="v-btn"
+            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: "7px", padding: "7px 14px", borderRadius: "10px", fontSize: "13px", fontWeight: 700, border: `1px solid ${theme.accent}`, background: theme.accent, color: theme.accentText, opacity: loading ? 0.6 : 1 }}
+          >
+            {loading ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
+
+        <div style={{ fontSize: "12px", color: theme.textMuted, margin: "12px 0 10px", lineHeight: 1.4 }}>
+          Add the topics you want to follow. Headlines come from Hacker News search — no account or key needed.
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "12px" }}>
+          {topics.map((t) => (
+            <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 600, color: theme.chipText, background: theme.chip, padding: "6px 10px", borderRadius: "999px" }}>
+              {t}
+              <button onClick={() => removeTopic(t)} className="v-btn" title="Remove topic" style={{ border: "none", background: "transparent", color: theme.chipText, fontSize: "13px", lineHeight: 1, padding: 0, opacity: 0.7 }}>×</button>
+            </span>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <input
+            value={topicInput}
+            onChange={(e) => setTopicInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") addTopic(); }}
+            placeholder="Add a topic (e.g. SentinelOne, CVE, phishing)…"
+            className="v-input"
+            style={{ flex: 1, padding: "8px 11px", borderRadius: "9px", fontSize: "13px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent }}
+          />
+          <button onClick={addTopic} className="v-btn" style={{ padding: "8px 15px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: theme.accentSoft, color: theme.text }}>Add</button>
+        </div>
+
+        {error && (
+          <div style={{ marginTop: "12px", fontSize: "12.5px", fontWeight: 600, padding: "10px 13px", borderRadius: "9px", color: theme.textMuted, background: theme.accentSoft, lineHeight: 1.45 }}>
+            {error}
+          </div>
+        )}
+      </Card>
+
+      {topics.map((t, ti) => {
+        const items = cache[t] || [];
+        return (
+          <Card theme={theme} key={t} delay={40 * (ti + 1)}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+              <span style={{ fontSize: "13px", fontWeight: 800, color: theme.text, textTransform: "capitalize" }}>{t}</span>
+              <span style={{ fontSize: "11px", color: theme.textFaint }}>{items.length ? `${items.length} stories` : loading ? "loading…" : "no stories"}</span>
+            </div>
+            {items.length === 0 ? (
+              <div style={{ fontSize: "12.5px", color: theme.textFaint }}>{loading ? "Fetching headlines…" : "Nothing cached yet — hit Refresh on the live site."}</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                {items.map((it, i) => (
+                  <a
+                    key={it.id}
+                    href={it.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display: "block", textDecoration: "none", padding: "10px 0", borderTop: i === 0 ? "none" : `1px solid ${theme.divider}` }}
+                  >
+                    <div style={{ fontSize: "14px", fontWeight: 600, color: theme.text, lineHeight: 1.4 }}>{it.title}</div>
+                    <div style={{ fontSize: "11.5px", color: theme.textFaint, marginTop: "3px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                      {newsDomain(it.url) && <span>{newsDomain(it.url)}</span>}
+                      <span>▲ {it.points}</span>
+                      <span>{newsRelTime(it.date)}</span>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------------
+   APP LOCK — optional PIN gate
+
+   A privacy lock, not full encryption: the PIN is verified with PBKDF2
+   (Web Crypto) against a stored salted hash, and the UI is gated behind a
+   lock screen. Data still lives in local storage, so this deters casual
+   access on a shared/lost device rather than defending against someone with
+   devtools. (Encrypting the sensitive stores at rest is a possible follow-up.)
+---------------------------------------------------------------------- */
+const LOCK_ITERATIONS = 150000;
+
+function bufToHex(buf) {
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function hexToBytes(hex) {
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
+  return out;
+}
+async function derivePinHash(pin, saltBytes, iters) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(pin), { name: "PBKDF2" }, false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: saltBytes, iterations: iters, hash: "SHA-256" }, key, 256);
+  return bufToHex(bits);
+}
+async function makePinRecord(pin) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const hash = await derivePinHash(pin, salt, LOCK_ITERATIONS);
+  return { enabled: true, salt: bufToHex(salt), hash, iters: LOCK_ITERATIONS };
+}
+async function verifyPin(pin, rec) {
+  if (!rec || !rec.salt) return false;
+  const hash = await derivePinHash(pin, hexToBytes(rec.salt), rec.iters || LOCK_ITERATIONS);
+  return hash === rec.hash;
+}
+
+function IconLock({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="10" width="16" height="10" rx="2" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+    </svg>
+  );
+}
+
+function LockScreen({ theme, lock, onUnlock }) {
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const inputRef = useRef(null);
+
+  useEffect(() => { if (inputRef.current) inputRef.current.focus(); }, []);
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!pin || checking) return;
+    setChecking(true);
+    const ok = await verifyPin(pin, lock);
+    setChecking(false);
+    if (ok) { onUnlock(); } else { setError(true); setPin(""); }
+  }
+
+  return ReactDOM.createPortal(
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center",
+        padding: "20px", background: theme.pageBgGradient !== "none" ? theme.pageBgGradient : theme.pageBg,
+      }}
+    >
+      <form onSubmit={submit} style={{ ...cardBackgroundStyle(theme), padding: "34px 30px", width: "100%", maxWidth: "360px", textAlign: "center" }}>
+        <div style={{ color: theme.accent, display: "inline-flex", marginBottom: "12px" }}><IconLock size={30} /></div>
+        <div style={{ fontSize: "19px", fontWeight: 800, color: theme.text, marginBottom: "4px" }}>Vantage is locked</div>
+        <div style={{ fontSize: "13px", color: theme.textMuted, marginBottom: "20px" }}>Enter your PIN to continue.</div>
+        <input
+          ref={inputRef}
+          type="password"
+          inputMode="numeric"
+          value={pin}
+          onChange={(e) => { setPin(e.target.value); setError(false); }}
+          placeholder="••••"
+          className="v-input v-tabular"
+          style={{
+            width: "100%", textAlign: "center", letterSpacing: "0.3em", fontSize: "22px", padding: "12px",
+            borderRadius: "12px", background: theme.inputBg, color: theme.inputText,
+            border: `1px solid ${error ? theme.danger : theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent,
+          }}
+        />
+        {error && <div style={{ color: theme.danger, fontSize: "12.5px", fontWeight: 600, marginTop: "10px" }}>Incorrect PIN — try again.</div>}
+        <button
+          type="submit"
+          disabled={checking || !pin}
+          className="v-btn"
+          style={{ marginTop: "18px", width: "100%", padding: "12px", borderRadius: "12px", fontSize: "14px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText, opacity: checking || !pin ? 0.6 : 1 }}
+        >
+          {checking ? "Checking…" : "Unlock"}
+        </button>
+      </form>
+    </div>,
+    document.body
+  );
+}
+
+function LockMenu({ theme, lock, setLock, onLockNow }) {
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState(null); // "set" | "change" | "disable"
+  const [p1, setP1] = useState("");
+  const [p2, setP2] = useState("");
+  const [cur, setCur] = useState("");
+  const [msg, setMsg] = useState(null);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    function onDown(e) { if (wrapRef.current && !wrapRef.current.contains(e.target)) { setOpen(false); reset(); } }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+
+  function reset() { setMode(null); setP1(""); setP2(""); setCur(""); setMsg(null); }
+
+  async function saveNew() {
+    if (p1.length < 4) { setMsg("Use at least 4 digits/characters."); return; }
+    if (p1 !== p2) { setMsg("PINs don't match."); return; }
+    if (mode === "change" && !(await verifyPin(cur, lock))) { setMsg("Current PIN is incorrect."); return; }
+    const rec = await makePinRecord(p1);
+    setLock(rec);
+    reset(); setOpen(false);
+  }
+  async function disable() {
+    if (!(await verifyPin(cur, lock))) { setMsg("Current PIN is incorrect."); return; }
+    setLock({ enabled: false });
+    reset(); setOpen(false);
+  }
+
+  const enabled = !!(lock && lock.enabled);
+  const inputStyle = { width: "100%", padding: "8px 10px", borderRadius: "8px", fontSize: "13px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, marginTop: "6px", "--focus-ring": theme.accentSoft, "--focus-border": theme.accent };
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative" }}>
+      <button
+        onClick={() => { setOpen((o) => !o); reset(); }}
+        className="v-btn"
+        title="App lock"
+        style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "38px", height: "38px", borderRadius: "50%", border: `1px solid ${theme.cardBorder}`, background: enabled ? theme.accentSoft : "transparent", color: enabled ? theme.accent : theme.textMuted }}
+      >
+        <IconLock size={16} />
+      </button>
+
+      {open && (
+        <div className="v-scroll" style={{ position: "absolute", bottom: "46px", left: 0, width: "240px", zIndex: 40, ...cardBackgroundStyle(theme), padding: "12px" }}>
+          {!mode && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: theme.sectionLabelColor, padding: "2px 6px 6px" }}>App Lock · {enabled ? "On" : "Off"}</div>
+              {enabled ? (
+                <React.Fragment>
+                  <button onClick={() => { onLockNow(); setOpen(false); }} className="v-btn" style={menuBtn(theme)}>Lock now</button>
+                  <button onClick={() => setMode("change")} className="v-btn" style={menuBtn(theme)}>Change PIN</button>
+                  <button onClick={() => setMode("disable")} className="v-btn" style={{ ...menuBtn(theme), color: theme.danger }}>Turn off lock</button>
+                </React.Fragment>
+              ) : (
+                <button onClick={() => setMode("set")} className="v-btn" style={menuBtn(theme)}>Set a PIN</button>
+              )}
+            </div>
+          )}
+          {(mode === "set" || mode === "change") && (
+            <div>
+              <div style={{ fontSize: "12.5px", fontWeight: 700, color: theme.text, marginBottom: "4px" }}>{mode === "change" ? "Change PIN" : "Set a PIN"}</div>
+              {mode === "change" && <input type="password" inputMode="numeric" value={cur} onChange={(e) => setCur(e.target.value)} placeholder="Current PIN" className="v-input" style={inputStyle} />}
+              <input type="password" inputMode="numeric" value={p1} onChange={(e) => setP1(e.target.value)} placeholder="New PIN" className="v-input" style={inputStyle} />
+              <input type="password" inputMode="numeric" value={p2} onChange={(e) => setP2(e.target.value)} placeholder="Confirm PIN" className="v-input" style={inputStyle} />
+              {msg && <div style={{ color: theme.danger, fontSize: "11.5px", marginTop: "6px" }}>{msg}</div>}
+              <div style={{ display: "flex", gap: "6px", marginTop: "10px" }}>
+                <button onClick={saveNew} className="v-btn" style={{ ...menuBtn(theme), background: theme.accent, color: theme.accentText, textAlign: "center", border: "none" }}>Save</button>
+                <button onClick={reset} className="v-btn" style={{ ...menuBtn(theme), textAlign: "center" }}>Cancel</button>
+              </div>
+            </div>
+          )}
+          {mode === "disable" && (
+            <div>
+              <div style={{ fontSize: "12.5px", fontWeight: 700, color: theme.text, marginBottom: "4px" }}>Turn off lock</div>
+              <input type="password" inputMode="numeric" value={cur} onChange={(e) => setCur(e.target.value)} placeholder="Current PIN" className="v-input" style={inputStyle} />
+              {msg && <div style={{ color: theme.danger, fontSize: "11.5px", marginTop: "6px" }}>{msg}</div>}
+              <div style={{ display: "flex", gap: "6px", marginTop: "10px" }}>
+                <button onClick={disable} className="v-btn" style={{ ...menuBtn(theme), background: theme.danger, color: "#fff", textAlign: "center", border: "none" }}>Turn off</button>
+                <button onClick={reset} className="v-btn" style={{ ...menuBtn(theme), textAlign: "center" }}>Cancel</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+function menuBtn(theme) {
+  return { display: "block", width: "100%", textAlign: "left", padding: "8px 10px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.text };
+}
+
+/* ----------------------------------------------------------------------
+   REMINDERS & NOTIFICATIONS
+
+   Custom reminders (text + time) plus today's calendar events fire a browser
+   notification while the app is open (the checker runs on a timer in App).
+   Everything persists locally; the bell badges anything past-due.
+---------------------------------------------------------------------- */
+function IconBell({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+    </svg>
+  );
+}
+
+function remDueCount(reminders) {
+  const now = Date.now();
+  return (reminders.items || []).filter((r) => r.at && new Date(r.at).getTime() <= now).length;
+}
+
+function RemindersMenu({ theme, reminders, setReminders, events }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [at, setAt] = useState("");
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    function onDown(e) { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+
+  const notifSupported = typeof window !== "undefined" && "Notification" in window;
+  const perm = notifSupported ? Notification.permission : "unsupported";
+
+  function enableNotifications() {
+    if (!notifSupported) return;
+    if (Notification.permission === "granted") { setReminders((s) => ({ ...s, enabled: true })); return; }
+    Notification.requestPermission().then((p) => setReminders((s) => ({ ...s, enabled: p === "granted" })));
+  }
+
+  function addReminder() {
+    const t = text.trim();
+    if (!t || !at) return;
+    const item = { id: "rem" + Date.now(), text: t, at, notified: false };
+    setReminders((s) => ({ ...s, items: [...(s.items || []), item] }));
+    setText(""); setAt("");
+  }
+  function removeReminder(id) {
+    setReminders((s) => ({ ...s, items: (s.items || []).filter((r) => r.id !== id) }));
+  }
+
+  const sorted = useMemo(
+    () => [...(reminders.items || [])].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()),
+    [reminders.items]
+  );
+  const upcomingEvents = useMemo(() => {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const end = today.getTime() + 7 * 86400000;
+    return (events || [])
+      .filter((e) => e.date)
+      .map((e) => ({ ...e, ts: new Date(e.date + "T00:00:00").getTime() }))
+      .filter((e) => e.ts >= today.getTime() && e.ts <= end)
+      .sort((a, b) => a.ts - b.ts)
+      .slice(0, 6);
+  }, [events]);
+
+  const due = remDueCount(reminders);
+  const now = Date.now();
+  const inputStyle = { padding: "7px 9px", borderRadius: "8px", fontSize: "12.5px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent };
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="v-btn"
+        title="Reminders"
+        style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center", width: "38px", height: "38px", borderRadius: "50%", border: `1px solid ${theme.cardBorder}`, background: open ? theme.accentSoft : "transparent", color: due ? theme.accent : theme.textMuted }}
+      >
+        <IconBell size={16} />
+        {due > 0 && (
+          <span style={{ position: "absolute", top: "-2px", right: "-2px", minWidth: "16px", height: "16px", padding: "0 4px", borderRadius: "999px", background: theme.danger, color: "#fff", fontSize: "10px", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{due}</span>
+        )}
+      </button>
+
+      {open && (
+        <div className="v-scroll" style={{ position: "absolute", bottom: "46px", left: 0, width: "300px", maxHeight: "70vh", overflowY: "auto", zIndex: 40, ...cardBackgroundStyle(theme), padding: "14px", "--scroll-thumb": theme.divider }}>
+          <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: theme.sectionLabelColor, marginBottom: "10px" }}>Reminders</div>
+
+          {/* Notification status */}
+          {!notifSupported ? (
+            <div style={{ fontSize: "12px", color: theme.textFaint, marginBottom: "10px" }}>Browser notifications aren't available here.</div>
+          ) : perm === "granted" && reminders.enabled ? (
+            <div style={{ fontSize: "12px", color: theme.positive, fontWeight: 600, marginBottom: "10px" }}>● Notifications on</div>
+          ) : perm === "denied" ? (
+            <div style={{ fontSize: "12px", color: theme.textFaint, marginBottom: "10px" }}>Notifications blocked — enable them for this site in your browser.</div>
+          ) : (
+            <button onClick={enableNotifications} className="v-btn" style={{ width: "100%", padding: "8px", borderRadius: "8px", fontSize: "12.5px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText, marginBottom: "10px" }}>Enable notifications</button>
+          )}
+
+          {/* Add reminder */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "12px" }}>
+            <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Remind me to…" className="v-input" style={inputStyle} />
+            <div style={{ display: "flex", gap: "6px" }}>
+              <input type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} className="v-input" style={{ ...inputStyle, flex: 1 }} />
+              <button onClick={addReminder} className="v-btn" style={{ padding: "7px 12px", borderRadius: "8px", fontSize: "12.5px", fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: theme.accentSoft, color: theme.text }}>Add</button>
+            </div>
+          </div>
+
+          {/* Reminder list */}
+          {sorted.length === 0 ? (
+            <div style={{ fontSize: "12px", color: theme.textFaint, marginBottom: "10px" }}>No reminders yet.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "12px" }}>
+              {sorted.map((r) => {
+                const overdue = new Date(r.at).getTime() <= now;
+                return (
+                  <div key={r.id} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 10px", borderRadius: "8px", background: overdue ? theme.dangerSoft : theme.accentSoft }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: "12.5px", fontWeight: 600, color: theme.text }}>{r.text}</div>
+                      <div style={{ fontSize: "11px", color: overdue ? theme.danger : theme.textFaint }}>{overdue ? "Due" : ""} {moFormatTs(new Date(r.at).toISOString())}</div>
+                    </div>
+                    <button onClick={() => removeReminder(r.id)} className="v-btn" title="Dismiss" style={{ border: "none", background: "transparent", color: theme.textMuted, padding: "2px", display: "inline-flex", flexShrink: 0 }}><IconClose /></button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Upcoming events (read-only, from your calendar/upcoming) */}
+          {upcomingEvents.length > 0 && (
+            <div>
+              <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: theme.sectionLabelColor, margin: "4px 0 8px" }}>Next 7 days</div>
+              {upcomingEvents.map((e, i) => (
+                <div key={(e.id || e.title) + i} style={{ display: "flex", gap: "8px", padding: "5px 0", fontSize: "12px", color: theme.textMuted }}>
+                  <span style={{ color: theme.accent, flexShrink: 0 }}><IconCalendar /></span>
+                  <span style={{ flex: 1 }}>{e.title}</span>
+                  <span style={{ color: theme.textFaint }}>{e.detail || e.date}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------------
+   COMMAND PALETTE — ⌘K / Ctrl-K global search & jump
+---------------------------------------------------------------------- */
+function IconSearch({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="7" />
+      <path d="M21 21l-4.3-4.3" />
+    </svg>
+  );
+}
+
+function truncate(s, n) {
+  s = String(s || "");
+  return s.length > n ? s.slice(0, n - 1) + "…" : s;
+}
+
+function CommandPalette({ theme, data, onNavigate, onOpenMoTool, onClose }) {
+  const [q, setQ] = useState("");
+  const [sel, setSel] = useState(0);
+  const inputRef = useRef(null);
+  useEffect(() => { if (inputRef.current) inputRef.current.focus(); }, []);
+
+  // Build a flat index of pages + content items across modules.
+  const index = useMemo(() => {
+    const items = [];
+    items.push({ label: "Home", group: "Pages", page: "home" });
+    PAGE_META.forEach((p) => items.push({ label: p.label, group: "Pages", page: p.id, icon: p.icon }));
+    (data.journal || []).forEach((e) => items.push({ label: truncate(e.text, 60) || "(empty entry)", sub: "Journal · " + (e.date || ""), group: "Journal", page: "journal" }));
+    (data.watchlist || []).forEach((w) => items.push({ label: w.title, sub: "Watch List · " + (w.status || ""), group: "Watch List", page: "watchlist" }));
+    (data.goals || []).forEach((g) => items.push({ label: g.label, sub: "Life Goals · " + (g.status || ""), group: "Life Goals", page: "goals" }));
+    (data.trackers || []).forEach((t) => items.push({ label: t.label, sub: "Tracker · " + (t.value || ""), group: "Trackers", page: "trackers" }));
+    (data.events || []).forEach((e) => items.push({ label: e.title, sub: "Event · " + (e.detail || e.date || ""), group: "Upcoming", page: "upcoming" }));
+    (data.transactions || []).forEach((t) => items.push({ label: t.merchant, sub: "Transaction · " + (t.category || ""), group: "Transactions", page: "transactions" }));
+    (data.policies || []).forEach((p) => items.push({ label: p.name, sub: "Policy · " + (p.category || ""), group: "Policies", moTool: "policy" }));
+    return items;
+  }, [data]);
+
+  const results = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    if (!term) return index.filter((i) => i.group === "Pages");
+    const scored = index
+      .map((i) => {
+        const hay = (i.label + " " + (i.sub || "")).toLowerCase();
+        const pos = hay.indexOf(term);
+        if (pos === -1) return null;
+        // rank: pages first, then earlier matches
+        return { i, score: (i.group === "Pages" ? 0 : 1000) + pos };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.score - b.score)
+      .slice(0, 40)
+      .map((x) => x.i);
+    return scored;
+  }, [q, index]);
+
+  useEffect(() => { setSel(0); }, [q]);
+
+  function activate(item) {
+    if (!item) return;
+    if (item.page) onNavigate(item.page);
+    else if (item.moTool) onOpenMoTool(item.moTool);
+    onClose();
+  }
+  function onKeyDown(e) {
+    if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(results.length - 1, s + 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => Math.max(0, s - 1)); }
+    else if (e.key === "Enter") { e.preventDefault(); activate(results[sel]); }
+    else if (e.key === "Escape") { e.preventDefault(); onClose(); }
+  }
+
+  return ReactDOM.createPortal(
+    <div
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "12vh 16px 16px", background: "rgba(0,0,0,0.5)" }}
+    >
+      <div className="v-scroll" style={{ width: "100%", maxWidth: "580px", maxHeight: "70vh", overflow: "hidden", display: "flex", flexDirection: "column", ...cardBackgroundStyle(theme), padding: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "14px 16px", borderBottom: `1px solid ${theme.divider}` }}>
+          <span style={{ color: theme.textMuted, display: "inline-flex" }}><IconSearch size={18} /></span>
+          <input
+            ref={inputRef}
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder="Search or jump to…"
+            style={{ flex: 1, border: "none", outline: "none", background: "transparent", color: theme.text, fontSize: "16px" }}
+          />
+          <span style={{ fontSize: "11px", color: theme.textFaint, border: `1px solid ${theme.cardBorder}`, borderRadius: "6px", padding: "2px 6px" }}>esc</span>
+        </div>
+        <div className="v-scroll" style={{ overflowY: "auto", padding: "8px", "--scroll-thumb": theme.divider }}>
+          {results.length === 0 ? (
+            <div style={{ padding: "24px", textAlign: "center", fontSize: "13px", color: theme.textFaint }}>No matches.</div>
+          ) : (
+            results.map((item, i) => (
+              <button
+                key={i}
+                onMouseEnter={() => setSel(i)}
+                onClick={() => activate(item)}
+                className="v-btn"
+                style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", textAlign: "left", border: "none", borderRadius: "9px", padding: "9px 10px", background: i === sel ? theme.accentSoft : "transparent", color: theme.text }}
+              >
+                <span style={{ color: theme.accent, display: "inline-flex", flexShrink: 0, width: "16px" }}>{item.icon || <IconSearch size={13} />}</span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: "13.5px", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
+                  {item.sub && <span style={{ display: "block", fontSize: "11px", color: theme.textFaint }}>{item.sub}</span>}
+                </span>
+                {item.group === "Pages" && <span style={{ fontSize: "10.5px", color: theme.textFaint }}>Page</span>}
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+/* ----------------------------------------------------------------------
    APP
 ---------------------------------------------------------------------- */
 
@@ -6620,6 +8645,7 @@ function App() {
   const [golf, setGolf] = usePersistentState(STORAGE_KEYS.golf, DEFAULT_GOLF);
   const [golfSimRounds, setGolfSimRounds] = usePersistentState(STORAGE_KEYS.golfSimRounds, DEFAULT_GOLF_ROUNDS);
   const [golfOutdoorRounds, setGolfOutdoorRounds] = usePersistentState(STORAGE_KEYS.golfOutdoorRounds, DEFAULT_GOLF_ROUNDS);
+  const [golfScorecards, setGolfScorecards] = usePersistentState(STORAGE_KEYS.golfScorecards, []);
   const [fantasyCheatSheets, setFantasyCheatSheets] = usePersistentState(STORAGE_KEYS.fantasyCheatSheets, DEFAULT_FANTASY_CHEAT_SHEETS);
   const [fantasyCustomRankings, setFantasyCustomRankings] = usePersistentState(STORAGE_KEYS.fantasyCustomRankings, DEFAULT_FANTASY_CUSTOM_RANKINGS);
   const [fantasyWatchlist, setFantasyWatchlist] = usePersistentState(STORAGE_KEYS.fantasyWatchlist, DEFAULT_FANTASY_WATCHLIST);
@@ -6630,6 +8656,9 @@ function App() {
   const [moSnapshots, setMoSnapshots] = usePersistentState(STORAGE_KEYS.moSnapshots, []);
   const [moPolicies, setMoPolicies] = usePersistentState(STORAGE_KEYS.moPolicies, moDefaultPolicies());
   const [deck, setDeck] = usePersistentState(STORAGE_KEYS.deck, null);
+  const [moAppNotice, setMoAppNotice] = usePersistentState(STORAGE_KEYS.appNotice, DEFAULT_APP_NOTICE);
+  const [dailyLog, setDailyLog] = usePersistentState(STORAGE_KEYS.dailyLog, DEFAULT_DAILY_LOG);
+  const [kev, setKev] = usePersistentState(STORAGE_KEYS.kev, DEFAULT_KEV);
   const [moTool, setMoTool] = useState(null); // "vuln-s1" | "vuln-iru" | "pki" | "policy" | "deck" | null
   const [ravenProducts, setRavenProducts] = usePersistentState(STORAGE_KEYS.ravenProducts, []);
   const [trackers, setTrackers] = usePersistentState(STORAGE_KEYS.trackers, DEFAULT_TRACKERS);
@@ -6652,6 +8681,16 @@ function App() {
   const [goals, setGoals] = usePersistentState(STORAGE_KEYS.goals, DEFAULT_GOALS);
   const [transactions, setTransactions] = usePersistentState(STORAGE_KEYS.transactions, DEFAULT_TRANSACTIONS);
   const [youtube, setYoutube] = usePersistentState(STORAGE_KEYS.youtube, DEFAULT_YOUTUBE);
+  const [sports, setSports] = usePersistentState(STORAGE_KEYS.sports, { cache: {}, fetchedAt: null });
+  const [subscriptions, setSubscriptions] = usePersistentState(STORAGE_KEYS.subscriptions, DEFAULT_SUBSCRIPTIONS);
+  const [habits, setHabits] = usePersistentState(STORAGE_KEYS.habits, DEFAULT_HABITS);
+  const [reading, setReading] = usePersistentState(STORAGE_KEYS.reading, DEFAULT_READING);
+  const [games, setGames] = usePersistentState(STORAGE_KEYS.games, DEFAULT_GAMES);
+  const [news, setNews] = usePersistentState(STORAGE_KEYS.news, { topics: DEFAULT_NEWS_TOPICS, cache: {}, fetchedAt: null });
+  const [lock, setLock] = usePersistentState(STORAGE_KEYS.lock, { enabled: false });
+  const [locked, setLocked] = useState(() => !!lock.enabled);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [reminders, setReminders] = usePersistentState(STORAGE_KEYS.reminders, { enabled: false, items: [], eventNotified: {} });
   const [youtubeVideos, setYoutubeVideos] = useState([]);
   const newYoutubeCount = useMemo(
     () => (youtube.lastSeenAt ? youtubeVideos.filter((v) => new Date(v.publishedAt).getTime() > youtube.lastSeenAt).length : 0),
@@ -6705,6 +8744,31 @@ function App() {
   }, []);
 
   const allEvents = useMemo(() => [...events, ...allConnectedEvents], [events, allConnectedEvents]);
+
+  useEffect(() => {
+    function onKey(e) {
+      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+        if (lock.enabled && locked) return;
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lock.enabled, locked]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    function notify(body) { if (reminders.enabled && Notification.permission === "granted") { try { new Notification("Vantage", { body }); } catch (e) {} } }
+    function check() {
+      const now = Date.now(); const todayISO = new Date().toISOString().slice(0, 10); let changed = false;
+      const items = (reminders.items || []).map((r) => { if (!r.notified && r.at && new Date(r.at).getTime() <= now) { notify(r.text); changed = true; return { ...r, notified: true }; } return r; });
+      const evNotified = { ...(reminders.eventNotified || {}) };
+      (allEvents || []).forEach((e) => { if (e.date === todayISO) { const k = (e.id || e.title) + "|" + e.date; if (!evNotified[k]) { notify("Today: " + e.title); evNotified[k] = true; changed = true; } } });
+      if (changed) setReminders((s) => ({ ...s, items, eventNotified: evNotified }));
+    }
+    check(); const id = setInterval(check, 30000); return () => clearInterval(id);
+  }, [reminders, allEvents]);
   const weekAgendaCount = useMemo(() => {
     const isoSet = new Set();
     for (let i = 0; i < 7; i++) {
@@ -6758,6 +8822,10 @@ function App() {
     videos: { value: null, detail: "library" },
     journal: { value: journal.length || 0, detail: "entries" },
     fantasy: { value: fantasyWatchlist.length || 0, detail: "watchlist" },
+    news: { value: (news.topics || DEFAULT_NEWS_TOPICS).length, detail: "topics" },
+    sports: { value: null, detail: "my teams" },
+    subscriptions: { value: subscriptions.length ? fmtMoney(subscriptions.reduce((s, x) => s + subPerMonth(x), 0)) : "$0.00", detail: "/mo" },
+    securityx: { value: "CAS-005", detail: "exam prep" },
   };
 
   return (
@@ -6805,6 +8873,12 @@ function App() {
         moLinks={moLinks}
         setMoLinks={setMoLinks}
         onOpenMoTool={setMoTool}
+        lock={lock}
+        setLock={setLock}
+        onLockNow={() => setLocked(true)}
+        onOpenPalette={() => setPaletteOpen(true)}
+        reminders={reminders}
+        setReminders={setReminders}
         page={page}
         onNavigate={navigate}
         setThemeKey={setThemeKey}
@@ -6861,6 +8935,7 @@ function App() {
           {page === "golf" && (
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
               <GolfSection theme={theme} data={golf} setData={setGolf} history={history.golf} onRecordHandicap={recordHandicap} />
+              <GolfScorecards theme={theme} cards={golfScorecards} setCards={setGolfScorecards} delay={0} />
               <GolfRoundLog theme={theme} title="Simulator Rounds" rounds={golfSimRounds} setRounds={setGolfSimRounds} delay={0} />
               <GolfRoundLog theme={theme} title="Outdoor Rounds" rounds={golfOutdoorRounds} setRounds={setGolfOutdoorRounds} delay={0} />
             </div>
@@ -6916,12 +8991,26 @@ function App() {
           {page === "goals" && <GoalsBoardSection theme={theme} data={goals} setData={setGoals} delay={0} />}
           {page === "videos" && <VideoLibrarySection theme={theme} integrations={integrations} setIntegrations={setIntegrations} />}
           {page === "journal" && <JournalSection theme={theme} data={journal} setData={setJournal} delay={0} />}
+          {page === "habits" && <HabitsSection theme={theme} state={habits} setState={setHabits} />}
+          {page === "reading" && <ReadingSection theme={theme} state={reading} setState={setReading} />}
+          {page === "games" && <GamesSection theme={theme} state={games} setState={setGames} />}
+          {page === "news" && <NewsSection theme={theme} state={news} setState={setNews} />}
+          {page === "sports" && <SportsSection theme={theme} state={sports} setState={setSports} />}
+          {page === "subscriptions" && <SubscriptionsSection theme={theme} subs={subscriptions} setSubs={setSubscriptions} />}
           {page === "securityx" && <SecurityXSection theme={theme} />}
           {page === "ravenseye" && (
             <RavenSection theme={theme} products={ravenProducts} setProducts={setRavenProducts} />
           )}
         </div>
       </div>
+
+      {lock.enabled && locked && (
+        <LockScreen theme={theme} lock={lock} onUnlock={() => setLocked(false)} />
+      )}
+
+      {paletteOpen && !(lock.enabled && locked) && (
+        <CommandPalette theme={theme} data={{ journal, watchlist, goals, trackers, events: allEvents, transactions, policies: moPolicies }} onNavigate={navigate} onOpenMoTool={setMoTool} onClose={() => setPaletteOpen(false)} />
+      )}
 
       {briefingOpen && suggestions.length > 0 && (
         <BriefingModal theme={theme} suggestions={suggestions} weather={weather} onClose={dismissBriefing} />
@@ -6944,6 +9033,15 @@ function App() {
       )}
       {moTool === "deck" && (
         <DeckBuilderModal theme={theme} deck={deck} setDeck={setDeck} onClose={() => setMoTool(null)} />
+      )}
+      {moTool === "appnotice" && (
+        <AppNoticeModal theme={theme} state={moAppNotice} setState={setMoAppNotice} onClose={() => setMoTool(null)} />
+      )}
+      {moTool === "dailylog" && (
+        <DailyLogModal theme={theme} snapshots={moSnapshots} notices={(moAppNotice && moAppNotice.history) || []} policies={moPolicies} state={dailyLog} setState={setDailyLog} onClose={() => setMoTool(null)} />
+      )}
+      {moTool === "kev" && (
+        <KevLookupModal theme={theme} state={kev} setState={setKev} onClose={() => setMoTool(null)} />
       )}
     </div>
   );
@@ -10258,6 +12356,720 @@ function PkiReportModal({ theme, values, setValues, onClose }) {
 }
 
 /* ---- Policy & Procedure Writeup tracker ---- */
+/* ===== Outdated App Notice Generator (MO tool) ===== */
+const DEFAULT_APP_NOTICE = { sender: "", team: "Mechanical Orchard Security", tone: "friendly", history: [] };
+
+function IconMegaphone({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 11l14-6v13L3 13z" />
+      <path d="M3 11v2a2 2 0 0 0 2 2h1" />
+      <path d="M8 15.6V19a1.6 1.6 0 0 0 3.2 0v-1.6" />
+      <path d="M17 8a3 3 0 0 1 0 5" />
+    </svg>
+  );
+}
+
+// Lazy-load Tesseract.js (OCR) the same way the other heavy libs load: a CDN
+// <script> injected on demand. CSP already allows cdnjs for script + worker.
+let __tesseractPromise = null;
+function loadTesseract() {
+  if (typeof window !== "undefined" && window.Tesseract) return Promise.resolve();
+  if (__tesseractPromise) return __tesseractPromise;
+  __tesseractPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js";
+    s.async = true;
+    s.onload = () => resolve();
+    s.onerror = () => { __tesseractPromise = null; reject(new Error("Could not load OCR engine")); };
+    document.head.appendChild(s);
+  });
+  return __tesseractPromise;
+}
+
+function splitList(s) {
+  return (s || "")
+    .split(/[\n,;]+/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+function formatNoticeDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso + "T00:00:00");
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+}
+
+// Pure builder: form + sender meta -> { subject, body }
+function buildAppNotice(f, meta) {
+  const app = (f.appName || "").trim() || "the application";
+  const appWithVer = f.installedVer && f.installedVer.trim()
+    ? `${app} (version ${f.installedVer.trim()})`
+    : app;
+  const devices = splitList(f.devices);
+  const deviceClause =
+    devices.length === 0 ? "" :
+    devices.length === 1 ? `on your device ${devices[0]}` :
+    `on the following devices: ${devices.join(", ")}`;
+  const target = f.requiredVer && f.requiredVer.trim()
+    ? `to version ${f.requiredVer.trim()} or later`
+    : "to the latest version";
+  const deadline = formatNoticeDate(f.deadline);
+  const reason = (f.reason || "").trim();
+  const greetName = (f.recipient || "").trim();
+  const sender = (meta.sender || "").trim();
+  const team = (meta.team || "").trim();
+  const action = f.action || "update";
+
+  const sig = [sender, team].filter(Boolean).join("\n");
+  const p = []; // paragraphs
+
+  if (action === "remove") {
+    if (meta.tone === "firm") {
+      p.push(greetName ? `Hello ${greetName},` : "Hello,");
+      p.push(`Our security tooling shows that ${appWithVer}${deviceClause ? " " + deviceClause : ""} is no longer approved for use${reason ? `, ${reason}` : ""}.`);
+      p.push(`Please remove it${deviceClause && devices.length > 1 ? " from these devices" : ""}. Unsupported or unneeded software increases our attack surface and must be removed to stay compliant with our security policy.`);
+      p.push(`${deadline ? `This needs to be completed by ${deadline}. ` : ""}If you believe you still need this application, reply here so we can review it with you.`);
+      p.push(`Regards,\n${sig}`);
+    } else if (meta.tone === "professional") {
+      p.push(greetName ? `Hello ${greetName},` : "Hello,");
+      p.push(`As part of our routine security review, we identified ${appWithVer}${deviceClause ? " " + deviceClause : ""} that is flagged for removal${reason ? ` — ${reason}` : ""}.`);
+      p.push(`Please uninstall the application at your earliest convenience. This helps keep your device secure and our software inventory up to date.`);
+      p.push(`${deadline ? `Kindly complete this by ${deadline}. ` : ""}If you still rely on this application, let us know and we'll be glad to discuss alternatives.`);
+      p.push(`Best regards,\n${sig}`);
+    } else {
+      p.push(greetName ? `Hi ${greetName},` : "Hi there,");
+      p.push(`Quick heads-up from the ${team || "security"} team — it looks like ${appWithVer}${deviceClause ? " " + deviceClause : ""} is no longer needed or supported${reason ? `, ${reason}` : ""}.`);
+      p.push(`When you get a chance, could you remove it? It just helps keep everything tidy and secure on your end.`);
+      p.push(`${deadline ? `If you could take care of it by ${deadline}, that'd be great. ` : ""}And if you actually still use it, no worries — just reply here and we'll sort it out together.`);
+      p.push(`Thanks so much!\n${sig}`);
+    }
+  } else if (action === "either") {
+    if (meta.tone === "firm") {
+      p.push(greetName ? `Hello ${greetName},` : "Hello,");
+      p.push(`Our security tooling has flagged that ${appWithVer}${deviceClause ? " " + deviceClause : ""} is out of date and does not meet our current security requirements${reason ? `, ${reason}` : ""}.`);
+      p.push(`Please update it ${target}, or remove it if it's no longer needed. Outdated software introduces known vulnerabilities and must be remediated to stay compliant with our security policy.`);
+      p.push(`${deadline ? `This needs to be completed by ${deadline}. ` : ""}Reply here if you need assistance.`);
+      p.push(`Regards,\n${sig}`);
+    } else if (meta.tone === "professional") {
+      p.push(greetName ? `Hello ${greetName},` : "Hello,");
+      p.push(`As part of our ongoing security maintenance, we noticed that ${appWithVer}${deviceClause ? " " + deviceClause : ""} is running an out-of-date version${reason ? ` — ${reason}` : ""}.`);
+      p.push(`Please update it ${target}, or remove the application if you no longer use it. Either option keeps the software supported and free of known vulnerabilities.`);
+      p.push(`${deadline ? `Kindly complete this by ${deadline}. ` : ""}If you have any questions or need help, please don't hesitate to reach out.`);
+      p.push(`Best regards,\n${sig}`);
+    } else {
+      p.push(greetName ? `Hi ${greetName},` : "Hi there,");
+      p.push(`Quick heads-up from the ${team || "security"} team — ${appWithVer}${deviceClause ? " " + deviceClause : ""} is looking a little out of date${reason ? `, ${reason}` : ""}.`);
+      p.push(`When you have a minute, could you update it ${target}? Or if you're not using it anymore, feel free to just remove it — whichever's easier for you.`);
+      p.push(`${deadline ? `If you can get to it by ${deadline}, that'd be perfect. ` : ""}Any trouble at all, just reply here and we'll help you out.`);
+      p.push(`Thanks so much!\n${sig}`);
+    }
+  } else {
+    // update (default)
+    if (meta.tone === "firm") {
+      p.push(greetName ? `Hello ${greetName},` : "Hello,");
+      p.push(`Our security tooling has flagged that ${appWithVer}${deviceClause ? " " + deviceClause : ""} is out of date and does not meet our current security requirements${reason ? `, ${reason}` : ""}.`);
+      p.push(`Please update it ${target}. Outdated software introduces known vulnerabilities and must be remediated to stay compliant with our security policy.`);
+      p.push(`${deadline ? `This needs to be completed by ${deadline}. ` : ""}If the application is no longer needed, please remove it instead. Reply here if you need assistance.`);
+      p.push(`Regards,\n${sig}`);
+    } else if (meta.tone === "professional") {
+      p.push(greetName ? `Hello ${greetName},` : "Hello,");
+      p.push(`As part of our ongoing security maintenance, we've identified that ${appWithVer}${deviceClause ? " " + deviceClause : ""} is no longer up to date${reason ? ` — ${reason}` : ""}.`);
+      p.push(`Please update the application ${target} at your earliest convenience. This ensures the software remains supported and free of known vulnerabilities.`);
+      p.push(`${deadline ? `Kindly complete this by ${deadline}. ` : ""}If you have any questions or need assistance, please don't hesitate to reach out.`);
+      p.push(`Best regards,\n${sig}`);
+    } else {
+      p.push(greetName ? `Hi ${greetName},` : "Hi there,");
+      p.push(`Quick heads-up from the ${team || "security"} team — our tooling shows that ${appWithVer}${deviceClause ? " " + deviceClause : ""} is running an out-of-date version${reason ? `, ${reason}` : ""}.`);
+      p.push(`When you have a moment, could you update it ${target}? Keeping it current closes off known security issues and only takes a few minutes.`);
+      p.push(`${deadline ? `We'd appreciate it if you could take care of this by ${deadline}. ` : ""}If you run into any trouble or aren't sure how, just reply here and we'll be glad to help.`);
+      p.push(`Thanks so much!\n${sig}`);
+    }
+  }
+
+  const verb = action === "remove" ? "Remove" : action === "either" ? "Update or remove" : "Update";
+  const subject = `Action needed: ${verb.toLowerCase()} ${app}${deadline ? ` by ${deadline}` : ""}`;
+  return { subject, body: p.join("\n\n") };
+}
+
+// Best-effort heuristics to pre-fill fields from OCR'd screenshot text.
+function parseOcrForApp(text) {
+  const out = {};
+  const ver = text.match(/\bv?\d+\.\d+(?:\.\d+){0,2}\b/);
+  if (ver) out.installedVer = ver[0].replace(/^v/i, "");
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const nameLine = lines.find((l) => /[A-Za-z]{3,}/.test(l) && !/^\d/.test(l) && l.length <= 48 && !/^(version|installed|device|host|status|severity)/i.test(l));
+  if (nameLine) out.appName = nameLine.replace(/\s{2,}.*$/, "").trim();
+  const dev = text.match(/\b[A-Z0-9]{2,}[-_][A-Z0-9][A-Z0-9-]{1,}\b/);
+  if (dev) out.devices = dev[0];
+  return out;
+}
+
+const APP_NOTICE_TONES = [
+  { id: "friendly", label: "Friendly" },
+  { id: "professional", label: "Professional" },
+  { id: "firm", label: "Firm" },
+];
+const APP_NOTICE_ACTIONS = [
+  { id: "update", label: "Ask to update" },
+  { id: "remove", label: "Ask to remove" },
+  { id: "either", label: "Update or remove" },
+];
+
+function AppNoticeField({ theme, label, children, full }) {
+  return (
+    <div style={{ gridColumn: full ? "1 / -1" : "auto" }}>
+      <label style={{ display: "block", fontSize: "11px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: theme.textMuted, marginBottom: "5px" }}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function AppNoticeModal({ theme, state, setState, onClose }) {
+  const s = state || DEFAULT_APP_NOTICE;
+  const [form, setForm] = useState({
+    recipient: "", appName: "", installedVer: "", requiredVer: "",
+    devices: "", action: "update", reason: "", deadline: "",
+  });
+  const [img, setImg] = useState(null); // data URL
+  const [ocrText, setOcrText] = useState("");
+  const [ocrStatus, setOcrStatus] = useState(null); // { type, message }
+  const [ocrBusy, setOcrBusy] = useState(false);
+  const [showOcr, setShowOcr] = useState(false);
+  const [copied, setCopied] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileRef = useRef(null);
+
+  const setField = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
+  const setMeta = (k, v) => setState((prev) => ({ ...(prev || DEFAULT_APP_NOTICE), [k]: v }));
+
+  const { subject, body } = useMemo(
+    () => buildAppNotice(form, { sender: s.sender, team: s.team, tone: s.tone }),
+    [form, s.sender, s.team, s.tone]
+  );
+
+  const inputStyle = { width: "100%", padding: "9px 11px", borderRadius: "9px", fontSize: "13px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent };
+  const dropStyle = {
+    marginTop: "4px", cursor: "pointer", textAlign: "center", padding: "22px 16px", borderRadius: "12px",
+    border: `1.5px dashed ${dragOver ? theme.accent : theme.inputBorder}`,
+    background: dragOver ? theme.accentSoft : theme.inputBg, transition: "border-color 0.15s, background 0.15s",
+  };
+
+  function ingestImage(file) {
+    if (!file) return;
+    if (!/^image\//.test(file.type)) { setOcrStatus({ type: "error", message: "Please choose an image file (screenshot)." }); return; }
+    const reader = new FileReader();
+    reader.onload = () => { setImg(reader.result); setOcrText(""); setOcrStatus(null); setShowOcr(false); };
+    reader.readAsDataURL(file);
+  }
+
+  async function analyze() {
+    if (!img) return;
+    setOcrBusy(true);
+    setOcrStatus({ type: "info", message: "Loading OCR engine (first run downloads it)…" });
+    try {
+      await loadTesseract();
+      setOcrStatus({ type: "info", message: "Reading text from the screenshot…" });
+      const result = await window.Tesseract.recognize(img, "eng");
+      const text = ((result && result.data && result.data.text) || "").trim();
+      setOcrText(text);
+      setShowOcr(true);
+      if (!text) { setOcrStatus({ type: "error", message: "No readable text found. You can type the details in below." }); return; }
+      const guess = parseOcrForApp(text);
+      let filledAny = false;
+      setForm((prev) => {
+        const next = { ...prev };
+        Object.keys(guess).forEach((k) => { if (!next[k]) { next[k] = guess[k]; filledAny = true; } });
+        return next;
+      });
+      setOcrStatus({ type: "success", message: filledAny ? "Detected details filled in below — please review and edit as needed." : "Text extracted below — copy anything useful into the fields." });
+    } catch (e) {
+      setOcrStatus({ type: "error", message: "Couldn't run OCR here (it needs to download an engine and may be blocked offline). You can still type the details in below — your screenshot stays attached for reference." });
+    } finally {
+      setOcrBusy(false);
+    }
+  }
+
+  function doCopy(which, text) {
+    const done = () => { setCopied(which); setTimeout(() => setCopied(""), 1600); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done).catch(done);
+    else done();
+  }
+
+  function saveToLog() {
+    const entry = { id: `${form.appName || "app"}-${new Date().toISOString()}`, at: new Date().toISOString(), appName: form.appName || "(unnamed app)", action: form.action, subject, body };
+    setState((prev) => ({ ...(prev || DEFAULT_APP_NOTICE), history: [entry, ...((prev && prev.history) || [])].slice(0, 30) }));
+    setSaved(true); setTimeout(() => setSaved(false), 1600);
+  }
+
+  function removeLog(id) {
+    setState((prev) => ({ ...(prev || DEFAULT_APP_NOTICE), history: ((prev && prev.history) || []).filter((h) => h.id !== id) }));
+  }
+
+  function resetForm() {
+    setForm({ recipient: "", appName: "", installedVer: "", requiredVer: "", devices: "", action: "update", reason: "", deadline: "" });
+    setImg(null); setOcrText(""); setOcrStatus(null); setShowOcr(false);
+  }
+
+  return (
+    <MoModal
+      theme={theme}
+      icon={<IconMegaphone size={20} />}
+      title="Outdated App Notice Generator"
+      subtitle="Enter an app and the devices it's on — or drop in a screenshot to auto-fill — and get a polished, friendly message you can copy and send asking the user to update or remove it."
+      onClose={onClose}
+      footer={
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          <MoButton theme={theme} variant="primary" onClick={() => doCopy("body", body)}>{copied === "body" ? "Copied!" : "Copy message"}</MoButton>
+          <MoButton theme={theme} onClick={() => doCopy("subject", subject)}>{copied === "subject" ? "Copied!" : "Copy subject"}</MoButton>
+          <MoButton theme={theme} onClick={saveToLog}>{saved ? "Saved!" : "Save to log"}</MoButton>
+          <MoButton theme={theme} onClick={resetForm} style={{ marginLeft: "auto", color: theme.danger, background: theme.dangerSoft, borderColor: "transparent" }}>Reset</MoButton>
+        </div>
+      }
+    >
+      {/* Screenshot / OCR */}
+      <div style={{ marginBottom: "20px" }}>
+        <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: theme.sectionLabelColor, marginBottom: "8px" }}>Screenshot (optional)</div>
+        {!img ? (
+          <div
+            onClick={() => fileRef.current && fileRef.current.click()}
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => { e.preventDefault(); setDragOver(false); ingestImage(e.dataTransfer.files[0]); }}
+            style={dropStyle}
+          >
+            <div style={{ color: theme.textMuted, marginBottom: "6px", display: "inline-flex" }}><IconUpload /></div>
+            <div style={{ fontSize: "14px", fontWeight: 600, color: theme.text }}>Drop a screenshot here, or click to browse</div>
+            <div style={{ fontSize: "12px", color: theme.textFaint, marginTop: "6px" }}>PNG or JPG — we'll try to read the app name & version</div>
+            <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { ingestImage(e.target.files[0]); e.target.value = ""; }} />
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", alignItems: "flex-start" }}>
+            <img src={img} alt="screenshot" style={{ maxWidth: "240px", maxHeight: "180px", borderRadius: "10px", border: `1px solid ${theme.cardBorder}` }} />
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <MoButton theme={theme} variant="primary" onClick={analyze} disabled={ocrBusy}>{ocrBusy ? "Analyzing…" : "Analyze screenshot"}</MoButton>
+              <MoButton theme={theme} onClick={() => { setImg(null); setOcrText(""); setOcrStatus(null); setShowOcr(false); }}>Remove screenshot</MoButton>
+              {ocrText && <MoButton theme={theme} onClick={() => setShowOcr((v) => !v)}>{showOcr ? "Hide detected text" : "Show detected text"}</MoButton>}
+            </div>
+          </div>
+        )}
+        {ocrStatus && (
+          <div style={{ marginTop: "12px", fontSize: "13px", fontWeight: 600, padding: "10px 14px", borderRadius: "10px", color: ocrStatus.type === "error" ? theme.danger : ocrStatus.type === "success" ? theme.positive : theme.textMuted, background: ocrStatus.type === "error" ? theme.dangerSoft : theme.accentSoft }}>
+            {ocrStatus.message}
+          </div>
+        )}
+        {showOcr && ocrText && (
+          <pre className="v-scroll" style={{ marginTop: "12px", maxHeight: "160px", overflowY: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: "12px", lineHeight: 1.5, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", color: theme.textMuted, background: theme.inputBg, border: `1px solid ${theme.inputBorder}`, borderRadius: "10px", padding: "12px 14px", "--scroll-thumb": theme.divider }}>{ocrText}</pre>
+        )}
+      </div>
+
+      {/* Fields */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px" }}>
+        <AppNoticeField theme={theme} label="Application name">
+          <input value={form.appName} onChange={(e) => setField("appName", e.target.value)} placeholder="e.g. Zoom" className="v-input" style={inputStyle} />
+        </AppNoticeField>
+        <AppNoticeField theme={theme} label="Recipient name (optional)">
+          <input value={form.recipient} onChange={(e) => setField("recipient", e.target.value)} placeholder="e.g. Jordan" className="v-input" style={inputStyle} />
+        </AppNoticeField>
+        <AppNoticeField theme={theme} label="Installed version (optional)">
+          <input value={form.installedVer} onChange={(e) => setField("installedVer", e.target.value)} placeholder="e.g. 5.10.2" className="v-input" style={inputStyle} />
+        </AppNoticeField>
+        <AppNoticeField theme={theme} label="Required / latest version (optional)">
+          <input value={form.requiredVer} onChange={(e) => setField("requiredVer", e.target.value)} placeholder="e.g. 5.17.0" className="v-input" style={inputStyle} />
+        </AppNoticeField>
+        <AppNoticeField theme={theme} label="Devices / hosts" full>
+          <textarea value={form.devices} onChange={(e) => setField("devices", e.target.value)} placeholder="One per line, or comma-separated — e.g. LAPTOP-1234, MacBook-Pro-JG" rows={2} className="v-input v-scroll" style={{ ...inputStyle, resize: "vertical", "--scroll-thumb": theme.divider }} />
+        </AppNoticeField>
+        <AppNoticeField theme={theme} label="Action">
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+            {APP_NOTICE_ACTIONS.map((a) => (
+              <button key={a.id} onClick={() => setField("action", a.id)} className="v-btn" style={{ flex: "1 1 auto", padding: "8px 10px", borderRadius: "9px", fontSize: "12px", fontWeight: 700, cursor: "pointer", border: `1px solid ${form.action === a.id ? theme.accent : theme.inputBorder}`, background: form.action === a.id ? theme.accentSoft : theme.inputBg, color: form.action === a.id ? theme.accent : theme.textMuted }}>{a.label}</button>
+            ))}
+          </div>
+        </AppNoticeField>
+        <AppNoticeField theme={theme} label="Tone">
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+            {APP_NOTICE_TONES.map((t) => (
+              <button key={t.id} onClick={() => setMeta("tone", t.id)} className="v-btn" style={{ flex: "1 1 auto", padding: "8px 10px", borderRadius: "9px", fontSize: "12px", fontWeight: 700, cursor: "pointer", border: `1px solid ${s.tone === t.id ? theme.accent : theme.inputBorder}`, background: s.tone === t.id ? theme.accentSoft : theme.inputBg, color: s.tone === t.id ? theme.accent : theme.textMuted }}>{t.label}</button>
+            ))}
+          </div>
+        </AppNoticeField>
+        <AppNoticeField theme={theme} label="Deadline (optional)">
+          <input type="date" value={form.deadline} onChange={(e) => setField("deadline", e.target.value)} className="v-input" style={inputStyle} />
+        </AppNoticeField>
+        <AppNoticeField theme={theme} label="Reason / context (optional)">
+          <input value={form.reason} onChange={(e) => setField("reason", e.target.value)} placeholder="e.g. flagged as a critical vulnerability" className="v-input" style={inputStyle} />
+        </AppNoticeField>
+        <AppNoticeField theme={theme} label="Your name (signature)">
+          <input value={s.sender} onChange={(e) => setMeta("sender", e.target.value)} placeholder="e.g. Andrew Makris" className="v-input" style={inputStyle} />
+        </AppNoticeField>
+        <AppNoticeField theme={theme} label="Team / signature line">
+          <input value={s.team} onChange={(e) => setMeta("team", e.target.value)} placeholder="e.g. Mechanical Orchard Security" className="v-input" style={inputStyle} />
+        </AppNoticeField>
+      </div>
+
+      {/* Preview */}
+      <div style={{ marginTop: "22px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+          <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: theme.sectionLabelColor, flex: 1 }}>Message preview</div>
+          <span style={{ fontSize: "12px", color: theme.textFaint }}>Subject: {subject}</span>
+        </div>
+        <pre className="v-scroll" style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: "13px", lineHeight: 1.6, fontFamily: "inherit", color: theme.text, background: theme.inputBg, border: `1px solid ${theme.inputBorder}`, borderRadius: "12px", padding: "16px 18px", "--scroll-thumb": theme.divider }}>{body}</pre>
+      </div>
+
+      {/* Saved log */}
+      {s.history && s.history.length > 0 && (
+        <div style={{ marginTop: "22px" }}>
+          <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: theme.sectionLabelColor, marginBottom: "8px" }}>Saved notices ({s.history.length})</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {s.history.map((h) => (
+              <div key={h.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "10px", background: theme.inputBg, border: `1px solid ${theme.inputBorder}` }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: theme.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h.appName}</div>
+                  <div style={{ fontSize: "11px", color: theme.textFaint }}>{new Date(h.at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} · {h.action}</div>
+                </div>
+                <button onClick={() => doCopy(h.id, h.body)} className="v-btn" style={{ fontSize: "12px", fontWeight: 700, color: theme.accent, background: theme.accentSoft, border: "none", borderRadius: "8px", padding: "6px 10px" }}>{copied === h.id ? "Copied!" : "Copy"}</button>
+                <button onClick={() => removeLog(h.id)} className="v-btn" title="Delete" style={{ fontSize: "12px", fontWeight: 700, color: theme.danger, background: "transparent", border: `1px solid ${theme.cardBorder}`, borderRadius: "8px", padding: "6px 10px" }}>Delete</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </MoModal>
+  );
+}
+
+/* ===== Daily InfoSec Log builder (MO tool) ===== */
+const DEFAULT_DAILY_LOG = { notes: "", entries: [] };
+
+function logDayKey(dt) {
+  const d = new Date(dt);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function logPrettyDate(key) {
+  const d = new Date(key + "T00:00:00");
+  if (isNaN(d.getTime())) return key;
+  return d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+}
+
+function buildDailyLog(dayKey, data) {
+  const { snapshots, notices, policies, notes } = data;
+  const daySnaps = (snapshots || []).filter((s) => s.ts && logDayKey(s.ts) === dayKey);
+  const dayNotices = (notices || []).filter((n) => n.at && logDayKey(n.at) === dayKey);
+  const policyDone = (policies || []).filter((p) => p.status === "done").length;
+  const policyTotal = (policies || []).length;
+  const policyUpdated = (policies || []).filter((p) => p.updatedAt && logDayKey(p.updatedAt) === dayKey);
+
+  const L = [];
+  const title = `InfoSec Daily Log — ${logPrettyDate(dayKey)}`;
+  L.push(title);
+  L.push("=".repeat(title.length));
+  L.push("");
+
+  L.push("VULNERABILITY SNAPSHOTS");
+  if (daySnaps.length === 0) {
+    L.push("  None saved today.");
+  } else {
+    daySnaps.forEach((s) => {
+      const brk = MO_SEVERITY_ORDER.filter((k) => s.counts && s.counts[k]).map((k) => `${k} ${s.counts[k]}`).join(", ");
+      L.push(`  [${(s.source || "").toUpperCase()}] ${s.fileName || "export"} — ${s.total} findings across ${s.uniqueAssets} assets${brk ? ` (${brk})` : ""}`);
+    });
+  }
+  L.push("");
+
+  L.push("OUTDATED-APP NOTICES DRAFTED");
+  if (dayNotices.length === 0) {
+    L.push("  None today.");
+  } else {
+    dayNotices.forEach((n) => L.push(`  ${n.appName} — ${n.action}`));
+  }
+  L.push("");
+
+  L.push("POLICY & PROCEDURE PROGRESS");
+  L.push(`  Complete: ${policyDone}/${policyTotal}`);
+  if (policyUpdated.length) L.push(`  Updated today: ${policyUpdated.map((p) => p.name).join(", ")}`);
+  L.push("");
+
+  const noteText = (notes || "").trim();
+  if (noteText) {
+    L.push("NOTES");
+    noteText.split("\n").forEach((line) => L.push(`  ${line}`));
+    L.push("");
+  }
+
+  return L.join("\n").replace(/\n+$/, "") + "\n";
+}
+
+function DailyLogModal({ theme, snapshots, notices, policies, state, setState, onClose }) {
+  const s = state || DEFAULT_DAILY_LOG;
+  const [dayKey, setDayKey] = useState(() => logDayKey(new Date()));
+  const [copied, setCopied] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  const setNotes = (v) => setState((prev) => ({ ...(prev || DEFAULT_DAILY_LOG), notes: v }));
+
+  const log = useMemo(
+    () => buildDailyLog(dayKey, { snapshots, notices, policies, notes: s.notes }),
+    [dayKey, snapshots, notices, policies, s.notes]
+  );
+
+  function doCopy(which, text) {
+    const done = () => { setCopied(which); setTimeout(() => setCopied(""), 1600); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done).catch(done);
+    else done();
+  }
+  function saveEntry() {
+    const entry = { id: "log" + Date.now(), day: dayKey, at: new Date().toISOString(), text: log };
+    setState((prev) => ({ ...(prev || DEFAULT_DAILY_LOG), entries: [entry, ...((prev && prev.entries) || []).filter((e) => e.day !== dayKey)].slice(0, 60) }));
+    setSaved(true); setTimeout(() => setSaved(false), 1600);
+  }
+  function removeEntry(id) {
+    setState((prev) => ({ ...(prev || DEFAULT_DAILY_LOG), entries: ((prev && prev.entries) || []).filter((e) => e.id !== id) }));
+  }
+
+  const inputStyle = { padding: "9px 11px", borderRadius: "9px", fontSize: "13px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent };
+  const daySnaps = (snapshots || []).filter((x) => x.ts && logDayKey(x.ts) === dayKey).length;
+  const dayNotices = (notices || []).filter((x) => x.at && logDayKey(x.at) === dayKey).length;
+
+  return (
+    <MoModal
+      theme={theme}
+      icon={<IconClipboard size={20} />}
+      title="Daily InfoSec Log"
+      subtitle="Auto-compiles the day's vuln snapshots, app-notices, and policy progress with your notes into a copy-ready standup / end-of-day summary."
+      onClose={onClose}
+      footer={
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          <MoButton theme={theme} variant="primary" onClick={() => doCopy("log", log)}>{copied === "log" ? "Copied!" : "Copy log"}</MoButton>
+          <MoButton theme={theme} onClick={() => moDownload(`infosec-log-${dayKey}.txt`, log)}><IconUpload size={13} /> Download .txt</MoButton>
+          <MoButton theme={theme} onClick={saveEntry}>{saved ? "Saved!" : "Save to log"}</MoButton>
+        </div>
+      }
+    >
+      <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "flex-end", marginBottom: "16px" }}>
+        <div>
+          <label style={{ display: "block", fontSize: "11px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: theme.textMuted, marginBottom: "5px" }}>Log date</label>
+          <input type="date" value={dayKey} onChange={(e) => setDayKey(e.target.value || dayKey)} className="v-input" style={inputStyle} />
+        </div>
+        <div style={{ fontSize: "12.5px", color: theme.textFaint, paddingBottom: "9px" }}>
+          {daySnaps} snapshot{daySnaps === 1 ? "" : "s"} · {dayNotices} notice{dayNotices === 1 ? "" : "s"} on this day
+        </div>
+      </div>
+
+      <div>
+        <label style={{ display: "block", fontSize: "11px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: theme.textMuted, marginBottom: "5px" }}>Notes for the day</label>
+        <textarea
+          value={s.notes || ""}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Anything else worth logging — tickets closed, meetings, follow-ups…"
+          rows={3}
+          className="v-input v-scroll"
+          style={{ ...inputStyle, width: "100%", resize: "vertical", "--scroll-thumb": theme.divider }}
+        />
+      </div>
+
+      <div style={{ marginTop: "20px" }}>
+        <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: theme.sectionLabelColor, marginBottom: "8px" }}>Preview</div>
+        <pre className="v-scroll" style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: "12.5px", lineHeight: 1.55, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", color: theme.text, background: theme.inputBg, border: `1px solid ${theme.inputBorder}`, borderRadius: "12px", padding: "16px 18px", "--scroll-thumb": theme.divider }}>{log}</pre>
+      </div>
+
+      {s.entries && s.entries.length > 0 && (
+        <div style={{ marginTop: "22px" }}>
+          <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: theme.sectionLabelColor, marginBottom: "8px" }}>Saved logs ({s.entries.length})</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {s.entries.map((e) => (
+              <div key={e.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "10px", background: theme.inputBg, border: `1px solid ${theme.inputBorder}` }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: theme.text }}>{logPrettyDate(e.day)}</div>
+                  <div style={{ fontSize: "11px", color: theme.textFaint }}>saved {new Date(e.at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
+                </div>
+                <button onClick={() => doCopy(e.id, e.text)} className="v-btn" style={{ fontSize: "12px", fontWeight: 700, color: theme.accent, background: theme.accentSoft, border: "none", borderRadius: "8px", padding: "6px 10px" }}>{copied === e.id ? "Copied!" : "Copy"}</button>
+                <button onClick={() => removeEntry(e.id)} className="v-btn" title="Delete" style={{ fontSize: "12px", fontWeight: 700, color: theme.danger, background: "transparent", border: `1px solid ${theme.cardBorder}`, borderRadius: "8px", padding: "6px 10px" }}>Delete</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </MoModal>
+  );
+}
+
+/* ===== CVE / KEV lookup (MO tool) =====
+   Checks CVE IDs against CISA's Known Exploited Vulnerabilities catalog.
+   The catalog loads either live (if the browser can reach CISA with CORS)
+   or from an uploaded copy of the JSON — after that, lookups are instant
+   and fully offline. The normalized catalog caches to localStorage. */
+const DEFAULT_KEV = { entries: null, catalogVersion: null, dateReleased: null, count: 0, fetchedAt: null };
+const KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json";
+
+function normalizeKev(json) {
+  const vulns = (json && json.vulnerabilities) || [];
+  if (!Array.isArray(vulns) || !vulns.length) throw new Error("This file doesn't look like the KEV catalog (no vulnerabilities array).");
+  const entries = vulns.map((v) => ({
+    cveID: (v.cveID || "").toUpperCase(),
+    vendorProject: v.vendorProject || "",
+    product: v.product || "",
+    vulnerabilityName: v.vulnerabilityName || "",
+    dateAdded: v.dateAdded || "",
+    dueDate: v.dueDate || "",
+    ransomware: v.knownRansomwareCampaignUse || "Unknown",
+    requiredAction: v.requiredAction || "",
+    shortDescription: v.shortDescription || "",
+  }));
+  return { entries, catalogVersion: json.catalogVersion || null, dateReleased: json.dateReleased || null, count: json.count || entries.length };
+}
+
+function parseCveList(text) {
+  const set = [];
+  const re = /CVE-\d{4}-\d{4,7}/gi;
+  let m;
+  while ((m = re.exec(text || "")) !== null) {
+    const id = m[0].toUpperCase();
+    if (!set.includes(id)) set.push(id);
+  }
+  return set;
+}
+
+function KevLookupModal({ theme, state, setState, onClose }) {
+  const s = state && "entries" in state ? state : DEFAULT_KEV;
+  const [query, setQuery] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState(null); // { type, message }
+  const fileRef = useRef(null);
+
+  const kevMap = useMemo(() => {
+    const map = {};
+    (s.entries || []).forEach((e) => { map[e.cveID] = e; });
+    return map;
+  }, [s.entries]);
+
+  const cves = useMemo(() => parseCveList(query), [query]);
+  const results = useMemo(() => cves.map((id) => ({ id, hit: kevMap[id] || null })), [cves, kevMap]);
+  const hitCount = results.filter((r) => r.hit).length;
+  const ransomCount = results.filter((r) => r.hit && String(r.hit.ransomware).toLowerCase() === "known").length;
+
+  async function fetchLive() {
+    setBusy(true);
+    setStatus({ type: "info", message: "Fetching the latest KEV catalog from CISA…" });
+    try {
+      const res = await fetch(KEV_URL, { cache: "no-store" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const json = await res.json();
+      const norm = normalizeKev(json);
+      setState({ ...norm, fetchedAt: new Date().toISOString() });
+      setStatus({ type: "success", message: `Loaded ${norm.count} known-exploited CVEs (catalog ${norm.catalogVersion || "?"}).` });
+    } catch (e) {
+      setStatus({ type: "error", message: "Couldn't fetch live (CISA may block cross-origin requests from the browser). Download known_exploited_vulnerabilities.json from CISA and use “Upload catalog” instead." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function ingestFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const norm = normalizeKev(JSON.parse(reader.result));
+        setState({ ...norm, fetchedAt: new Date().toISOString() });
+        setStatus({ type: "success", message: `Loaded ${norm.count} known-exploited CVEs (catalog ${norm.catalogVersion || "?"}).` });
+      } catch (e) {
+        setStatus({ type: "error", message: e.message || "Couldn't parse that file — expected the KEV catalog JSON." });
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  const inputStyle = { padding: "9px 11px", borderRadius: "9px", fontSize: "13px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent };
+  const loaded = !!(s.entries && s.entries.length);
+  const todayKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`;
+
+  return (
+    <MoModal
+      theme={theme}
+      icon={<IconShield size={20} />}
+      title="CVE / KEV Lookup"
+      subtitle="Paste CVE IDs to check them against CISA's Known Exploited Vulnerabilities catalog — see which are actively exploited, ransomware-linked, and their remediation due dates."
+      onClose={onClose}
+      footer={
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+          <MoButton theme={theme} onClick={fetchLive} disabled={busy}>{busy ? "Loading…" : loaded ? "Refresh catalog" : "Load catalog (live)"}</MoButton>
+          <MoButton theme={theme} onClick={() => fileRef.current && fileRef.current.click()}>Upload catalog (.json)</MoButton>
+          <input ref={fileRef} type="file" accept="application/json,.json" style={{ display: "none" }} onChange={(e) => { ingestFile(e.target.files[0]); e.target.value = ""; }} />
+          {loaded && <span style={{ fontSize: "12px", color: theme.textFaint, marginLeft: "auto" }}>{s.count} CVEs · catalog {s.catalogVersion || "?"}{s.fetchedAt ? ` · loaded ${new Date(s.fetchedAt).toLocaleDateString()}` : ""}</span>}
+        </div>
+      }
+    >
+      {!loaded && (
+        <div style={{ fontSize: "13px", color: theme.textMuted, background: theme.accentSoft, borderRadius: "10px", padding: "12px 14px", marginBottom: "16px", lineHeight: 1.5 }}>
+          No catalog loaded yet. Click <strong>Load catalog (live)</strong> to pull it from CISA, or <strong>Upload catalog</strong> if your network blocks that (grab <em>known_exploited_vulnerabilities.json</em> from cisa.gov/known-exploited-vulnerabilities-catalog). It's cached after the first load.
+        </div>
+      )}
+      {status && (
+        <div style={{ marginBottom: "16px", fontSize: "13px", fontWeight: 600, padding: "10px 14px", borderRadius: "10px", color: status.type === "error" ? theme.danger : status.type === "success" ? theme.positive : theme.textMuted, background: status.type === "error" ? theme.dangerSoft : theme.accentSoft }}>
+          {status.message}
+        </div>
+      )}
+
+      <label style={{ display: "block", fontSize: "11px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: theme.textMuted, marginBottom: "5px" }}>CVE IDs</label>
+      <textarea
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Paste CVE IDs — e.g. CVE-2021-44228, CVE-2023-23397 (any text; we extract the CVE IDs)"
+        rows={3}
+        className="v-input v-scroll"
+        style={{ ...inputStyle, width: "100%", resize: "vertical", "--scroll-thumb": theme.divider }}
+      />
+
+      {cves.length > 0 && (
+        <div style={{ marginTop: "18px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "13px", fontWeight: 700, color: theme.text }}>{cves.length} CVE{cves.length === 1 ? "" : "s"} checked</span>
+            {loaded ? (
+              <span style={{ fontSize: "12.5px", color: hitCount ? theme.danger : theme.positive, fontWeight: 700 }}>
+                {hitCount} known-exploited{ransomCount ? ` · ${ransomCount} ransomware-linked` : ""}
+              </span>
+            ) : (
+              <span style={{ fontSize: "12.5px", color: theme.textFaint }}>load the catalog to check them</span>
+            )}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {results.map((r) => {
+              const hit = r.hit;
+              const overdue = hit && hit.dueDate && hit.dueDate < todayKey;
+              const ransom = hit && String(hit.ransomware).toLowerCase() === "known";
+              return (
+                <div key={r.id} style={{ padding: "12px 14px", borderRadius: "10px", border: `1px solid ${hit ? theme.danger : theme.cardBorder}`, background: hit ? theme.dangerSoft : theme.inputBg }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                    <span className="v-tabular" style={{ fontSize: "14px", fontWeight: 800, color: theme.text }}>{r.id}</span>
+                    {!loaded ? (
+                      <span style={{ fontSize: "12px", color: theme.textFaint }}>—</span>
+                    ) : hit ? (
+                      <span style={{ fontSize: "11px", fontWeight: 800, color: theme.accentText, background: theme.danger, borderRadius: "999px", padding: "2px 9px", letterSpacing: "0.03em" }}>KNOWN EXPLOITED</span>
+                    ) : (
+                      <span style={{ fontSize: "11px", fontWeight: 700, color: theme.positive, background: theme.accentSoft, borderRadius: "999px", padding: "2px 9px" }}>not on KEV</span>
+                    )}
+                    {ransom && <span style={{ fontSize: "11px", fontWeight: 800, color: theme.danger, border: `1px solid ${theme.danger}`, borderRadius: "999px", padding: "1px 8px" }}>RANSOMWARE</span>}
+                  </div>
+                  {hit && (
+                    <div style={{ marginTop: "7px", fontSize: "12.5px", color: theme.textMuted, lineHeight: 1.5 }}>
+                      <div style={{ color: theme.text, fontWeight: 600 }}>{hit.vendorProject} {hit.product} — {hit.vulnerabilityName}</div>
+                      <div style={{ marginTop: "3px" }}>Added {hit.dateAdded || "?"} · Due {hit.dueDate || "?"}{overdue ? " (overdue)" : ""}</div>
+                      {hit.requiredAction && <div style={{ marginTop: "3px" }}>Action: {hit.requiredAction}</div>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </MoModal>
+  );
+}
+
 function PolicyStatusSelect({ theme, value, onChange }) {
   const color = POLICY_STATUS_COLOR[value] || theme.textMuted;
   return (
@@ -10713,6 +13525,9 @@ function MechanicalOrchardMenu({ theme, links, setLinks, onOpenTool }) {
     { id: "pki", icon: <IconCertificate size={15} />, label: "PKI Report Generator", desc: "Build a PKI report" },
     { id: "policy", icon: <IconClipboard size={15} />, label: "Policy & Procedure Writeup", desc: "Track & store policies" },
     { id: "deck", icon: <IconDeck size={15} />, label: "Weekly Report Deck", desc: "Fill a PPTX template" },
+    { id: "appnotice", icon: <IconMegaphone size={15} />, label: "Outdated App Notice", desc: "Draft an update/remove message" },
+    { id: "dailylog", icon: <IconClipboard size={15} />, label: "Daily InfoSec Log", desc: "Compile a daily summary" },
+    { id: "kev", icon: <IconShield size={15} />, label: "CVE / KEV Lookup", desc: "Check CISA Known Exploited" },
   ];
 
   return (
