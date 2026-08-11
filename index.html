@@ -157,6 +157,19 @@
     }
     .v-navitem { width: auto; flex-shrink: 0; }
     .v-main { margin-left: 0; }
+    /* The sidebar's collapsible sections wrap each group's nav items in its
+       own <div> for the desktop vertical rail — on the horizontal mobile
+       strip that turns each group into its own stacked column sitting
+       side-by-side instead of one flat scrollable row. display:contents
+       unwraps the group divs so their NavItem children flow directly into
+       .v-rail-nav's row layout, matching the flat pre-collapsible-sections
+       mobile design; the section header/collapse toggle has no room (or
+       purpose — see isNarrowRail in Sidebar) on this strip, so it's hidden. */
+    .v-navgroup { display: contents; }
+    /* !important: the toggle button sets display:flex inline (React style
+       prop), which otherwise always wins over an external stylesheet rule
+       regardless of specificity. */
+    .v-navgroup-toggle { display: none !important; }
   }
 
   /* ---- Priority Stream ---- */
@@ -1029,6 +1042,22 @@ function usePersistentState(key, initial) {
     saveJSON(key, state);
   }, [key, state]);
   return [state, setState];
+}
+
+// Tracks a CSS media query in JS — used by the sidebar to know when it's
+// rendering as the mobile horizontal strip (see the @media (max-width: 900px)
+// rule for .v-rail) so section-collapse state, which only makes sense in the
+// vertical desktop rail, can be ignored there instead of hiding whole groups.
+function useMediaQuery(query) {
+  const [matches, setMatches] = useState(() => (typeof window !== "undefined" ? window.matchMedia(query).matches : false));
+  useEffect(() => {
+    const mql = window.matchMedia(query);
+    const onChange = () => setMatches(mql.matches);
+    onChange();
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, [query]);
+  return matches;
 }
 
 // Minimal hash-based router — no library needed for a handful of pages.
@@ -6826,6 +6855,11 @@ function Sidebar({
 }) {
   const doneGoals = goals.filter((g) => g.status === "done").length;
   const [navCollapsed, setNavCollapsed] = usePersistentState(STORAGE_KEYS.navCollapsed, {});
+  // Below 900px the rail becomes a horizontal icon strip (see .v-rail's
+  // media query) with no room for section headers or a meaningful concept
+  // of "collapsed" — every item should just be visible and scrollable, so
+  // collapse state (persisted from desktop use) is ignored down here.
+  const isNarrowRail = useMediaQuery("(max-width: 900px)");
   const valueByPage = {
     fitness: fitness.currentWeight,
     golf: golf.handicap,
@@ -6905,12 +6939,12 @@ function Sidebar({
             .map((id) => PAGE_META.find((p) => p.id === id))
             .filter(Boolean);
           if (!items.length) return null;
-          const collapsed = !!navCollapsed[group.id];
+          const collapsed = !isNarrowRail && !!navCollapsed[group.id];
           return (
-            <div key={group.id} style={{ marginTop: "8px" }}>
+            <div key={group.id} className="v-navgroup" style={{ marginTop: "8px" }}>
               <button
                 onClick={() => setNavCollapsed((s) => ({ ...s, [group.id]: !s[group.id] }))}
-                className="v-btn"
+                className="v-btn v-navgroup-toggle"
                 title={collapsed ? "Expand" : "Collapse"}
                 style={{ display: "flex", alignItems: "center", gap: "6px", width: "100%", padding: "4px 10px 3px", background: "transparent", border: "none", color: theme.textMuted, cursor: "pointer", fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}
               >
@@ -6937,7 +6971,7 @@ function Sidebar({
           const rest = PAGE_META.filter((p) => !grouped.has(p.id));
           if (!rest.length) return null;
           return (
-            <div style={{ marginTop: "8px" }}>
+            <div className="v-navgroup" style={{ marginTop: "8px" }}>
               {rest.map((item) => (
                 <NavItem
                   key={item.id}
