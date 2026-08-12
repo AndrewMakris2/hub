@@ -105,6 +105,7 @@
   @keyframes vFadeIn { from { opacity: 0; } to { opacity: 1; } }
   @keyframes vSheetUp { from { transform: translateY(6%); opacity: .6; } to { transform: translateY(0); opacity: 1; } }
   @keyframes vShimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+  @keyframes v-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 
   /* ---- Cards ---- */
   .v-card {
@@ -1770,6 +1771,7 @@ const STORAGE_KEYS = {
   ravenProducts: "dash.ravenProducts",
   trips: "dash.trips",
   mealPlanning: "dash.mealPlanning",
+  lastfm: "dash.lastfm",
 };
 
 // "The War Room" fantasy-football port — defaults for the localStorage-backed
@@ -3117,6 +3119,16 @@ function IconYoutube({ size = 14 }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="2" y="5" width="20" height="14" rx="4" />
       <path d="M10 9l6 3-6 3V9z" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function IconMusic({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 18V5l12-2v13" />
+      <circle cx="6" cy="18" r="3" />
+      <circle cx="18" cy="16" r="3" />
     </svg>
   );
 }
@@ -8586,6 +8598,270 @@ function YouTubeSection({ theme, integrations, setIntegrations, videos, onVideos
   );
 }
 
+// Apple Music has no free public API, so this bridges through Last.fm
+// instead: if plays are scrobbled there (Apple Music can do this via a free
+// iOS Shortcut, or any of several third-party scrobbler apps), Last.fm's
+// read API — free, keyed per-app, no OAuth — surfaces now-playing, recent
+// history, and top artists. The username + API key are supplied by the user
+// and stored like any other local integration credential (see
+// integrations.googleClientId above).
+const DEFAULT_LASTFM = { username: "", apiKey: "", cache: null, fetchedAt: null };
+const LASTFM_API_BASE = "https://ws.audioscrobbler.com/2.0/";
+
+function lastfmImageUrl(images) {
+  if (!Array.isArray(images) || images.length === 0) return null;
+  const preferred = images.find((i) => i.size === "extralarge") || images.find((i) => i.size === "large") || images[images.length - 1];
+  return preferred && preferred["#text"] ? preferred["#text"] : null;
+}
+
+async function lastfmRequest(method, params, apiKey) {
+  const url = new URL(LASTFM_API_BASE);
+  url.searchParams.set("method", method);
+  url.searchParams.set("api_key", apiKey);
+  url.searchParams.set("format", "json");
+  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  const res = await fetch(url.toString());
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json || json.error) {
+    throw new Error((json && json.message) || `Last.fm request failed (${res.status})`);
+  }
+  return json;
+}
+
+async function fetchLastfmData(username, apiKey) {
+  const [recentJson, topJson, infoJson] = await Promise.all([
+    lastfmRequest("user.getrecenttracks", { user: username, limit: "12" }, apiKey),
+    lastfmRequest("user.gettopartists", { user: username, period: "7day", limit: "6" }, apiKey),
+    lastfmRequest("user.getinfo", { user: username }, apiKey),
+  ]);
+
+  const rawTracks = recentJson.recenttracks && recentJson.recenttracks.track;
+  const tracks = Array.isArray(rawTracks) ? rawTracks : rawTracks ? [rawTracks] : [];
+  const nowPlayingRaw = tracks.find((t) => t["@attr"] && t["@attr"].nowplaying === "true");
+  const historyRaw = tracks.filter((t) => !(t["@attr"] && t["@attr"].nowplaying === "true"));
+  const mapTrack = (t) => ({
+    name: t.name,
+    artist: t.artist ? t.artist["#text"] || t.artist.name || "" : "",
+    album: t.album ? t.album["#text"] : "",
+    image: lastfmImageUrl(t.image),
+    url: t.url,
+    playedAt: t.date ? Number(t.date.uts) * 1000 : null,
+  });
+
+  const rawArtists = topJson.topartists && topJson.topartists.artist;
+  const artists = Array.isArray(rawArtists) ? rawArtists : rawArtists ? [rawArtists] : [];
+
+  return {
+    nowPlaying: nowPlayingRaw ? mapTrack(nowPlayingRaw) : null,
+    recent: historyRaw.map(mapTrack),
+    topArtists: artists.map((a) => ({ name: a.name, playcount: Number(a.playcount) || 0, image: lastfmImageUrl(a.image), url: a.url })),
+    scrobbles: infoJson.user ? Number(infoJson.user.playcount) || 0 : null,
+    profileUrl: infoJson.user ? infoJson.user.url : null,
+  };
+}
+
+function MusicPage({ theme, state, setState }) {
+  const s = state || DEFAULT_LASTFM;
+  const [username, setUsername] = useState(s.username || "");
+  const [apiKey, setApiKey] = useState(s.apiKey || "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const connected = !!(s.username && s.apiKey);
+
+  async function refresh(uname, key) {
+    setBusy(true);
+    setError(null);
+    try {
+      const cache = await fetchLastfmData(uname, key);
+      setState({ username: uname, apiKey: key, cache, fetchedAt: Date.now() });
+    } catch (e) {
+      setError(e.message || "Couldn't reach Last.fm.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function connect() {
+    const u = username.trim();
+    const k = apiKey.trim();
+    if (!u || !k) {
+      setError("Enter both your Last.fm username and API key.");
+      return;
+    }
+    refresh(u, k);
+  }
+
+  function disconnect() {
+    setState(DEFAULT_LASTFM);
+    setUsername("");
+    setApiKey("");
+    setError(null);
+  }
+
+  useEffect(() => {
+    if (connected && (!s.fetchedAt || Date.now() - s.fetchedAt > 5 * 60 * 1000)) {
+      refresh(s.username, s.apiKey);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const inputStyle = { padding: "9px 11px", borderRadius: "9px", fontSize: "13px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent };
+
+  if (!connected) {
+    return (
+      <Card theme={theme}>
+        <SectionLabel theme={theme} icon={<IconMusic />}>Connect Last.fm</SectionLabel>
+        <div style={{ fontSize: "12.5px", color: theme.textMuted, lineHeight: 1.5, marginBottom: "16px" }}>
+          Apple Music has no free public API, so this bridges through Last.fm instead. Scrobble your plays there —
+          via a free iOS Shortcut, or a scrobbler app for Apple Music — then connect your Last.fm account below.
+          Get a free API key at{" "}
+          <a href="https://www.last.fm/api/account/create" target="_blank" rel="noopener noreferrer" style={{ color: theme.accent }}>
+            last.fm/api/account/create
+          </a>{" "}
+          (any app name works — nothing needs to be published).
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxWidth: "360px" }}>
+          <input
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && connect()}
+            placeholder="Last.fm username"
+            className="v-input"
+            style={inputStyle}
+          />
+          <input
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && connect()}
+            placeholder="Last.fm API key"
+            className="v-input"
+            style={inputStyle}
+          />
+          <MoButton theme={theme} variant="primary" onClick={connect} disabled={busy} style={{ alignSelf: "flex-start" }}>
+            {busy ? "Connecting…" : "Connect"}
+          </MoButton>
+        </div>
+        {error && <div style={{ fontSize: "12px", color: theme.danger, marginTop: "12px" }}>{error}</div>}
+      </Card>
+    );
+  }
+
+  const data = s.cache;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <Card theme={theme}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
+          <SectionLabel theme={theme} icon={<IconMusic />} style={{ marginBottom: 0 }}>
+            {s.username}'s Last.fm
+          </SectionLabel>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+            {data && data.fetchedAt !== undefined && (
+              <span style={{ fontSize: "11px", color: theme.textFaint }}>{s.fetchedAt ? `Updated ${timeAgo(s.fetchedAt)}` : ""}</span>
+            )}
+            <button onClick={() => refresh(s.username, s.apiKey)} disabled={busy} className="v-btn" style={{ fontSize: "11.5px", fontWeight: 700, color: theme.textMuted, background: "transparent", border: `1px solid ${theme.divider}`, borderRadius: "999px", padding: "4px 10px" }}>
+              {busy ? "Refreshing…" : "Refresh"}
+            </button>
+            <button onClick={disconnect} className="v-btn" style={{ fontSize: "11.5px", fontWeight: 700, color: theme.text, background: "transparent", border: `1px solid ${theme.divider}`, borderRadius: "999px", padding: "4px 10px" }}>
+              Disconnect
+            </button>
+          </div>
+        </div>
+        {error && <div style={{ fontSize: "12px", color: theme.danger, marginBottom: "12px" }}>{error}</div>}
+        {data && data.scrobbles != null && (
+          <div style={{ fontSize: "12px", color: theme.textMuted, marginBottom: data.nowPlaying ? "14px" : 0 }}>
+            {data.scrobbles.toLocaleString()} total scrobbles
+            {data.profileUrl && (
+              <>
+                {" "}
+                &middot;{" "}
+                <a href={data.profileUrl} target="_blank" rel="noopener noreferrer" style={{ color: theme.accent }}>
+                  view profile
+                </a>
+              </>
+            )}
+          </div>
+        )}
+        {data && data.nowPlaying && (
+          <div style={{ display: "flex", gap: "12px", alignItems: "center", background: theme.accentSoft, border: `1px solid ${theme.accent}`, borderRadius: "12px", padding: "10px 12px" }}>
+            {data.nowPlaying.image ? (
+              <img src={data.nowPlaying.image} alt="" loading="lazy" decoding="async" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} style={{ width: "44px", height: "44px", objectFit: "cover", borderRadius: "8px", flexShrink: 0, background: theme.chip }} />
+            ) : (
+              <div style={{ width: "44px", height: "44px", borderRadius: "8px", background: theme.progressTrack, flexShrink: 0 }} />
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: theme.accent, flexShrink: 0, animation: "v-pulse 1.6s ease-in-out infinite" }} />
+                <span style={{ fontSize: "11px", fontWeight: 700, color: theme.accent, textTransform: "uppercase", letterSpacing: "0.04em" }}>Now playing</span>
+              </div>
+              <div style={{ fontSize: "13.5px", fontWeight: 700, color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: "2px" }}>{data.nowPlaying.name}</div>
+              <div style={{ fontSize: "12px", color: theme.textFaint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{data.nowPlaying.artist}</div>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {data && data.topArtists && data.topArtists.length > 0 && (
+        <Card theme={theme}>
+          <SectionLabel theme={theme}>Top artists this week</SectionLabel>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+            {data.topArtists.map((a) => (
+              <a
+                key={a.name}
+                href={a.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: "flex", alignItems: "center", gap: "8px", background: theme.chip, border: `1px solid ${theme.cardBorder}`, borderRadius: "999px", padding: "6px 12px 6px 6px", textDecoration: "none" }}
+              >
+                {a.image ? (
+                  <img src={a.image} alt="" loading="lazy" decoding="async" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} style={{ width: "26px", height: "26px", objectFit: "cover", borderRadius: "50%", flexShrink: 0, background: theme.progressTrack }} />
+                ) : (
+                  <div style={{ width: "26px", height: "26px", borderRadius: "50%", background: theme.progressTrack, flexShrink: 0 }} />
+                )}
+                <span style={{ fontSize: "12.5px", fontWeight: 600, color: theme.text }}>{a.name}</span>
+                <span style={{ fontSize: "11px", color: theme.textFaint }}>{a.playcount}</span>
+              </a>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      <Card theme={theme}>
+        <SectionLabel theme={theme}>Recently played</SectionLabel>
+        {data && data.recent.length === 0 ? (
+          <div style={{ fontSize: "13px", color: theme.textFaint }}>No scrobbles found yet — play something and it'll show up here.</div>
+        ) : (
+          <div className="v-scroll" style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "360px", overflowY: "auto" }}>
+            {data &&
+              data.recent.map((t, i) => (
+                <a
+                  key={`${t.name}-${t.playedAt || i}`}
+                  href={t.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ display: "flex", gap: "10px", alignItems: "center", background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "10px", padding: "8px 10px", textDecoration: "none" }}
+                >
+                  {t.image ? (
+                    <img src={t.image} alt="" loading="lazy" decoding="async" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} style={{ width: "36px", height: "36px", objectFit: "cover", borderRadius: "6px", flexShrink: 0, background: theme.chip }} />
+                  ) : (
+                    <div style={{ width: "36px", height: "36px", borderRadius: "6px", background: theme.progressTrack, flexShrink: 0 }} />
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: "13px", color: theme.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</div>
+                    <div style={{ fontSize: "11.5px", color: theme.textFaint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {t.artist}
+                      {t.playedAt ? ` · ${timeAgo(t.playedAt)}` : ""}
+                    </div>
+                  </div>
+                </a>
+              ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 // Every non-Home page Vantage can navigate to. Order here drives both the
 // sidebar nav list and the Home overview tile grid.
 const PAGE_META = [
@@ -8599,6 +8875,7 @@ const PAGE_META = [
   { id: "travel", label: "Travel", icon: <IconPlane size={14} /> },
   { id: "agenda", label: "Agenda", icon: <IconCalendar /> },
   { id: "youtube", label: "YouTube", icon: <IconYoutube size={14} /> },
+  { id: "music", label: "Music", icon: <IconMusic size={14} /> },
   { id: "profile", label: "About Me", icon: <IconUser /> },
   { id: "resume", label: "Resume", icon: <IconCertificate size={14} /> },
   { id: "watchlist", label: "Watch List", icon: <IconFilm size={14} /> },
@@ -8627,7 +8904,7 @@ const NAV_GROUPS = [
   { id: "health", label: "Health & Play", ids: ["fitness", "golf", "fantasy", "sports"] },
   { id: "money", label: "Money", ids: ["financial", "transactions", "subscriptions"] },
   { id: "schedule", label: "Schedule", ids: ["upcoming", "weather", "travel", "agenda"] },
-  { id: "media", label: "Media", ids: ["youtube", "news", "movies", "gaming", "watchlist", "videos", "reading", "games"] },
+  { id: "media", label: "Media", ids: ["youtube", "music", "news", "movies", "gaming", "watchlist", "videos", "reading", "games"] },
   { id: "personal", label: "Personal", ids: ["profile", "resume", "trackers", "goals", "journal", "habits", "mealplanning", "birthdays"] },
   { id: "work", label: "Security & Work", ids: ["securityx", "ravenseye"] },
 ];
@@ -8649,6 +8926,7 @@ const PAGE_SUBTITLES = {
   financial: "Savings goals and net worth", transactions: "Where your money goes",
   subscriptions: "Recurring costs at a glance", upcoming: "What's on the horizon",
   agenda: "Your week ahead", youtube: "Channels and watch queue",
+  music: "Now playing, via Last.fm",
   news: "Headlines on your topics", movies: "Releases, casting, and box office",
   watchlist: "Movies and shows to watch", videos: "Your personal video library",
   reading: "Your bookshelf and reading goal", games: "Your game backlog",
@@ -13810,6 +14088,7 @@ function App() {
   const [ravenProducts, setRavenProducts] = usePersistentState(STORAGE_KEYS.ravenProducts, []);
   const [trips, setTrips] = usePersistentState(STORAGE_KEYS.trips, DEFAULT_TRIPS);
   const [mealPlanning, setMealPlanning] = usePersistentState(STORAGE_KEYS.mealPlanning, DEFAULT_MEAL_PLANNING);
+  const [lastfm, setLastfm] = usePersistentState(STORAGE_KEYS.lastfm, DEFAULT_LASTFM);
   const [trackers, setTrackers] = usePersistentState(STORAGE_KEYS.trackers, DEFAULT_TRACKERS);
   const [financial, setFinancial] = usePersistentState(STORAGE_KEYS.financial, DEFAULT_FINANCIAL);
   const [events, setEvents] = usePersistentState(STORAGE_KEYS.upcoming, DEFAULT_UPCOMING_EVENTS);
@@ -14209,6 +14488,7 @@ function App() {
               delay={0}
             />
           )}
+          {page === "music" && <MusicPage theme={theme} state={lastfm} setState={setLastfm} />}
           {page === "profile" && <ProfileSection theme={theme} profile={profile} setProfile={setProfile} />}
           {page === "watchlist" && (
             <WatchQueueSection theme={theme} watchlist={watchlist} setWatchlist={setWatchlist} genres={profile.genres} delay={0} />
