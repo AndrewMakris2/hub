@@ -330,6 +330,18 @@
     pointer-events: none;
   }
   :root[data-scheme="dark"] .v-hometile__mark { opacity: 0.085; }
+  .v-hometile__photo {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.14;
+    pointer-events: none;
+    -webkit-mask-image: linear-gradient(160deg, transparent 0%, black 70%);
+    mask-image: linear-gradient(160deg, transparent 0%, black 70%);
+  }
+  :root[data-scheme="dark"] .v-hometile__photo { opacity: 0.22; }
 
   /* ---- Home layouts ---- */
   .v-home-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
@@ -7917,19 +7929,26 @@ const PAGE_SUBTITLES = {
 // block cross-site requests or rotate their URLs — so every one degrades to the
 // page's gradient on error, and each page's image can be replaced from the
 // banner itself (stored under STORAGE_KEYS.pageImages).
+// A handful of pages without a natural photo of their own borrow one from a
+// thematically related page instead of falling back to the plain gradient —
+// so the same dozen photos turn up in more than one spot around the app.
 const PAGE_BANNER_IMG = {
   fitness: "https://preview.redd.it/how-have-the-rocky-movies-motivated-or-changed-you-as-a-v0-j50gf5mwfcoc1.jpeg?auto=webp&s=8429321f7f6f36d7f7f4d0d131a6c5b68544e701",
   sports: "https://wallpapers.com/images/featured/fenway-park-4k-67jgl65roa2g6tk8.jpg",
+  fantasy: "https://wallpapers.com/images/featured/fenway-park-4k-67jgl65roa2g6tk8.jpg",
   movies: "https://c4.wallpaperflare.com/wallpaper/513/626/511/the-dark-knight-heath-ledger-movies-quote-wallpaper-preview.jpg",
   watchlist: "https://images.wallpapersden.com/image/download/4k-superman-poster_bmhnZmuUmZqaraWkpJRnbGhmrWllbms.jpg",
   gaming: "https://images.hdqwalls.com/wallpapers/batman-in-red-city-4k-2a.jpg",
   games: "https://c4.wallpaperflare.com/wallpaper/265/757/289/flash-superhero-dc-comics-wallpaper-preview.jpg",
   videos: "https://wallpapercave.com/wp/wp2092057.jpg",
+  youtube: "https://wallpapercave.com/wp/wp2092057.jpg",
   goals: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT9eDVEr2iS_ClKFxJgOlGZpaGCt0eSaG3m079u6Gkm8bnPEPXDu5ix6nvT&s=10",
+  trackers: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT9eDVEr2iS_ClKFxJgOlGZpaGCt0eSaG3m079u6Gkm8bnPEPXDu5ix6nvT&s=10",
   journal: "https://pbs.twimg.com/media/E1uLYKkXoAYrGhd.jpg",
   reading: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ6TOzaBIPq345NNDSygYYsEC_uSXga0i3Q6t2ha8beKxVPhiZzR-HKWxE&s=10",
   habits: "https://i.pinimg.com/736x/f4/a2/48/f4a248dea58747dcc39027a998831daf.jpg",
   profile: "https://i.pinimg.com/736x/10/b3/d2/10b3d235e3cbd4e58c671f7a960c3f5c.jpg",
+  resume: "https://i.pinimg.com/736x/10/b3/d2/10b3d235e3cbd4e58c671f7a960c3f5c.jpg",
 };
 function pageHue(id) { let h = 7; for (let i = 0; i < id.length; i++) h = (h * 33 + id.charCodeAt(i)) % 360; return h; }
 // Page-type -> container width. Dashboards and data-dense pages get room;
@@ -8654,12 +8673,21 @@ function HomeHeadlines({ theme, feeds, setFeeds, onNavigate, limit = 5, lead, sw
   );
 }
 
-function HomeTiles({ theme, pageStats, onNavigate, ids, dense }) {
+function HomeTilePhoto({ src }) {
+  const [broken, setBroken] = useState(false);
+  useEffect(() => { setBroken(false); }, [src]);
+  if (!src || broken) return null;
+  return <img className="v-hometile__photo" src={src} alt="" loading="lazy" onError={() => setBroken(true)} />;
+}
+
+function HomeTiles({ theme, pageStats, onNavigate, ids, dense, images }) {
   const list = ids && ids.length ? PAGE_META.filter((p) => ids.includes(p.id)) : PAGE_META;
   return (
     <div className={"v-hometiles" + (dense ? " v-hometiles--dense" : "")}>
       {list.map((p) => {
         const stat = pageStats[p.id] || {};
+        const override = images && Object.prototype.hasOwnProperty.call(images, p.id) ? images[p.id] : undefined;
+        const photo = (override !== undefined ? override : PAGE_BANNER_IMG[p.id]) || "";
         return (
           <button
             key={p.id}
@@ -8667,7 +8695,7 @@ function HomeTiles({ theme, pageStats, onNavigate, ids, dense }) {
             className="v-card v-hometile"
             style={{ ...cardBackgroundStyle(theme), "--accent-line": theme.accent }}
           >
-            <span className="v-hometile__mark" aria-hidden="true" style={{ color: theme.text }}>{p.icon}</span>
+            {photo ? <HomeTilePhoto src={photo} /> : <span className="v-hometile__mark" aria-hidden="true" style={{ color: theme.text }}>{p.icon}</span>}
             <span style={{ color: theme.accent, display: "inline-flex" }}>{p.icon}</span>
             <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: theme.sectionLabelColor }}>{p.label}</span>
             <span className="v-tabular" style={{ fontSize: dense ? "18px" : "22px", fontWeight: 700, color: theme.text }}>
@@ -8737,7 +8765,7 @@ function HomeLayoutPicker({ theme, value, onChange }) {
 
 function HomeOverview({
   theme, suggestions, weather, weatherStatus, onEnableWeather, onOpenBriefing, pageStats, onNavigate,
-  layout, setLayout, events, reminders, habits, feeds, setFeeds, profile,
+  layout, setLayout, events, reminders, habits, feeds, setFeeds, profile, pageImages,
 }) {
   const name = (profile && profile.name) ? String(profile.name).split(" ")[0] : "";
   const picker = <HomeLayoutPicker theme={theme} value={layout} onChange={setLayout} />;
@@ -8782,7 +8810,7 @@ function HomeOverview({
         {forYou}
         <HomeAgenda theme={theme} events={events} onNavigate={onNavigate} limit={4} />
         <HomeHeadlines theme={theme} feeds={feeds} setFeeds={setFeeds} onNavigate={onNavigate} limit={6} lead switcher />
-        <HomeTiles theme={theme} pageStats={pageStats} onNavigate={onNavigate} ids={HOME_PINNED} />
+        <HomeTiles theme={theme} pageStats={pageStats} onNavigate={onNavigate} ids={HOME_PINNED} images={pageImages} />
         {picker}
       </div>
     );
@@ -8799,7 +8827,7 @@ function HomeOverview({
           <div className="v-bento-e"><HomeHeadlines theme={theme} feeds={feeds} setFeeds={setFeeds} onNavigate={onNavigate} limit={4} /></div>
           <div className="v-bento-f"><HomeReminders theme={theme} reminders={reminders} onNavigate={onNavigate} /></div>
         </div>
-        <HomeTiles theme={theme} pageStats={pageStats} onNavigate={onNavigate} dense />
+        <HomeTiles theme={theme} pageStats={pageStats} onNavigate={onNavigate} dense images={pageImages} />
         {picker}
       </div>
     );
@@ -8828,7 +8856,7 @@ function HomeOverview({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       {forYou}
-      <HomeTiles theme={theme} pageStats={pageStats} onNavigate={onNavigate} />
+      <HomeTiles theme={theme} pageStats={pageStats} onNavigate={onNavigate} images={pageImages} />
       {picker}
     </div>
   );
@@ -12548,6 +12576,7 @@ function App() {
               feeds={feeds}
               setFeeds={setFeeds}
               profile={profile}
+              pageImages={pageImages}
             />
           )}
           {page === "fitness" && (
