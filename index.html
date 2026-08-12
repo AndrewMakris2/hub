@@ -330,18 +330,42 @@
     pointer-events: none;
   }
   :root[data-scheme="dark"] .v-hometile__mark { opacity: 0.085; }
-  .v-hometile__photo {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    opacity: 0.14;
-    pointer-events: none;
-    -webkit-mask-image: linear-gradient(160deg, transparent 0%, black 70%);
-    mask-image: linear-gradient(160deg, transparent 0%, black 70%);
+
+  /* Home "Snapshots" strip — a horizontally-scrolling row of page photos in
+     varied widths, separate from the per-page banner entirely. */
+  .v-snaprow {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
   }
-  :root[data-scheme="dark"] .v-hometile__photo { opacity: 0.22; }
+  .v-snapcard {
+    position: relative;
+    flex: 0 0 auto;
+    height: 128px;
+    border-radius: var(--r-md, 12px);
+    overflow: hidden;
+    display: block;
+    padding: 0;
+  }
+  .v-snapcard img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform 0.35s ease; }
+  .v-snapcard:hover img { transform: scale(1.05); }
+  .v-snapcard__veil { position: absolute; inset: 0; background: linear-gradient(200deg, transparent 40%, rgba(0,0,0,0.62) 100%); }
+  .v-snapcard__label {
+    position: absolute; left: 10px; right: 10px; bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 700; color: #fff;
+    text-shadow: 0 1px 6px rgba(0,0,0,0.35);
+  }
+  @media (max-width: 640px) { .v-snapcard { height: 104px; } }
+
+  /* ---- Per-page banner variants (see PageBanner) ---- */
+  .v-banner--corner-img {
+    width: 92px; height: 92px; border-radius: 14px; object-fit: cover; flex-shrink: 0;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.16);
+  }
+  @media (max-width: 640px) { .v-banner--corner-img { width: 64px; height: 64px; border-radius: 11px; } }
 
   /* ---- Home layouts ---- */
   .v-home-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
@@ -7950,6 +7974,15 @@ const PAGE_BANNER_IMG = {
   profile: "https://i.pinimg.com/736x/10/b3/d2/10b3d235e3cbd4e58c671f7a960c3f5c.jpg",
   resume: "https://i.pinimg.com/736x/10/b3/d2/10b3d235e3cbd4e58c671f7a960c3f5c.jpg",
 };
+// Not every page shows its photo the same way or in the same place — "hero"
+// is the full-bleed banner, "ribbon" is a slim strip, "corner" pulls the
+// photo out of the header entirely into a small floating square on a plain
+// card. Unlisted pages (or pages with no photo) default to "hero".
+const PAGE_BANNER_VARIANT = {
+  movies: "hero", watchlist: "hero", gaming: "hero", games: "hero", sports: "hero",
+  fantasy: "ribbon", youtube: "ribbon", videos: "ribbon", goals: "ribbon", trackers: "ribbon",
+  fitness: "corner", habits: "corner", profile: "corner", resume: "corner", journal: "corner", reading: "corner",
+};
 function pageHue(id) { let h = 7; for (let i = 0; i < id.length; i++) h = (h * 33 + id.charCodeAt(i)) % 360; return h; }
 // Page-type -> container width. Dashboards and data-dense pages get room;
 // reading-style pages stay in a comfortable measure.
@@ -7975,6 +8008,7 @@ function PageBanner({ theme, page, images, setImages }) {
   const override = images && Object.prototype.hasOwnProperty.call(images, page) ? images[page] : undefined;
   const img = (override !== undefined ? override : PAGE_BANNER_IMG[page]) || "";
   const showImg = img && !broken;
+  const variant = PAGE_BANNER_VARIANT[page] || "hero";
 
   function saveImg() {
     const v = draft.trim();
@@ -7984,6 +8018,73 @@ function PageBanner({ theme, page, images, setImages }) {
     toast.success(v ? "Banner image updated." : "Banner image cleared.");
   }
 
+  const editBtn = (
+    <button
+      onClick={() => { setDraft(img); setEditing((v) => !v); }}
+      className="v-btn v-banner-edit"
+      title={showImg ? "Change banner image" : "Add a banner image"}
+      aria-label={showImg ? "Change banner image" : "Add a banner image"}
+    >
+      <IconImage size={14} />
+    </button>
+  );
+  const editPanelDark = editing && (
+    <div className="v-banner-edit-panel">
+      <input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") saveImg(); if (e.key === "Escape") setEditing(false); }}
+        placeholder="Paste an image URL, or leave blank for the gradient"
+        className="v-input"
+        autoFocus
+        style={{ flex: 1, minWidth: "180px", padding: "8px 10px", borderRadius: "8px", fontSize: "12.5px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}` }}
+      />
+      <button onClick={saveImg} className="v-btn" style={{ padding: "8px 13px", borderRadius: "8px", fontSize: "12.5px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText }}>Save</button>
+      <button onClick={() => { setDraft(""); setImages((prev) => ({ ...(prev || {}), [page]: "" })); setEditing(false); toast.info("Banner image cleared."); }} className="v-btn" style={{ padding: "8px 11px", borderRadius: "8px", fontSize: "12.5px", fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.textMuted }}>Clear</button>
+    </div>
+  );
+
+  // "corner" — the photo leaves the header entirely and becomes a small
+  // floating square on a plain card, title/subtitle set in normal theme text.
+  if (variant === "corner") {
+    return (
+      <div style={{ ...cardBackgroundStyle(theme), position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", padding: "18px 20px", marginBottom: "22px" }}>
+        <div>
+          <div style={{ fontSize: "20px", fontWeight: 800, color: theme.text, letterSpacing: "-0.01em" }}>{meta.label}</div>
+          {PAGE_SUBTITLES[page] && <div style={{ fontSize: "13px", color: theme.textMuted, marginTop: "3px" }}>{PAGE_SUBTITLES[page]}</div>}
+        </div>
+        {showImg ? (
+          <img src={img} alt="" loading="lazy" onError={() => setBroken(true)} className="v-banner--corner-img" />
+        ) : (
+          <span className="v-banner--corner-img" style={{ display: "flex", alignItems: "center", justifyContent: "center", background: theme.accentSoft, color: theme.accent, boxShadow: "none" }}>{meta.icon}</span>
+        )}
+        {editBtn}
+        {editPanelDark}
+      </div>
+    );
+  }
+
+  // "ribbon" — a slim strip banner, shorter than the hero, subtitle dropped
+  // to keep it thin.
+  if (variant === "ribbon") {
+    return (
+      <div style={{ position: "relative", overflow: "hidden", borderRadius: theme.cardRadius, padding: "12px 20px", marginBottom: "22px", minHeight: "56px", display: "flex", alignItems: "center", background: grad, boxShadow: theme.cardShadow }}>
+        {showImg && <img src={img} alt="" loading="lazy" onError={() => setBroken(true)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />}
+        {showImg && <div style={{ position: "absolute", inset: 0, background: `linear-gradient(100deg, hsl(${h} 64% 34% / 0.82), hsl(${(h + 42) % 360} 68% 28% / 0.72))` }} />}
+        <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: "8px" }}>
+          <span style={{ color: "rgba(255,255,255,0.85)", display: "inline-flex" }}>{meta.icon}</span>
+          <span style={{ fontSize: "16px", fontWeight: 800, color: "#fff", letterSpacing: "-0.01em", textShadow: "0 1px 6px rgba(0,0,0,0.25)" }}>{meta.label}</span>
+        </div>
+        {!showImg && (
+          <div style={{ position: "absolute", right: "14px", top: "50%", transform: "translateY(-50%) scale(2.6)", color: "rgba(255,255,255,0.16)", pointerEvents: "none", zIndex: 1 }}>{meta.icon}</div>
+        )}
+        {editBtn}
+        {editPanelDark}
+      </div>
+    );
+  }
+
+  // "hero" — the original full-bleed banner.
   return (
     <div style={{ position: "relative", overflow: "hidden", borderRadius: theme.cardRadius, padding: "20px 24px", marginBottom: "22px", minHeight: "112px", display: "flex", alignItems: "center", background: grad, boxShadow: theme.cardShadow }}>
       {showImg && <img src={img} alt="" loading="lazy" onError={() => setBroken(true)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />}
@@ -7995,31 +8096,8 @@ function PageBanner({ theme, page, images, setImages }) {
       {!showImg && (
         <div style={{ position: "absolute", right: "14px", top: "50%", transform: "translateY(-50%) scale(4.6)", color: "rgba(255,255,255,0.16)", pointerEvents: "none", zIndex: 1 }}>{meta.icon}</div>
       )}
-
-      <button
-        onClick={() => { setDraft(img); setEditing((v) => !v); }}
-        className="v-btn v-banner-edit"
-        title={showImg ? "Change banner image" : "Add a banner image"}
-        aria-label={showImg ? "Change banner image" : "Add a banner image"}
-      >
-        <IconImage size={14} />
-      </button>
-
-      {editing && (
-        <div className="v-banner-edit-panel">
-          <input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") saveImg(); if (e.key === "Escape") setEditing(false); }}
-            placeholder="Paste an image URL, or leave blank for the gradient"
-            className="v-input"
-            autoFocus
-            style={{ flex: 1, minWidth: "180px", padding: "8px 10px", borderRadius: "8px", fontSize: "12.5px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}` }}
-          />
-          <button onClick={saveImg} className="v-btn" style={{ padding: "8px 13px", borderRadius: "8px", fontSize: "12.5px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText }}>Save</button>
-          <button onClick={() => { setDraft(""); setImages((prev) => ({ ...(prev || {}), [page]: "" })); setEditing(false); toast.info("Banner image cleared."); }} className="v-btn" style={{ padding: "8px 11px", borderRadius: "8px", fontSize: "12.5px", fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.textMuted }}>Clear</button>
-        </div>
-      )}
+      {editBtn}
+      {editPanelDark}
     </div>
   );
 }
@@ -8673,21 +8751,60 @@ function HomeHeadlines({ theme, feeds, setFeeds, onNavigate, limit = 5, lead, sw
   );
 }
 
-function HomeTilePhoto({ src }) {
+const SNAPSHOT_WIDTHS = [210, 130, 160, 110, 190, 140, 170, 120];
+
+function HomeSnapshotCard({ page, theme, onNavigate, width, src }) {
   const [broken, setBroken] = useState(false);
-  useEffect(() => { setBroken(false); }, [src]);
   if (!src || broken) return null;
-  return <img className="v-hometile__photo" src={src} alt="" loading="lazy" onError={() => setBroken(true)} />;
+  return (
+    <button
+      onClick={() => onNavigate(page.id)}
+      className="v-btn v-snapcard"
+      style={{ width: `${width}px`, border: `1px solid ${theme.cardBorder}` }}
+      title={page.label}
+    >
+      <img src={src} alt="" loading="lazy" onError={() => setBroken(true)} />
+      <span className="v-snapcard__veil" aria-hidden="true" />
+      <span className="v-snapcard__label">{page.icon}{page.label}</span>
+    </button>
+  );
 }
 
-function HomeTiles({ theme, pageStats, onNavigate, ids, dense, images }) {
+/* Home "Snapshots" — a horizontally-scrolling strip of page photos in mixed
+   widths. A deliberately different spot/size/shape than the per-page banner
+   (see PageBanner) so the same photos aren't stuck in one place. */
+function HomeSnapshots({ theme, onNavigate, images }) {
+  const pages = PAGE_META.filter((p) => PAGE_BANNER_IMG[p.id]);
+  if (!pages.length) return null;
+  return (
+    <div>
+      <SectionLabel theme={theme} icon={<IconImage size={14} />}>Snapshots</SectionLabel>
+      <div className="v-snaprow">
+        {pages.map((p, i) => {
+          const override = images && Object.prototype.hasOwnProperty.call(images, p.id) ? images[p.id] : undefined;
+          const src = (override !== undefined ? override : PAGE_BANNER_IMG[p.id]) || "";
+          return (
+            <HomeSnapshotCard
+              key={p.id}
+              page={p}
+              theme={theme}
+              onNavigate={onNavigate}
+              width={SNAPSHOT_WIDTHS[i % SNAPSHOT_WIDTHS.length]}
+              src={src}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function HomeTiles({ theme, pageStats, onNavigate, ids, dense }) {
   const list = ids && ids.length ? PAGE_META.filter((p) => ids.includes(p.id)) : PAGE_META;
   return (
     <div className={"v-hometiles" + (dense ? " v-hometiles--dense" : "")}>
       {list.map((p) => {
         const stat = pageStats[p.id] || {};
-        const override = images && Object.prototype.hasOwnProperty.call(images, p.id) ? images[p.id] : undefined;
-        const photo = (override !== undefined ? override : PAGE_BANNER_IMG[p.id]) || "";
         return (
           <button
             key={p.id}
@@ -8695,7 +8812,7 @@ function HomeTiles({ theme, pageStats, onNavigate, ids, dense, images }) {
             className="v-card v-hometile"
             style={{ ...cardBackgroundStyle(theme), "--accent-line": theme.accent }}
           >
-            {photo ? <HomeTilePhoto src={photo} /> : <span className="v-hometile__mark" aria-hidden="true" style={{ color: theme.text }}>{p.icon}</span>}
+            <span className="v-hometile__mark" aria-hidden="true" style={{ color: theme.text }}>{p.icon}</span>
             <span style={{ color: theme.accent, display: "inline-flex" }}>{p.icon}</span>
             <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: theme.sectionLabelColor }}>{p.label}</span>
             <span className="v-tabular" style={{ fontSize: dense ? "18px" : "22px", fontWeight: 700, color: theme.text }}>
@@ -8810,7 +8927,8 @@ function HomeOverview({
         {forYou}
         <HomeAgenda theme={theme} events={events} onNavigate={onNavigate} limit={4} />
         <HomeHeadlines theme={theme} feeds={feeds} setFeeds={setFeeds} onNavigate={onNavigate} limit={6} lead switcher />
-        <HomeTiles theme={theme} pageStats={pageStats} onNavigate={onNavigate} ids={HOME_PINNED} images={pageImages} />
+        <HomeTiles theme={theme} pageStats={pageStats} onNavigate={onNavigate} ids={HOME_PINNED} />
+        <HomeSnapshots theme={theme} onNavigate={onNavigate} images={pageImages} />
         {picker}
       </div>
     );
@@ -8827,7 +8945,7 @@ function HomeOverview({
           <div className="v-bento-e"><HomeHeadlines theme={theme} feeds={feeds} setFeeds={setFeeds} onNavigate={onNavigate} limit={4} /></div>
           <div className="v-bento-f"><HomeReminders theme={theme} reminders={reminders} onNavigate={onNavigate} /></div>
         </div>
-        <HomeTiles theme={theme} pageStats={pageStats} onNavigate={onNavigate} dense images={pageImages} />
+        <HomeTiles theme={theme} pageStats={pageStats} onNavigate={onNavigate} dense />
         {picker}
       </div>
     );
@@ -8856,7 +8974,8 @@ function HomeOverview({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       {forYou}
-      <HomeTiles theme={theme} pageStats={pageStats} onNavigate={onNavigate} images={pageImages} />
+      <HomeSnapshots theme={theme} onNavigate={onNavigate} images={pageImages} />
+      <HomeTiles theme={theme} pageStats={pageStats} onNavigate={onNavigate} />
       {picker}
     </div>
   );
