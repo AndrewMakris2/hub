@@ -330,6 +330,8 @@
 
   /* Home tile watermark — the same visual language as the page banners. */
   .v-hometile { position: relative; overflow: hidden; }
+  .v-hometile[draggable="true"] { cursor: grab; }
+  .v-hometile--dragging { opacity: 0.4; }
   .v-hometile__mark {
     position: absolute;
     right: -10px; bottom: -14px;
@@ -1750,6 +1752,10 @@ const STORAGE_KEYS = {
   pageImages: "dash.pageImages",
   categoryRules: "dash.categoryRules",
   schemaVersion: "dash.schemaVersion",
+  homeTileOrder: "dash.homeTileOrder",
+  workouts: "dash.workouts",
+  budgets: "dash.budgets",
+  cveWatchlist: "dash.cveWatchlist",
   appNoticeDraft: "dash.appNoticeDraft",
   games: "dash.games",
   dailyLog: "dash.dailyLog",
@@ -3638,6 +3644,84 @@ function FitnessSection({ theme, data, setData, history, onRecordWeight, autoOpe
   );
 }
 
+function WorkoutLogSection({ theme, workouts, setWorkouts }) {
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [exercise, setExercise] = useState("");
+  const [sets, setSets] = useState("");
+  const [reps, setReps] = useState("");
+  const [weight, setWeight] = useState("");
+
+  function addEntry() {
+    const ex = exercise.trim();
+    if (!ex || !sets || !reps) return;
+    const entry = {
+      id: "wo" + Date.now() + Math.random().toString(36).slice(2, 6),
+      date: date || new Date().toISOString().slice(0, 10),
+      exercise: ex,
+      sets: Number(sets) || 0,
+      reps: Number(reps) || 0,
+      weight: weight === "" ? null : Number(weight) || 0,
+    };
+    setWorkouts([entry, ...(workouts || [])]);
+    setExercise(""); setSets(""); setReps(""); setWeight("");
+  }
+  function removeEntry(id) {
+    const removed = (workouts || []).find((w) => w.id === id);
+    setWorkouts((workouts || []).filter((w) => w.id !== id));
+    if (removed) {
+      toast.show({
+        message: `Deleted "${removed.exercise}".`,
+        action: { label: "Undo", onClick: () => setWorkouts((cur) => [removed, ...(cur || [])]) },
+      });
+    }
+  }
+
+  const sorted = [...(workouts || [])].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  const thisWeekCount = useMemo(() => {
+    const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+    return (workouts || []).filter((w) => new Date(w.date) >= weekAgo).length;
+  }, [workouts]);
+
+  const inputStyle = {
+    background: theme.inputBg, border: `1px solid ${theme.inputBorder}`, borderRadius: "8px",
+    color: theme.inputText, padding: "9px 12px", fontSize: "14px", minWidth: 0,
+    "--focus-ring": theme.accentSoft, "--focus-border": theme.accent,
+  };
+
+  return (
+    <Card theme={theme} delay={30}>
+      <SectionLabel theme={theme} icon={<IconDumbbell size={14} />}>Workout Log</SectionLabel>
+      <div style={{ fontSize: "13px", color: theme.textMuted, marginBottom: "14px" }}>
+        {(workouts || []).length} lift{(workouts || []).length === 1 ? "" : "s"} logged · {thisWeekCount} this week
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: "8px", marginBottom: "16px" }}>
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="v-input" style={inputStyle} />
+        <input value={exercise} onChange={(e) => setExercise(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addEntry()} placeholder="Exercise" className="v-input" style={{ ...inputStyle, gridColumn: "span 2" }} />
+        <input value={sets} onChange={(e) => setSets(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addEntry()} placeholder="Sets" inputMode="numeric" className="v-input" style={inputStyle} />
+        <input value={reps} onChange={(e) => setReps(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addEntry()} placeholder="Reps" inputMode="numeric" className="v-input" style={inputStyle} />
+        <input value={weight} onChange={(e) => setWeight(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addEntry()} placeholder="lbs (optional)" inputMode="decimal" className="v-input" style={inputStyle} />
+        <button onClick={addEntry} className="v-btn" style={{ padding: "9px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText }}>Log it</button>
+      </div>
+      {sorted.length === 0 ? (
+        <div style={{ fontSize: "13px", color: theme.textFaint }}>No lifts logged yet — add one above.</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "340px", overflowY: "auto" }} className="v-scroll">
+          {sorted.map((w) => (
+            <div key={w.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 10px", background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "8px" }}>
+              <span style={{ fontSize: "11px", color: theme.textFaint, width: "58px", flexShrink: 0 }}>{new Date(w.date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+              <span style={{ fontSize: "13.5px", color: theme.text, flex: 1, minWidth: 0, fontWeight: 600 }}>{w.exercise}</span>
+              <span className="v-tabular" style={{ fontSize: "12.5px", color: theme.textMuted, flexShrink: 0 }}>
+                {w.sets}×{w.reps}{w.weight != null ? ` @ ${w.weight}lbs` : ""}
+              </span>
+              <button onClick={() => removeEntry(w.id)} className="v-btn" style={{ fontSize: "16px", color: theme.textFaint, background: "transparent", border: "none", padding: "0 4px", cursor: "pointer", flexShrink: 0 }}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function GolfSection({ theme, data, setData, history, onRecordHandicap }) {
   return (
     <Card theme={theme} delay={60}>
@@ -4411,7 +4495,14 @@ function FinancialAccountsSection({ theme, data, setData, accountHistory, onReco
     setName("");
   }
   function removeAccount(id) {
+    const removed = accounts.find((a) => a.id === id);
     setData({ ...data, accounts: accounts.filter((a) => a.id !== id) });
+    if (removed) {
+      toast.show({
+        message: `Deleted "${removed.name}".`,
+        action: { label: "Undo", onClick: () => setData((cur) => ({ ...cur, accounts: [...(cur.accounts || []), removed] })) },
+      });
+    }
   }
 
   const total = accounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
@@ -4514,6 +4605,87 @@ function FinancialAccountsSection({ theme, data, setData, accountHistory, onReco
   );
 }
 
+// Holdings are informational line-items under an account, not synced with
+// its (manually-entered) balance — forcing those to match would mean either
+// silently overwriting a number the user just typed, or a reconciliation UI
+// nobody asked for. The holdings total is shown alongside as a reference.
+function InvestmentHoldingsSection({ theme, data, setData }) {
+  const accounts = data.accounts && data.accounts.length ? data.accounts : DEFAULT_FINANCIAL_ACCOUNTS;
+  const holdings = data.holdings || [];
+  const [accountId, setAccountId] = useState(accounts[0] ? accounts[0].id : "");
+  const [ticker, setTicker] = useState("");
+  const [shares, setShares] = useState("");
+  const [price, setPrice] = useState("");
+
+  function addHolding() {
+    const t = ticker.trim().toUpperCase();
+    if (!t || !accountId || !shares) return;
+    const h = { id: "hold" + Date.now(), accountId, ticker: t, shares: Number(shares) || 0, price: price === "" ? null : Number(price) || 0 };
+    setData({ ...data, holdings: [...holdings, h] });
+    setTicker(""); setShares(""); setPrice("");
+  }
+  function removeHolding(id) {
+    const removed = holdings.find((h) => h.id === id);
+    setData({ ...data, holdings: holdings.filter((h) => h.id !== id) });
+    if (removed) {
+      toast.show({
+        message: `Deleted ${removed.ticker}.`,
+        action: { label: "Undo", onClick: () => setData((cur) => ({ ...cur, holdings: [...(cur.holdings || []), removed] })) },
+      });
+    }
+  }
+
+  const grandTotal = holdings.reduce((sum, h) => sum + h.shares * (h.price || 0), 0);
+  const byAccount = accounts.map((a) => ({ account: a, items: holdings.filter((h) => h.accountId === a.id) })).filter((g) => g.items.length);
+
+  const inputStyle = {
+    background: theme.inputBg, border: `1px solid ${theme.inputBorder}`, borderRadius: "8px",
+    color: theme.inputText, padding: "9px 12px", fontSize: "14px", minWidth: 0,
+    "--focus-ring": theme.accentSoft, "--focus-border": theme.accent,
+  };
+
+  if (accounts.length === 0) return null;
+
+  return (
+    <Card theme={theme} delay={240}>
+      <SectionLabel theme={theme} icon={<IconTrendingUp size={14} />}>Investment Holdings</SectionLabel>
+      {holdings.length > 0 && (
+        <div style={{ fontSize: "13px", color: theme.textMuted, marginBottom: "14px" }}>
+          <span className="v-tabular" style={{ fontSize: "22px", fontWeight: 800, color: theme.text }}>{fmtMoney(grandTotal)}</span> across {holdings.length} holding{holdings.length === 1 ? "" : "s"} with a price set
+        </div>
+      )}
+      {byAccount.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginBottom: "16px" }}>
+          {byAccount.map(({ account, items }) => (
+            <div key={account.id}>
+              <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: theme.sectionLabelColor, marginBottom: "6px" }}>{account.name}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {items.map((h) => (
+                  <div key={h.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 10px", background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "8px" }}>
+                    <span style={{ fontSize: "13.5px", fontWeight: 700, color: theme.text, width: "60px", flexShrink: 0 }}>{h.ticker}</span>
+                    <span className="v-tabular" style={{ fontSize: "12.5px", color: theme.textMuted, flex: 1 }}>{h.shares} sh{h.price != null ? ` @ ${fmtMoney(h.price)}` : ""}</span>
+                    {h.price != null && <span className="v-tabular" style={{ fontSize: "13px", fontWeight: 700, color: theme.text }}>{fmtMoney(h.shares * h.price)}</span>}
+                    <button onClick={() => removeHolding(h.id)} className="v-btn" style={{ fontSize: "16px", color: theme.textFaint, background: "transparent", border: "none", padding: "0 4px", cursor: "pointer" }}>×</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: "8px" }}>
+        <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="v-input" style={{ ...inputStyle, gridColumn: "span 2" }}>
+          {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+        <input value={ticker} onChange={(e) => setTicker(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addHolding()} placeholder="Ticker" className="v-input" style={inputStyle} />
+        <input value={shares} onChange={(e) => setShares(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addHolding()} placeholder="Shares" inputMode="decimal" className="v-input" style={inputStyle} />
+        <input value={price} onChange={(e) => setPrice(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addHolding()} placeholder="Price (optional)" inputMode="decimal" className="v-input" style={inputStyle} />
+        <button onClick={addHolding} className="v-btn" style={{ padding: "9px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText }}>Add</button>
+      </div>
+    </Card>
+  );
+}
+
 function CustomTrackersSection({ theme, trackers, setTrackers, trackerHistory, onRecordTracker }) {
   const [label, setLabel] = useState("");
   const [value, setValue] = useState("");
@@ -4531,7 +4703,14 @@ function CustomTrackersSection({ theme, trackers, setTrackers, trackerHistory, o
   }
 
   function removeTracker(id) {
+    const removed = trackers.find((t) => t.id === id);
     setTrackers(trackers.filter((t) => t.id !== id));
+    if (removed) {
+      toast.show({
+        message: `Deleted "${removed.label}".`,
+        action: { label: "Undo", onClick: () => setTrackers((cur) => [...cur, removed]) },
+      });
+    }
   }
 
   function updateTrackerValue(id, newValue) {
@@ -5263,6 +5442,76 @@ function rowsToCSV(headers, rows) {
   return lines.join("\r\n");
 }
 
+function BudgetEnvelopesSection({ theme, transactions, budgets, setBudgets }) {
+  const [category, setCategory] = useState("");
+  const [limit, setLimit] = useState("");
+
+  const monthPrefix = new Date().toISOString().slice(0, 7);
+  const spendByCategory = useMemo(() => {
+    const out = {};
+    (transactions || []).filter((t) => t.date && t.date.startsWith(monthPrefix)).forEach((t) => {
+      const c = t.category || "Uncategorized";
+      out[c] = (out[c] || 0) + (Number(t.amount) || 0);
+    });
+    return out;
+  }, [transactions, monthPrefix]);
+
+  const entries = Object.entries(budgets || {});
+
+  function setBudget() {
+    const c = category.trim();
+    const l = Number(limit);
+    if (!c || !l) return;
+    setBudgets({ ...(budgets || {}), [c]: l });
+    setCategory(""); setLimit("");
+  }
+  function removeBudget(c) {
+    const next = { ...(budgets || {}) };
+    delete next[c];
+    setBudgets(next);
+  }
+
+  const inputStyle = {
+    background: theme.inputBg, border: `1px solid ${theme.inputBorder}`, borderRadius: "8px",
+    color: theme.inputText, padding: "9px 12px", fontSize: "14px", minWidth: 0,
+    "--focus-ring": theme.accentSoft, "--focus-border": theme.accent,
+  };
+
+  return (
+    <Card theme={theme} delay={20}>
+      <SectionLabel theme={theme} icon={<IconCreditCard size={14} />}>Budgets this month</SectionLabel>
+      {entries.length === 0 ? (
+        <div style={{ fontSize: "13px", color: theme.textFaint, marginBottom: "14px" }}>Set a monthly limit per category to track spending against it.</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "16px" }}>
+          {entries.map(([c, l]) => {
+            const spent = spendByCategory[c] || 0;
+            const pct = l > 0 ? Math.min(100, Math.round((spent / l) * 100)) : 0;
+            const over = spent > l;
+            return (
+              <div key={c}>
+                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "4px", gap: "8px" }}>
+                  <span style={{ fontSize: "13px", fontWeight: 700, color: theme.text }}>{c}</span>
+                  <span className="v-tabular" style={{ fontSize: "12px", color: over ? theme.danger : theme.textMuted, flexShrink: 0 }}>{fmtMoney(spent)} / {fmtMoney(l)}</span>
+                  <button onClick={() => removeBudget(c)} className="v-btn" style={{ fontSize: "14px", color: theme.textFaint, background: "transparent", border: "none", padding: "0 2px", cursor: "pointer" }}>×</button>
+                </div>
+                <div style={{ height: "6px", borderRadius: "999px", background: theme.progressTrack, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${pct}%`, borderRadius: "999px", background: over ? theme.danger : theme.accent, transition: "width 0.3s ease" }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+        <input value={category} onChange={(e) => setCategory(e.target.value)} onKeyDown={(e) => e.key === "Enter" && setBudget()} placeholder="Category (e.g. Dining)" className="v-input" style={{ ...inputStyle, flex: "2 1 160px" }} />
+        <input value={limit} onChange={(e) => setLimit(e.target.value)} onKeyDown={(e) => e.key === "Enter" && setBudget()} placeholder="Monthly limit" inputMode="decimal" className="v-input" style={{ ...inputStyle, flex: "1 1 120px" }} />
+        <button onClick={setBudget} className="v-btn" style={{ padding: "9px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText }}>Set</button>
+      </div>
+    </Card>
+  );
+}
+
 function TransactionsSection({ theme, transactions, setTransactions, categoryOptions, delay, autoFocusAdd, categoryRules, setCategoryRules }) {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [merchant, setMerchant] = useState("");
@@ -5276,6 +5525,7 @@ function TransactionsSection({ theme, transactions, setTransactions, categoryOpt
   const [importStatus, setImportStatus] = useState(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const pdfInputRef = useRef(null);
+  const csvInputRef = useRef(null);
   const merchantRef = useRef(null);
 
   // Deep-link quick action (#transactions/add) jumps straight to the form.
@@ -5313,6 +5563,19 @@ function TransactionsSection({ theme, transactions, setTransactions, categoryOpt
     }
   }
 
+  async function handleCsvUpload(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    setImportStatus(null);
+    try {
+      const text = await file.text();
+      applyImport(parseStatementText(text, categoryRules));
+    } catch (err) {
+      setImportStatus({ type: "error", message: err.message || "Couldn't read that CSV." });
+    }
+  }
+
   function addTransaction() {
     const trimmedMerchant = merchant.trim();
     if (!trimmedMerchant || !amount) return;
@@ -5330,7 +5593,14 @@ function TransactionsSection({ theme, transactions, setTransactions, categoryOpt
   }
 
   function removeTransaction(id) {
+    const removed = transactions.find((t) => t.id === id);
     setTransactions(transactions.filter((t) => t.id !== id));
+    if (removed) {
+      toast.show({
+        message: `Deleted "${removed.merchant}".`,
+        action: { label: "Undo", onClick: () => setTransactions((cur) => [removed, ...cur]) },
+      });
+    }
   }
 
   function updateTransactionCategory(id, value) {
@@ -5407,6 +5677,14 @@ function TransactionsSection({ theme, transactions, setTransactions, categoryOpt
             {pdfBusy ? "Reading PDF…" : "Upload PDF"}
           </button>
           <input ref={pdfInputRef} type="file" accept="application/pdf,.pdf" onChange={handlePdfUpload} style={{ display: "none" }} />
+          <button
+            onClick={() => csvInputRef.current && csvInputRef.current.click()}
+            className="v-btn"
+            style={{ fontSize: "11.5px", fontWeight: 700, color: theme.textMuted, background: "transparent", border: `1px solid ${theme.divider}`, borderRadius: "999px", padding: "4px 10px" }}
+          >
+            Upload CSV
+          </button>
+          <input ref={csvInputRef} type="file" accept="text/csv,.csv" onChange={handleCsvUpload} style={{ display: "none" }} />
           <button
             onClick={() => setShowPaste((s) => !s)}
             className="v-btn"
@@ -5664,7 +5942,14 @@ function JournalSection({ theme, data, setData, delay }) {
   }
 
   function removeEntry(date) {
+    const removed = data.find((e) => e.date === date);
     setData(data.filter((e) => e.date !== date));
+    if (removed) {
+      toast.show({
+        message: "Deleted journal entry.",
+        action: { label: "Undo", onClick: () => setData((cur) => [...cur, removed]) },
+      });
+    }
   }
 
   return (
@@ -5743,7 +6028,14 @@ function GoalsBoardSection({ theme, data, setData, delay }) {
   }
 
   function removeGoal(id) {
+    const removed = data.find((g) => g.id === id);
     setData(data.filter((g) => g.id !== id));
+    if (removed) {
+      toast.show({
+        message: `Deleted "${removed.label}".`,
+        action: { label: "Undo", onClick: () => setData((cur) => [...cur, removed]) },
+      });
+    }
   }
 
   return (
@@ -8731,6 +9023,112 @@ function WeeklyDigestButton({ theme, fitness, golf, financial, history, transact
   );
 }
 
+// A year-scoped retrospective rather than the weekly digest's rolling
+// 7-day window — same section shape, YTD math instead.
+function buildAnnualDigestDocDefinition({ fitness, golf, financial, history, transactions, habits, workouts, reading }) {
+  const now = new Date();
+  const yearStart = new Date(now.getFullYear(), 0, 1);
+
+  const accounts = (financial && financial.accounts && financial.accounts.length) ? financial.accounts : DEFAULT_FINANCIAL_ACCOUNTS;
+  const total = accounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+  const netWorthSeries = buildNetWorthSeries(accounts, (history && history.accounts) || {});
+  const yearNetWorth = netWorthSeries.filter((p) => new Date(p.date) >= yearStart);
+  const netWorthDelta = yearNetWorth.length >= 2 ? yearNetWorth[yearNetWorth.length - 1].value - yearNetWorth[0].value : null;
+
+  const weightSeries = (history && history.fitness) || [];
+  const yearWeight = weightSeries.filter((p) => new Date(p.date) >= yearStart);
+  const weightDelta = yearWeight.length >= 2 ? yearWeight[yearWeight.length - 1].value - yearWeight[0].value : null;
+
+  const yearTx = (transactions || []).filter((t) => t.date && new Date(t.date) >= yearStart);
+  const yearSpend = yearTx.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+  const byCategory = {};
+  yearTx.forEach((t) => { const c = t.category || "Uncategorized"; byCategory[c] = (byCategory[c] || 0) + (Number(t.amount) || 0); });
+  const topCategory = Object.entries(byCategory).sort((a, b) => b[1] - a[1])[0];
+
+  const habitItems = (habits && habits.items) || [];
+  const habitDone = (habits && habits.done) || {};
+  const yearDayCount = Math.round((now - yearStart) / 86400000) + 1;
+  let habitHits = 0;
+  for (let i = 0; i < yearDayCount; i++) {
+    const d = new Date(yearStart); d.setDate(yearStart.getDate() + i);
+    const k = habitDayKey(d);
+    habitItems.forEach((h) => { if (habitDone[h.id] && habitDone[h.id][k]) habitHits += 1; });
+  }
+  const habitPossible = habitItems.length * yearDayCount;
+  const habitPct = habitPossible ? Math.round((habitHits / habitPossible) * 100) : null;
+
+  const yearWorkouts = (workouts || []).filter((w) => w.date && new Date(w.date) >= yearStart);
+  const booksFinished = ((reading && reading.books) || []).filter((b) => b.status === "finished" && b.finishedAt && new Date(b.finishedAt) >= yearStart).length;
+
+  const section = (label) => ({ text: label, style: "section" });
+  const line = (text) => ({ text, margin: [0, 0, 0, 2] });
+
+  return {
+    pageSize: "A4",
+    pageMargins: [40, 40, 40, 40],
+    content: [
+      { text: `Year in Vantage — ${now.getFullYear()}`, style: "title" },
+      { text: `${yearStart.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${now.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`, style: "subtitle" },
+
+      section("Fitness"),
+      line(`Current weight: ${fitness.currentWeight} lbs (target ${fitness.targetWeight} lbs)`),
+      line(weightDelta == null ? "Not enough logged data this year to show a trend." : `${weightDelta > 0 ? "+" : ""}${weightDelta.toFixed(1)} lbs since Jan 1`),
+      line(`${yearWorkouts.length} workout${yearWorkouts.length === 1 ? "" : "s"} logged this year`),
+
+      section("Golf"),
+      line(`Handicap: ${golf.handicap} · ${golf.roundsYtd} rounds YTD`),
+
+      section("Financial"),
+      line(`Total across accounts: ${fmtMoney(total)}`),
+      line(netWorthDelta == null ? "Not enough snapshots this year to show a trend." : `${netWorthDelta >= 0 ? "+" : ""}${fmtMoney(netWorthDelta)} since Jan 1`),
+
+      section("Transactions"),
+      line(`Spent this year: ${fmtMoney(yearSpend)} across ${yearTx.length} transaction${yearTx.length === 1 ? "" : "s"}`),
+      line(topCategory ? `Top category: ${topCategory[0]} (${fmtMoney(topCategory[1])})` : "No spending logged this year."),
+
+      section("Habits"),
+      line(habitPct == null ? "No habits tracked yet." : `${habitHits} of ${habitPossible} possible check-ins this year (${habitPct}%)`),
+
+      section("Reading"),
+      line(`${booksFinished} book${booksFinished === 1 ? "" : "s"} finished this year`),
+    ],
+    styles: {
+      title: { fontSize: 18, bold: true, color: "#1a1a1a", margin: [0, 0, 0, 2] },
+      subtitle: { fontSize: 10, italics: true, color: "#767673", margin: [0, 0, 0, 14] },
+      section: { fontSize: 12, bold: true, color: "#1a1a1a", margin: [0, 14, 0, 6] },
+    },
+    defaultStyle: { font: "Roboto", fontSize: 10, color: "#33332f" },
+  };
+}
+
+function AnnualDigestButton({ theme, fitness, golf, financial, history, transactions, habits, workouts, reading }) {
+  const [busy, setBusy] = useState(false);
+  async function download() {
+    setBusy(true);
+    try {
+      const pdfMake = await ravenLoadPdfMake();
+      const doc = buildAnnualDigestDocDefinition({ fitness, golf, financial, history, transactions, habits, workouts, reading });
+      await pdfMake.createPdf(doc).download(`vantage-year-in-review-${new Date().getFullYear()}.pdf`);
+    } catch (err) {
+      toast.error(err && err.message ? err.message : "Couldn't build the digest.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <button
+      onClick={download}
+      disabled={busy}
+      className="v-btn"
+      title="Download Year in Vantage (PDF)"
+      aria-label="Download Year in Vantage (PDF)"
+      style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "38px", height: "38px", borderRadius: "50%", border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.textMuted, opacity: busy ? 0.6 : 1 }}
+    >
+      <IconTrendingUp size={16} />
+    </button>
+  );
+}
+
 function Sidebar({
   theme,
   themeKey,
@@ -8748,6 +9146,8 @@ function Sidebar({
   events,
   history,
   habits,
+  workouts,
+  reading,
   suggestionsCount,
   upcomingCount,
   weekAgendaCount,
@@ -9011,6 +9411,7 @@ function Sidebar({
       <div className="v-rail-utilities">
         <InstallAppButton theme={theme} />
         <WeeklyDigestButton theme={theme} fitness={fitness} golf={golf} financial={financial} history={history} transactions={transactions} habits={habits} events={events} />
+        <AnnualDigestButton theme={theme} fitness={fitness} golf={golf} financial={financial} history={history} transactions={transactions} habits={habits} workouts={workouts} reading={reading} />
         <CalendarMenu
           theme={theme}
           integrations={integrations}
@@ -9407,19 +9808,61 @@ function categoryGlowColor(theme, pageId) {
   return theme.categoryGlow ? (CATEGORY_GLOW[pageId] || theme.accent) : theme.accent;
 }
 
-function HomeTiles({ theme, pageStats, onNavigate, ids, dense }) {
+// Reordering happens within whatever subset is currently visible (pinned 6,
+// dense grid, everything), but is stored as one global page-id order so it
+// carries across every Home layout instead of being layout-specific.
+function reorderPageIds(order, allIds, draggedId, targetId) {
+  const base = order && order.length ? order.filter((id) => allIds.includes(id)) : allIds.slice();
+  allIds.forEach((id) => { if (!base.includes(id)) base.push(id); });
+  const from = base.indexOf(draggedId);
+  const to = base.indexOf(targetId);
+  if (from === -1 || to === -1 || from === to) return base;
+  const next = base.slice();
+  next.splice(from, 1);
+  next.splice(to, 0, draggedId);
+  return next;
+}
+
+function HomeTiles({ theme, pageStats, onNavigate, ids, dense, order, onReorder }) {
   const list = ids && ids.length ? PAGE_META.filter((p) => ids.includes(p.id)) : PAGE_META;
+  const sorted = useMemo(() => {
+    if (!order || !order.length) return list;
+    const rank = new Map(order.map((id, i) => [id, i]));
+    return [...list].sort((a, b) => {
+      const ai = rank.has(a.id) ? rank.get(a.id) : Infinity;
+      const bi = rank.has(b.id) ? rank.get(b.id) : Infinity;
+      return ai - bi;
+    });
+  }, [list, order]);
+  const [dragId, setDragId] = useState(null);
+  const draggable = !!onReorder;
+  const allIds = useMemo(() => PAGE_META.map((p) => p.id), []);
+
   return (
     <div className={"v-hometiles" + (dense ? " v-hometiles--dense" : "")}>
-      {list.map((p) => {
+      {sorted.map((p) => {
         const stat = pageStats[p.id] || {};
         const glow = categoryGlowColor(theme, p.id);
         return (
           <button
             key={p.id}
             onClick={() => onNavigate(p.id)}
-            className="v-card v-hometile"
+            className={"v-card v-hometile" + (dragId === p.id ? " v-hometile--dragging" : "")}
             style={{ ...cardBackgroundStyle(theme), "--accent-line": glow }}
+            draggable={draggable}
+            onDragStart={draggable ? (e) => { setDragId(p.id); e.dataTransfer.effectAllowed = "move"; } : undefined}
+            onDragOver={draggable ? (e) => e.preventDefault() : undefined}
+            onDrop={
+              draggable
+                ? (e) => {
+                    e.preventDefault();
+                    if (dragId && dragId !== p.id) onReorder(reorderPageIds(order, allIds, dragId, p.id));
+                    setDragId(null);
+                  }
+                : undefined
+            }
+            onDragEnd={draggable ? () => setDragId(null) : undefined}
+            title={draggable ? `${p.label} — drag to reorder` : undefined}
           >
             {theme.categoryGlow && <span className="v-hometile__glow" aria-hidden="true" style={{ background: glow }} />}
             <span className="v-hometile__mark" aria-hidden="true" style={{ color: theme.text }}>{p.icon}</span>
@@ -9492,7 +9935,7 @@ function HomeLayoutPicker({ theme, value, onChange }) {
 
 function HomeOverview({
   theme, suggestions, weather, weatherStatus, onEnableWeather, onOpenBriefing, pageStats, onNavigate,
-  layout, setLayout, events, reminders, habits, feeds, setFeeds, profile, pageImages,
+  layout, setLayout, events, reminders, habits, feeds, setFeeds, profile, pageImages, tileOrder, setTileOrder,
 }) {
   const name = (profile && profile.name) ? String(profile.name).split(" ")[0] : "";
   const picker = <HomeLayoutPicker theme={theme} value={layout} onChange={setLayout} />;
@@ -9537,7 +9980,7 @@ function HomeOverview({
         {forYou}
         <HomeAgenda theme={theme} events={events} onNavigate={onNavigate} limit={4} />
         <HomeHeadlines theme={theme} feeds={feeds} setFeeds={setFeeds} onNavigate={onNavigate} limit={6} lead switcher />
-        <HomeTiles theme={theme} pageStats={pageStats} onNavigate={onNavigate} ids={HOME_PINNED} />
+        <HomeTiles theme={theme} pageStats={pageStats} onNavigate={onNavigate} ids={HOME_PINNED} order={tileOrder} onReorder={setTileOrder} />
         <HomeSnapshots theme={theme} onNavigate={onNavigate} images={pageImages} />
         {picker}
       </div>
@@ -9555,7 +9998,7 @@ function HomeOverview({
           <div className="v-bento-e"><HomeHeadlines theme={theme} feeds={feeds} setFeeds={setFeeds} onNavigate={onNavigate} limit={4} /></div>
           <div className="v-bento-f"><HomeReminders theme={theme} reminders={reminders} onNavigate={onNavigate} /></div>
         </div>
-        <HomeTiles theme={theme} pageStats={pageStats} onNavigate={onNavigate} dense />
+        <HomeTiles theme={theme} pageStats={pageStats} onNavigate={onNavigate} dense order={tileOrder} onReorder={setTileOrder} />
         {picker}
       </div>
     );
@@ -9585,7 +10028,7 @@ function HomeOverview({
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       {forYou}
       <HomeSnapshots theme={theme} onNavigate={onNavigate} images={pageImages} />
-      <HomeTiles theme={theme} pageStats={pageStats} onNavigate={onNavigate} />
+      <HomeTiles theme={theme} pageStats={pageStats} onNavigate={onNavigate} order={tileOrder} onReorder={setTileOrder} />
       {picker}
     </div>
   );
@@ -10017,6 +10460,64 @@ function habitBestStreak(doneMap) {
   return best;
 }
 
+// GitHub-style contribution grid — aggregate completion ratio across every
+// habit per day, not the existing 14-day per-habit strip further down
+// (that one's about a single habit's streak; this one's about the whole set).
+function habitHeatmapCells(items, done, weeks) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const totalDays = weeks * 7;
+  const start = new Date(today);
+  start.setDate(today.getDate() - (totalDays - 1));
+  const pad = start.getDay();
+  const cells = [];
+  for (let i = 0; i < pad; i++) cells.push(null);
+  for (let i = 0; i < totalDays; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    if (d > today) break;
+    const key = habitDayKey(d);
+    const doneCount = items.reduce((n, h) => n + ((done[h.id] && done[h.id][key]) ? 1 : 0), 0);
+    cells.push({ date: d, key, ratio: items.length ? doneCount / items.length : 0, doneCount, total: items.length });
+  }
+  return cells;
+}
+function HabitHeatmap({ theme, items, done }) {
+  const weeks = 17;
+  const cells = useMemo(() => habitHeatmapCells(items, done || {}, weeks), [items, done]);
+  if (!items.length) return null;
+  return (
+    <Card theme={theme} delay={40}>
+      <SectionLabel theme={theme} icon={<IconFlame size={14} />}>Last {weeks} weeks</SectionLabel>
+      <div className="v-scroll" style={{ overflowX: "auto", paddingBottom: "4px" }}>
+        <div style={{ display: "grid", gridTemplateRows: "repeat(7, 13px)", gridAutoFlow: "column", gridAutoColumns: "13px", gap: "3px", width: "max-content" }}>
+          {cells.map((c, i) =>
+            c ? (
+              <div
+                key={c.key}
+                title={`${c.date.toLocaleDateString(undefined, { month: "short", day: "numeric" })} — ${c.doneCount}/${c.total} done`}
+                style={{
+                  width: "13px", height: "13px", borderRadius: "3px",
+                  background: c.ratio === 0 ? theme.chip : theme.accent,
+                  opacity: c.ratio === 0 ? 1 : 0.22 + c.ratio * 0.78,
+                }}
+              />
+            ) : (
+              <div key={"pad" + i} style={{ width: "13px", height: "13px" }} />
+            )
+          )}
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "10px", fontSize: "11px", color: theme.textFaint }}>
+        <span>Less</span>
+        {[0, 0.25, 0.5, 0.75, 1].map((r) => (
+          <span key={r} style={{ width: "11px", height: "11px", borderRadius: "3px", background: r === 0 ? theme.chip : theme.accent, opacity: r === 0 ? 1 : 0.22 + r * 0.78, display: "inline-block" }} />
+        ))}
+        <span>More</span>
+      </div>
+    </Card>
+  );
+}
+
 function HabitsSection({ theme, state, setState }) {
   const s = state && state.items ? state : DEFAULT_HABITS;
   const [name, setName] = useState("");
@@ -10034,11 +10535,25 @@ function HabitsSection({ theme, state, setState }) {
     setName("");
   }
   function removeHabit(id) {
+    const removedItem = (s.items || []).find((h) => h.id === id);
+    const removedDone = (s.done || {})[id];
     setState((prev) => {
       const p = prev && prev.items ? prev : DEFAULT_HABITS;
       const done = { ...p.done }; delete done[id];
       return { ...p, items: p.items.filter((h) => h.id !== id), done };
     });
+    if (removedItem) {
+      toast.show({
+        message: `Deleted "${removedItem.name}".`,
+        action: {
+          label: "Undo",
+          onClick: () => setState((prev) => {
+            const p = prev && prev.items ? prev : DEFAULT_HABITS;
+            return { ...p, items: [...p.items, removedItem], done: removedDone ? { ...p.done, [id]: removedDone } : p.done };
+          }),
+        },
+      });
+    }
   }
   function toggle(id, key) {
     setState((prev) => {
@@ -10084,6 +10599,8 @@ function HabitsSection({ theme, state, setState }) {
           </div>
         )}
       </Card>
+
+      <HabitHeatmap theme={theme} items={items} done={s.done} />
 
       {items.length === 0 ? (
         <Card theme={theme} delay={80}>
@@ -13162,6 +13679,11 @@ function CommandPalette({ theme, data, onNavigate, onOpenMoTool, onClose }) {
     (data.events || []).forEach((e) => items.push({ label: e.title, sub: "Event · " + (e.detail || e.date || ""), group: "Upcoming", page: "upcoming" }));
     (data.transactions || []).forEach((t) => items.push({ label: t.merchant, sub: "Transaction · " + (t.category || ""), group: "Transactions", page: "transactions" }));
     (data.policies || []).forEach((p) => items.push({ label: p.name, sub: "Policy · " + (p.category || ""), group: "Policies", moTool: "policy" }));
+    (data.financialAccounts || []).forEach((a) => items.push({ label: a.name, sub: "Account · " + fmtMoney(Number(a.balance) || 0), group: "Financial", page: "financial" }));
+    (data.subscriptions || []).forEach((s) => items.push({ label: s.name, sub: "Subscription · " + fmtMoney(Number(s.cost) || 0), group: "Subscriptions", page: "subscriptions" }));
+    (data.habits || []).forEach((h) => items.push({ label: h.name, sub: "Habit", group: "Habits", page: "habits" }));
+    (data.books || []).forEach((b) => items.push({ label: b.title, sub: "Reading · " + (b.author || b.status || ""), group: "Reading", page: "reading" }));
+    (data.savedRecipes || []).forEach((r) => items.push({ label: r.name, sub: "Meal Planning", group: "Meal Planning", page: "mealplanning" }));
     return items;
   }, [data]);
 
@@ -13321,6 +13843,10 @@ function App() {
   const [feeds, setFeeds] = usePersistentState(STORAGE_KEYS.feeds, { cache: {}, fetchedAt: {} });
   const [resume, setResume] = usePersistentState(STORAGE_KEYS.resume, DEFAULT_RESUME);
   const [homeLayout, setHomeLayout] = usePersistentState(STORAGE_KEYS.homeLayout, "focus");
+  const [homeTileOrder, setHomeTileOrder] = usePersistentState(STORAGE_KEYS.homeTileOrder, []);
+  const [workouts, setWorkouts] = usePersistentState(STORAGE_KEYS.workouts, []);
+  const [budgets, setBudgets] = usePersistentState(STORAGE_KEYS.budgets, {});
+  const [cveWatchlist, setCveWatchlist] = usePersistentState(STORAGE_KEYS.cveWatchlist, []);
   // Per-page banner image overrides, so a photo that stops loading can be
   // swapped from the banner itself rather than by editing the file.
   const [pageImages, setPageImages] = usePersistentState(STORAGE_KEYS.pageImages, {});
@@ -13540,6 +14066,8 @@ function App() {
         events={events}
         history={history}
         habits={habits}
+        workouts={workouts}
+        reading={reading}
         suggestionsCount={suggestions.length}
         upcomingCount={allEvents.length}
         weekAgendaCount={weekAgendaCount}
@@ -13614,10 +14142,15 @@ function App() {
               setFeeds={setFeeds}
               profile={profile}
               pageImages={pageImages}
+              tileOrder={homeTileOrder}
+              setTileOrder={setHomeTileOrder}
             />
           )}
           {page === "fitness" && (
-            <FitnessSection theme={theme} data={fitness} setData={setFitness} history={history.fitness} onRecordWeight={recordWeight} autoOpenWeight={quickAction === "log-weight"} />
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <FitnessSection theme={theme} data={fitness} setData={setFitness} history={history.fitness} onRecordWeight={recordWeight} autoOpenWeight={quickAction === "log-weight"} />
+              <WorkoutLogSection theme={theme} workouts={workouts} setWorkouts={setWorkouts} />
+            </div>
           )}
           {page === "golf" && (
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -13646,10 +14179,14 @@ function App() {
             <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
               <FinancialSection theme={theme} data={financial} setData={setFinancial} />
               <FinancialAccountsSection theme={theme} data={financial} setData={setFinancial} accountHistory={history.accounts} onRecordAccount={recordAccount} />
+              <InvestmentHoldingsSection theme={theme} data={financial} setData={setFinancial} />
             </div>
           )}
           {page === "transactions" && (
-            <TransactionsSection theme={theme} transactions={transactions} setTransactions={setTransactions} categoryOptions={[]} delay={0} autoFocusAdd={quickAction === "add"} categoryRules={categoryRules} setCategoryRules={setCategoryRules} />
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <TransactionsSection theme={theme} transactions={transactions} setTransactions={setTransactions} categoryOptions={[]} delay={0} autoFocusAdd={quickAction === "add"} categoryRules={categoryRules} setCategoryRules={setCategoryRules} />
+              <BudgetEnvelopesSection theme={theme} transactions={transactions} budgets={budgets} setBudgets={setBudgets} />
+            </div>
           )}
           {page === "upcoming" && (
             <UpcomingSection theme={theme} events={events} setEvents={setEvents} connectedEvents={allConnectedEvents} />
@@ -13742,7 +14279,16 @@ function App() {
       )}
 
       {paletteOpen && !(lock.enabled && locked) && (
-        <CommandPalette theme={theme} data={{ journal, watchlist, goals, trackers, events: allEvents, transactions, policies: moPolicies }} onNavigate={navigate} onOpenMoTool={setMoTool} onClose={() => setPaletteOpen(false)} />
+        <CommandPalette
+          theme={theme}
+          data={{
+            journal, watchlist, goals, trackers, events: allEvents, transactions, policies: moPolicies,
+            financialAccounts: financial.accounts, subscriptions, habits: habits.items, books: reading.books, savedRecipes: mealPlanning.savedRecipes,
+          }}
+          onNavigate={navigate}
+          onOpenMoTool={setMoTool}
+          onClose={() => setPaletteOpen(false)}
+        />
       )}
 
       {briefingOpen && suggestions.length > 0 && (
@@ -13775,6 +14321,12 @@ function App() {
       )}
       {moTool === "kev" && (
         <KevLookupModal theme={theme} state={kev} setState={setKev} onClose={() => setMoTool(null)} />
+      )}
+      {moTool === "cve-watch" && (
+        <CveWatchlistModal theme={theme} watchlist={cveWatchlist} setWatchlist={setCveWatchlist} onClose={() => setMoTool(null)} />
+      )}
+      {moTool === "pwned-pw" && (
+        <PasswordBreachModal theme={theme} onClose={() => setMoTool(null)} />
       )}
       {moTool === "vulntrend" && (
         <VulnTrendModal theme={theme} snapshots={moSnapshots} onClose={() => setMoTool(null)} />
@@ -18006,6 +18558,216 @@ function parseCveList(text) {
   return set;
 }
 
+// The NVD REST API is public and CORS-enabled; without an API key it's
+// rate-limited to roughly 5 requests/30s, which is fine for one keyword at
+// a time on demand (there's no polling here, only an explicit "Check now"
+// click per watched keyword).
+const NVD_CVE_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0";
+async function fetchNvdCves(keyword) {
+  const url = `${NVD_CVE_URL}?keywordSearch=${encodeURIComponent(keyword)}&resultsPerPage=10`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`NVD lookup failed (${res.status})`);
+  const json = await res.json();
+  return (json.vulnerabilities || []).map((v) => {
+    const cve = v.cve;
+    const desc = (cve.descriptions || []).find((d) => d.lang === "en");
+    const metrics = cve.metrics || {};
+    const cvss = (metrics.cvssMetricV31 || metrics.cvssMetricV30 || metrics.cvssMetricV2 || [])[0];
+    return {
+      id: cve.id,
+      description: desc ? desc.value : "",
+      severity: cvss ? cvss.cvssData.baseSeverity || null : null,
+      score: cvss ? cvss.cvssData.baseScore : null,
+      published: cve.published,
+    };
+  });
+}
+function cveSeverityColor(theme, sev) {
+  const s = String(sev || "").toUpperCase();
+  if (s === "CRITICAL") return theme.danger;
+  if (s === "HIGH") return theme.danger;
+  if (s === "MEDIUM") return "#f59e0b";
+  return theme.textMuted;
+}
+
+function CveWatchlistModal({ theme, watchlist, setWatchlist, onClose }) {
+  const [keyword, setKeyword] = useState("");
+  const [busyId, setBusyId] = useState(null);
+  const [error, setError] = useState(null);
+
+  function addKeyword() {
+    const k = keyword.trim();
+    if (!k) return;
+    if ((watchlist || []).some((w) => w.keyword.toLowerCase() === k.toLowerCase())) { setKeyword(""); return; }
+    setWatchlist([...(watchlist || []), { id: "cve" + Date.now(), keyword: k, results: null, fetchedAt: null }]);
+    setKeyword("");
+  }
+  function removeKeyword(id) {
+    const removed = (watchlist || []).find((w) => w.id === id);
+    setWatchlist((watchlist || []).filter((w) => w.id !== id));
+    if (removed) {
+      toast.show({
+        message: `Removed "${removed.keyword}" from the watchlist.`,
+        action: { label: "Undo", onClick: () => setWatchlist((cur) => [...(cur || []), removed]) },
+      });
+    }
+  }
+  async function checkNow(id) {
+    const entry = (watchlist || []).find((w) => w.id === id);
+    if (!entry) return;
+    setBusyId(id);
+    setError(null);
+    try {
+      const results = await fetchNvdCves(entry.keyword);
+      setWatchlist((cur) => (cur || []).map((w) => (w.id === id ? { ...w, results, fetchedAt: Date.now() } : w)));
+    } catch (e) {
+      setError(`Couldn't check "${entry.keyword}" — ${e.message || "the NVD API may be rate-limiting or unreachable"}.`);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const inputStyle = { padding: "9px 11px", borderRadius: "9px", fontSize: "13px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent };
+
+  return (
+    <MoModal
+      theme={theme}
+      icon={<IconShield size={20} />}
+      title="CVE Watchlist"
+      subtitle="Watch vendor or product keywords and check them against the NVD's live CVE database — for finding new relevant vulnerabilities you don't already have a CVE ID for."
+      onClose={onClose}
+    >
+      <div style={{ display: "flex", gap: "8px", marginBottom: "18px" }}>
+        <input
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && addKeyword()}
+          placeholder="Vendor or product (e.g. SentinelOne, Ivanti, Fortinet)"
+          className="v-input"
+          style={{ ...inputStyle, flex: 1 }}
+        />
+        <MoButton theme={theme} variant="primary" onClick={addKeyword}>Watch</MoButton>
+      </div>
+      {error && <div style={{ fontSize: "12.5px", color: theme.danger, marginBottom: "14px" }}>{error}</div>}
+      {(watchlist || []).length === 0 ? (
+        <div style={{ fontSize: "13px", color: theme.textFaint }}>Nothing watched yet — add a vendor or product above.</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          {watchlist.map((w) => (
+            <div key={w.id} style={{ border: `1px solid ${theme.cardBorder}`, borderRadius: "12px", padding: "14px 16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+                <span style={{ fontSize: "14px", fontWeight: 700, color: theme.text, flex: 1 }}>{w.keyword}</span>
+                <span style={{ fontSize: "11px", color: theme.textFaint }}>{w.fetchedAt ? `Checked ${timeAgo(w.fetchedAt)}` : "Never checked"}</span>
+                <MoButton theme={theme} onClick={() => checkNow(w.id)} disabled={busyId === w.id} style={{ padding: "6px 12px", fontSize: "12px" }}>
+                  {busyId === w.id ? "Checking…" : "Check now"}
+                </MoButton>
+                <button onClick={() => removeKeyword(w.id)} className="v-btn" style={{ fontSize: "16px", color: theme.textFaint, background: "transparent", border: "none", padding: "0 4px", cursor: "pointer" }}>×</button>
+              </div>
+              {w.results && (
+                w.results.length === 0 ? (
+                  <div style={{ fontSize: "12.5px", color: theme.textFaint }}>No CVEs found for this keyword.</div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {w.results.map((r) => (
+                      <div key={r.id} style={{ padding: "8px 10px", background: theme.accentSoft, borderRadius: "8px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "3px" }}>
+                          <span style={{ fontSize: "12.5px", fontWeight: 700, color: theme.text }}>{r.id}</span>
+                          {r.severity && (
+                            <span style={{ fontSize: "10px", fontWeight: 700, color: "#fff", background: cveSeverityColor(theme, r.severity), padding: "1px 7px", borderRadius: "999px" }}>
+                              {r.severity}{r.score != null ? ` ${r.score}` : ""}
+                            </span>
+                          )}
+                          <span style={{ fontSize: "11px", color: theme.textFaint, marginLeft: "auto" }}>{r.published ? new Date(r.published).toLocaleDateString() : ""}</span>
+                        </div>
+                        <div style={{ fontSize: "12px", color: theme.textMuted, lineHeight: 1.4 }}>{truncate(r.description, 220)}</div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </MoModal>
+  );
+}
+
+// HaveIBeenPwned's email-breach API now requires a paid key; its Pwned
+// Passwords range endpoint is still free and needs none — k-anonymity means
+// only the first 5 hex chars of the SHA-1 hash ever leave the browser, so
+// the password itself (and even its full hash) never does.
+async function checkPwnedPassword(password) {
+  const enc = new TextEncoder().encode(password);
+  const digest = await crypto.subtle.digest("SHA-1", enc);
+  const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
+  const prefix = hex.slice(0, 5);
+  const suffix = hex.slice(5);
+  const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`);
+  if (!res.ok) throw new Error(`Lookup failed (${res.status})`);
+  const text = await res.text();
+  const line = text.split("\n").find((l) => l.split(":")[0] === suffix);
+  return line ? Number(line.split(":")[1].trim()) : 0;
+}
+
+function PasswordBreachModal({ theme, onClose }) {
+  const [password, setPassword] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [result, setResult] = useState(null); // { count } | { error }
+
+  async function check() {
+    if (!password || checking) return;
+    setChecking(true);
+    setResult(null);
+    try {
+      const count = await checkPwnedPassword(password);
+      setResult({ count });
+    } catch (e) {
+      setResult({ error: e.message || "Couldn't reach the Pwned Passwords API." });
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  const inputStyle = { padding: "9px 11px", borderRadius: "9px", fontSize: "13px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent };
+
+  return (
+    <MoModal
+      theme={theme}
+      icon={<IconLock size={20} />}
+      title="Password Breach Check"
+      subtitle="Checks a password against HaveIBeenPwned's Pwned Passwords database using k-anonymity — only the first 5 characters of its SHA-1 hash ever leave your browser, never the password or the full hash."
+      onClose={onClose}
+    >
+      <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => { setPassword(e.target.value); setResult(null); }}
+          onKeyDown={(e) => e.key === "Enter" && check()}
+          placeholder="Password to check"
+          className="v-input"
+          style={{ ...inputStyle, flex: 1 }}
+          autoComplete="off"
+        />
+        <MoButton theme={theme} variant="primary" onClick={check} disabled={!password || checking}>{checking ? "Checking…" : "Check"}</MoButton>
+      </div>
+      {result && result.error && <div style={{ fontSize: "12.5px", color: theme.danger }}>{result.error}</div>}
+      {result && result.count != null && (
+        result.count > 0 ? (
+          <div style={{ padding: "12px 14px", borderRadius: "10px", background: theme.dangerSoft, color: theme.danger, fontSize: "13.5px", fontWeight: 600, lineHeight: 1.5 }}>
+            Found in {result.count.toLocaleString()} known breach{result.count === 1 ? "" : "es"} — don't use this password anywhere.
+          </div>
+        ) : (
+          <div style={{ padding: "12px 14px", borderRadius: "10px", background: theme.accentSoft, color: theme.positive, fontSize: "13.5px", fontWeight: 600 }}>
+            Not found in any known breach — that's a good sign, though it's not a guarantee.
+          </div>
+        )
+      )}
+    </MoModal>
+  );
+}
+
 function KevLookupModal({ theme, state, setState, onClose }) {
   const s = state && "entries" in state ? state : DEFAULT_KEV;
   const [query, setQuery] = useState("");
@@ -19190,6 +19952,8 @@ function MechanicalOrchardMenu({ theme, links, setLinks, onOpenTool }) {
     { id: "appnotice", icon: <IconMegaphone size={15} />, label: "Outdated App Notice", desc: "Draft an update/remove message" },
     { id: "dailylog", icon: <IconClipboard size={15} />, label: "Daily InfoSec Log", desc: "Compile a daily summary" },
     { id: "kev", icon: <IconShield size={15} />, label: "CVE / KEV Lookup", desc: "Check CISA Known Exploited" },
+    { id: "cve-watch", icon: <IconShield size={15} />, label: "CVE Watchlist", desc: "Watch vendors, check NVD live" },
+    { id: "pwned-pw", icon: <IconLock size={15} />, label: "Password Breach Check", desc: "Pwned Passwords k-anonymity" },
     { id: "vulntrend", icon: <IconTrendingUp size={15} />, label: "Vulnerability Trends", desc: "Chart S1/IRU over time" },
     { id: "toolkit", icon: <IconWrench size={15} />, label: "Security Utility Belt", desc: "IOCs, defang, decode, hash" },
     { id: "phish", icon: <IconEnvelope size={15} />, label: "Phishing Header Analyzer", desc: "SPF/DKIM/DMARC + hops" },
