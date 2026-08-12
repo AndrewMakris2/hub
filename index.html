@@ -1748,6 +1748,8 @@ const STORAGE_KEYS = {
   homeLayout: "dash.homeLayout",
   railCollapsed: "dash.railCollapsed",
   pageImages: "dash.pageImages",
+  categoryRules: "dash.categoryRules",
+  schemaVersion: "dash.schemaVersion",
   appNoticeDraft: "dash.appNoticeDraft",
   games: "dash.games",
   dailyLog: "dash.dailyLog",
@@ -1801,6 +1803,43 @@ function saveJSON(key, value) {
   }
 }
 
+// ----------------------------------------------------------------------
+// Versioned data migrations. Most new fields just need a default merged in
+// on read — usePersistentState's loadJSON already does that for free — so
+// this is only for changes loadJSON's shallow merge can't express: a field
+// that needs real values computed from other stored data, a rename, a
+// reshape. Runs once on boot, before anything reads state, and stamps
+// dash.schemaVersion so it never re-runs a step it's already applied.
+const CURRENT_SCHEMA_VERSION = 1;
+const MIGRATIONS = [
+  {
+    version: 1,
+    // The 7 named account trackers (added after `financial` already existed
+    // for plenty of users) — backfill them instead of leaving old installs
+    // to rely on FinancialAccountsSection's render-time fallback forever.
+    migrate() {
+      const fin = loadJSON(STORAGE_KEYS.financial, DEFAULT_FINANCIAL);
+      if (!fin.accounts || !fin.accounts.length) {
+        saveJSON(STORAGE_KEYS.financial, { ...fin, accounts: DEFAULT_FINANCIAL_ACCOUNTS });
+      }
+    },
+  },
+];
+function runMigrations() {
+  const stored = loadJSON(STORAGE_KEYS.schemaVersion, 0);
+  const pending = MIGRATIONS.filter((m) => m.version > stored).sort((a, b) => a.version - b.version);
+  if (!pending.length) return;
+  pending.forEach((m) => {
+    try {
+      m.migrate();
+    } catch (e) {
+      /* one bad migration shouldn't block the rest — the field just keeps
+         falling back at render time like it did before this ran */
+    }
+  });
+  saveJSON(STORAGE_KEYS.schemaVersion, CURRENT_SCHEMA_VERSION);
+}
+
 // Background scroll lock, ref-counted so overlapping overlays can't corrupt
 // each other's save/restore. Pads for the scrollbar so locking doesn't shift
 // the page underneath.
@@ -1833,6 +1872,17 @@ function usePersistentState(key, initial) {
   useEffect(() => {
     saveJSON(key, state);
   }, [key, state]);
+  // Cross-tab sync: the storage event only fires in *other* tabs/windows for
+  // the same origin, never the one that made the write, so this can't loop.
+  useEffect(() => {
+    function onStorage(e) {
+      if (e.key !== key) return;
+      setState(loadJSON(key, initial));
+    }
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
   return [state, setState];
 }
 
@@ -1846,13 +1896,21 @@ function useHashRoute(defaultRoute, validIds) {
     // Only the first "/"-segment decides the top-level page, so a page that owns
     // a deeper sub-path (e.g. the Fantasy tab's "fantasy/players/123") still
     // resolves here instead of falling back to defaultRoute.
-    const top = raw.split("/")[0];
-    return top && validIds.includes(top) ? top : defaultRoute;
+    const parts = raw.split("/");
+    const top = parts[0];
+    return {
+      route: top && validIds.includes(top) ? top : defaultRoute,
+      // Everything after the page id — e.g. "#fitness/log-weight" gives an
+      // action of "log-weight", used for deep-link quick actions (Shortcuts,
+      // home-screen icons) that should open straight into a specific field
+      // instead of just landing on the page.
+      action: top && validIds.includes(top) && parts.length > 1 ? parts.slice(1).join("/") : null,
+    };
   }
-  const [route, setRoute] = useState(resolve);
+  const [state, setState] = useState(resolve);
   useEffect(() => {
     function onHashChange() {
-      setRoute(resolve());
+      setState(resolve());
     }
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
@@ -1861,7 +1919,12 @@ function useHashRoute(defaultRoute, validIds) {
   function navigate(next) {
     window.location.hash = next === defaultRoute ? "" : next;
   }
-  return [route, navigate];
+  // Called once the target page has consumed the action, so a refresh
+  // doesn't keep re-triggering it and the URL settles on the plain page.
+  function clearAction() {
+    if (state.action) window.location.hash = state.route;
+  }
+  return [state.route, navigate, state.action, clearAction];
 }
 
 // Nested router for the Fantasy tab's own sub-pages (mirrors the original
@@ -2004,7 +2067,16 @@ const CATEGORY_KEYWORDS = [
   { category: "Health", pattern: /pharmacy|\bcvs\b|walgreens|doctor|clinic|dental/i },
 ];
 
-function guessCategory(description) {
+// User-defined rules (plain substring match, case-insensitive — no regex
+// input from the user, so there's no ReDoS/invalid-pattern risk) win over
+// the built-in keyword list, so someone can re-map a merchant the defaults
+// got wrong (e.g. treat Amazon as "Household" instead of "Shopping").
+function guessCategory(description, customRules) {
+  const text = String(description || "").toLowerCase();
+  if (customRules && customRules.length) {
+    const custom = customRules.find((r) => r.pattern && text.includes(r.pattern.toLowerCase()));
+    if (custom) return custom.category;
+  }
   const found = CATEGORY_KEYWORDS.find((k) => k.pattern.test(description));
   return found ? found.category : "Uncategorized";
 }
@@ -2036,7 +2108,7 @@ function normalizeStatementDate(raw) {
 // both flow through here. Rather than splitting on a delimiter, it finds the
 // date and the amount by pattern anywhere in the line and treats whatever's
 // left as the description — works regardless of what separates the fields.
-function parseStatementLine(line) {
+function parseStatementLine(line, customRules) {
   const amountMatches = [...line.matchAll(/\(?-?\$?\d[\d,]*\.\d{2}\)?/g)];
   if (amountMatches.length === 0) return null;
   // Statement rows are usually "date  description  amount [running balance]" —
@@ -2071,15 +2143,15 @@ function parseStatementLine(line) {
     date: date || new Date().toISOString().slice(0, 10),
     merchant: description || "Transaction",
     amount,
-    category: guessCategory(description),
+    category: guessCategory(description, customRules),
   };
 }
 
-function parseStatementText(text) {
+function parseStatementText(text, customRules) {
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const results = [];
   lines.forEach((line, lineIdx) => {
-    const parsed = parseStatementLine(line);
+    const parsed = parseStatementLine(line, customRules);
     if (!parsed) return;
     results.push({ id: "tx" + Date.now() + lineIdx + Math.random().toString(36).slice(2, 6), ...parsed });
   });
@@ -2349,7 +2421,14 @@ function WeatherPage({ theme, weather, weatherStatus, onEnableWeather }) {
         </button>
       </div>
       {weatherStatus && weatherStatus.type === "error" && (
-        <div style={{ fontSize: "12px", color: theme.danger, marginBottom: "14px" }}>{weatherStatus.message}</div>
+        <div style={{ fontSize: "12px", color: theme.danger, marginBottom: "14px" }}>
+          {days.length > 0 && weather.fetchedAt
+            ? `Couldn't refresh — showing forecast from ${timeAgo(weather.fetchedAt)}.`
+            : weatherStatus.message}
+        </div>
+      )}
+      {days.length > 0 && (!weatherStatus || weatherStatus.type !== "error") && weather.fetchedAt && (
+        <div style={{ fontSize: "11px", color: theme.textFaint, marginBottom: "14px" }}>Updated {timeAgo(weather.fetchedAt)}</div>
       )}
       {days.length === 0 ? (
         <p style={{ fontSize: "14px", color: theme.textFaint }}>No forecast yet — try refreshing.</p>
@@ -2727,13 +2806,20 @@ function Card({ theme, children, style, delay = 0 }) {
   );
 }
 
-function Metric({ theme, label, value, suffix, prefix, formatDisplay, editable, onChange, inputType }) {
+function Metric({ theme, label, value, suffix, prefix, formatDisplay, editable, onChange, inputType, autoOpen }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
 
   useEffect(() => {
     setDraft(value);
   }, [value]);
+
+  // Deep-link quick actions (e.g. #fitness/log-weight) land here to jump
+  // straight into editing without the user hunting for the field.
+  useEffect(() => {
+    if (autoOpen && editable) setEditing(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpen]);
 
   function commit() {
     setEditing(false);
@@ -3511,7 +3597,7 @@ function generateSuggestions({ fitness, golf, trackers, profile, events, history
    SECTIONS
 ---------------------------------------------------------------------- */
 
-function FitnessSection({ theme, data, setData, history, onRecordWeight }) {
+function FitnessSection({ theme, data, setData, history, onRecordWeight, autoOpenWeight }) {
   return (
     <Card theme={theme} delay={0}>
       <SectionLabel theme={theme} icon={<IconDumbbell />}>Fitness</SectionLabel>
@@ -3528,6 +3614,7 @@ function FitnessSection({ theme, data, setData, history, onRecordWeight }) {
           value={data.currentWeight}
           suffix="lbs"
           editable
+          autoOpen={autoOpenWeight}
           inputType="number"
           onChange={(v) => {
             const next = Number(v) || data.currentWeight;
@@ -4344,8 +4431,26 @@ function FinancialAccountsSection({ theme, data, setData, accountHistory, onReco
 
   return (
     <Card theme={theme} delay={210}>
-      <SectionLabel theme={theme} icon={<IconTrendingUp />}>Accounts</SectionLabel>
-      <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap", marginBottom: "6px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
+        <SectionLabel theme={theme} icon={<IconTrendingUp />} style={{ marginBottom: 0 }}>Accounts</SectionLabel>
+        <button
+          onClick={() => {
+            const rows = [];
+            accounts.forEach((a) => {
+              const series = (accountHistory && accountHistory[a.id]) || [];
+              if (series.length) series.forEach((p) => rows.push([a.name, p.date, p.value]));
+              else rows.push([a.name, new Date().toISOString().slice(0, 10), a.balance]);
+            });
+            const csv = rowsToCSV(["Account", "Date", "Balance"], rows);
+            downloadTextFile(`vantage-accounts-${new Date().toISOString().slice(0, 10)}.csv`, csv, "text/csv");
+          }}
+          className="v-btn"
+          style={{ fontSize: "11.5px", fontWeight: 700, color: theme.textMuted, background: "transparent", border: `1px solid ${theme.divider}`, borderRadius: "999px", padding: "4px 10px" }}
+        >
+          Export CSV
+        </button>
+      </div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap", marginTop: "10px", marginBottom: "6px" }}>
         <span className="v-tabular" style={{ fontSize: "30px", fontWeight: 800, color: theme.text }}>{fmtMoney(total)}</span>
         <span style={{ fontSize: "13px", color: theme.textMuted }}>across {accounts.length} account{accounts.length === 1 ? "" : "s"}</span>
       </div>
@@ -5137,16 +5242,47 @@ function AgendaStripSection({ theme, events, delay }) {
   );
 }
 
-function TransactionsSection({ theme, transactions, setTransactions, categoryOptions, delay }) {
+function downloadTextFile(filename, text, mime) {
+  const blob = new Blob([text], { type: mime || "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function csvCell(v) {
+  const s = v == null ? "" : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+function rowsToCSV(headers, rows) {
+  const lines = [headers.map(csvCell).join(",")];
+  rows.forEach((r) => lines.push(r.map(csvCell).join(",")));
+  return lines.join("\r\n");
+}
+
+function TransactionsSection({ theme, transactions, setTransactions, categoryOptions, delay, autoFocusAdd, categoryRules, setCategoryRules }) {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [merchant, setMerchant] = useState("");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState("");
+  const [showRules, setShowRules] = useState(false);
+  const [rulePattern, setRulePattern] = useState("");
+  const [ruleCategory, setRuleCategory] = useState("");
   const [importStatus, setImportStatus] = useState(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const pdfInputRef = useRef(null);
+  const merchantRef = useRef(null);
+
+  // Deep-link quick action (#transactions/add) jumps straight to the form.
+  useEffect(() => {
+    if (autoFocusAdd && merchantRef.current) merchantRef.current.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoFocusAdd]);
 
   function applyImport(parsed) {
     if (parsed.length === 0) {
@@ -5169,7 +5305,7 @@ function TransactionsSection({ theme, transactions, setTransactions, categoryOpt
     setImportStatus(null);
     try {
       const text = await extractPdfText(file);
-      applyImport(parseStatementText(text));
+      applyImport(parseStatementText(text, categoryRules));
     } catch (err) {
       setImportStatus({ type: "error", message: err.message || "Couldn't read that PDF." });
     } finally {
@@ -5185,7 +5321,7 @@ function TransactionsSection({ theme, transactions, setTransactions, categoryOpt
       date: date || new Date().toISOString().slice(0, 10),
       merchant: trimmedMerchant,
       amount: Math.abs(Number(amount)) || 0,
-      category: category.trim() || guessCategory(trimmedMerchant),
+      category: category.trim() || guessCategory(trimmedMerchant, categoryRules),
     };
     setTransactions([tx, ...transactions]);
     setMerchant("");
@@ -5202,7 +5338,7 @@ function TransactionsSection({ theme, transactions, setTransactions, categoryOpt
   }
 
   function importPasted() {
-    applyImport(parseStatementText(pasteText));
+    applyImport(parseStatementText(pasteText, categoryRules));
     setPasteText("");
     setShowPaste(false);
   }
@@ -5249,6 +5385,20 @@ function TransactionsSection({ theme, transactions, setTransactions, categoryOpt
         <SectionLabel theme={theme} icon={<IconReceipt />} style={{ marginBottom: 0 }}>Transactions</SectionLabel>
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           <button
+            onClick={() => {
+              const csv = rowsToCSV(
+                ["Date", "Merchant", "Category", "Amount"],
+                transactions.map((t) => [t.date, t.merchant, t.category, t.amount])
+              );
+              downloadTextFile(`vantage-transactions-${new Date().toISOString().slice(0, 10)}.csv`, csv, "text/csv");
+            }}
+            disabled={!transactions.length}
+            className="v-btn"
+            style={{ fontSize: "11.5px", fontWeight: 700, color: theme.textMuted, background: "transparent", border: `1px solid ${theme.divider}`, borderRadius: "999px", padding: "4px 10px", opacity: transactions.length ? 1 : 0.5 }}
+          >
+            Export CSV
+          </button>
+          <button
             onClick={() => pdfInputRef.current && pdfInputRef.current.click()}
             disabled={pdfBusy}
             className="v-btn"
@@ -5264,11 +5414,74 @@ function TransactionsSection({ theme, transactions, setTransactions, categoryOpt
           >
             {showPaste ? "Cancel" : "Paste statement"}
           </button>
+          <button
+            onClick={() => setShowRules((s) => !s)}
+            className="v-btn"
+            style={{ fontSize: "11.5px", fontWeight: 700, color: theme.textMuted, background: "transparent", border: `1px solid ${theme.divider}`, borderRadius: "999px", padding: "4px 10px" }}
+          >
+            {showRules ? "Hide rules" : `Rules${categoryRules && categoryRules.length ? ` (${categoryRules.length})` : ""}`}
+          </button>
         </div>
       </div>
       <div style={{ fontSize: "11px", color: theme.textFaint, marginBottom: "12px", lineHeight: 1.4 }}>
         PDF parsing runs entirely in your browser — the file is never uploaded anywhere.
       </div>
+      {showRules && (
+        <div style={{ padding: "12px 14px", borderRadius: "10px", background: theme.accentSoft, marginBottom: "16px" }}>
+          <div style={{ fontSize: "12px", color: theme.textMuted, marginBottom: "10px", lineHeight: 1.4 }}>
+            New transactions and statement imports check these first — if a merchant contains the text below, it gets your category instead of the built-in guess.
+          </div>
+          {(categoryRules || []).length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "10px" }}>
+              {categoryRules.map((r) => (
+                <div key={r.id} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12.5px" }}>
+                  <span style={{ color: theme.textMuted }}>Merchant contains</span>
+                  <span style={{ fontWeight: 700, color: theme.text }}>"{r.pattern}"</span>
+                  <span style={{ color: theme.textMuted }}>→</span>
+                  <span style={{ fontWeight: 700, color: theme.text }}>{r.category}</span>
+                  <button
+                    onClick={() => setCategoryRules(categoryRules.filter((x) => x.id !== r.id))}
+                    className="v-btn"
+                    style={{ marginLeft: "auto", fontSize: "15px", color: theme.textFaint, background: "transparent", border: "none", padding: "0 4px", cursor: "pointer" }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <input
+              value={rulePattern}
+              onChange={(e) => setRulePattern(e.target.value)}
+              placeholder="Merchant contains (e.g. amazon)"
+              className="v-input"
+              style={{ ...inputStyle, flex: "2 1 160px" }}
+            />
+            <input
+              value={ruleCategory}
+              onChange={(e) => setRuleCategory(e.target.value)}
+              placeholder="Category"
+              className="v-input"
+              style={{ ...inputStyle, flex: "1 1 120px" }}
+            />
+            <button
+              onClick={() => {
+                const p = rulePattern.trim();
+                const c = ruleCategory.trim();
+                if (!p || !c) return;
+                setCategoryRules([...(categoryRules || []), { id: "rule" + Date.now(), pattern: p, category: c }]);
+                setRulePattern("");
+                setRuleCategory("");
+              }}
+              className="v-btn"
+              style={{ padding: "8px 14px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText }}
+            >
+              Add rule
+            </button>
+          </div>
+        </div>
+      )}
       <div style={{ display: "flex", gap: "14px", fontSize: "12px", color: theme.textFaint, marginBottom: "16px" }}>
         <span>
           <span className="v-tabular" style={{ color: theme.text, fontWeight: 700 }}>${totalThisMonth.toLocaleString()}</span> this month
@@ -5398,6 +5611,7 @@ function TransactionsSection({ theme, transactions, setTransactions, categoryOpt
           style={{ ...inputStyle, flex: "1 1 130px" }}
         />
         <input
+          ref={merchantRef}
           placeholder="Merchant"
           value={merchant}
           onChange={(e) => setMerchant(e.target.value)}
@@ -8344,6 +8558,179 @@ function NavItem({ theme, icon, label, value, active, onClick }) {
   );
 }
 
+function IconInstall({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="2" width="16" height="20" rx="2" />
+      <path d="M12 7v7m0 0-3-3m3 3 3-3" />
+      <path d="M9 18h6" />
+    </svg>
+  );
+}
+
+// Chrome/Edge/Android fire beforeinstallprompt when the PWA criteria are
+// met (manifest + service worker, both already registered) and let us
+// defer + replay the browser's own install flow from our own button.
+// Safari/iOS never fires this — there, "Add to Home Screen" only exists in
+// the share sheet, so the button just stays hidden there.
+function InstallAppButton({ theme }) {
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [installed, setInstalled] = useState(
+    () => typeof window !== "undefined" && window.matchMedia && window.matchMedia("(display-mode: standalone)").matches
+  );
+  useEffect(() => {
+    function onBeforeInstall(e) {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    }
+    function onInstalled() {
+      setInstalled(true);
+      setDeferredPrompt(null);
+    }
+    window.addEventListener("beforeinstallprompt", onBeforeInstall);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBeforeInstall);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
+  if (installed || !deferredPrompt) return null;
+  async function install() {
+    deferredPrompt.prompt();
+    try {
+      await deferredPrompt.userChoice;
+    } catch (e) {}
+    setDeferredPrompt(null);
+  }
+  return (
+    <button
+      onClick={install}
+      className="v-btn"
+      title="Install Vantage as an app"
+      aria-label="Install Vantage as an app"
+      style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "38px", height: "38px", borderRadius: "50%", border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.textMuted }}
+    >
+      <IconInstall size={16} />
+    </button>
+  );
+}
+
+function IconFileText({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6M8 13h8M8 17h8M8 9h2" />
+    </svg>
+  );
+}
+
+// One week of fitness/golf/financial/transactions/habits/upcoming, folded
+// into a single-page PDF via the same pdfMake loader Raven's Eye already
+// uses (ravenLoadPdfMake caches the library on window, so this is free the
+// second time either feature calls it).
+function buildWeeklyDigestDocDefinition({ fitness, golf, financial, history, transactions, habits, events }) {
+  const now = new Date();
+  const weekAgo = new Date(now.getTime() - 7 * 86400000);
+  const fmtDate = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+  const accounts = (financial && financial.accounts && financial.accounts.length) ? financial.accounts : DEFAULT_FINANCIAL_ACCOUNTS;
+  const total = accounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+  const netWorthSeries = buildNetWorthSeries(accounts, (history && history.accounts) || {});
+  const weekNetWorth = netWorthSeries.filter((p) => new Date(p.date) >= weekAgo);
+  const netWorthDelta = weekNetWorth.length >= 2 ? weekNetWorth[weekNetWorth.length - 1].value - weekNetWorth[0].value : null;
+
+  const weightSeries = (history && history.fitness) || [];
+  const weekWeight = weightSeries.filter((p) => new Date(p.date) >= weekAgo);
+  const weightDelta = weekWeight.length >= 2 ? weekWeight[weekWeight.length - 1].value - weekWeight[0].value : null;
+
+  const weekTx = (transactions || []).filter((t) => t.date && new Date(t.date) >= weekAgo);
+  const weekSpend = weekTx.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+  const byCategory = {};
+  weekTx.forEach((t) => { const c = t.category || "Uncategorized"; byCategory[c] = (byCategory[c] || 0) + (Number(t.amount) || 0); });
+  const topCategory = Object.entries(byCategory).sort((a, b) => b[1] - a[1])[0];
+
+  const habitItems = (habits && habits.items) || [];
+  const habitDone = (habits && habits.done) || {};
+  let habitHits = 0;
+  const dayKeys = habitLastDays(7).map((d) => habitDayKey(d));
+  habitItems.forEach((h) => { dayKeys.forEach((k) => { if (habitDone[h.id] && habitDone[h.id][k]) habitHits += 1; }); });
+  const habitPossible = habitItems.length * 7;
+  const habitPct = habitPossible ? Math.round((habitHits / habitPossible) * 100) : null;
+
+  const upcoming = (events || [])
+    .filter((e) => e.date && new Date(e.date) >= now && new Date(e.date) <= new Date(now.getTime() + 7 * 86400000))
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
+
+  const section = (label) => ({ text: label, style: "section" });
+  const line = (text) => ({ text, margin: [0, 0, 0, 2] });
+
+  return {
+    pageSize: "A4",
+    pageMargins: [40, 40, 40, 40],
+    content: [
+      { text: "Vantage Weekly Digest", style: "title" },
+      { text: `${fmtDate(weekAgo)} – ${fmtDate(now)}`, style: "subtitle" },
+
+      section("Fitness"),
+      line(`Current weight: ${fitness.currentWeight} lbs (target ${fitness.targetWeight} lbs)`),
+      line(weightDelta == null ? "Not enough logged data this week to show a trend." : `${weightDelta > 0 ? "+" : ""}${weightDelta.toFixed(1)} lbs this week`),
+
+      section("Golf"),
+      line(`Handicap: ${golf.handicap} · ${golf.roundsYtd} rounds YTD`),
+
+      section("Financial"),
+      line(`Total across accounts: ${fmtMoney(total)}`),
+      line(netWorthDelta == null ? "Not enough snapshots this week to show a trend." : `${netWorthDelta >= 0 ? "+" : ""}${fmtMoney(netWorthDelta)} this week`),
+
+      section("Transactions"),
+      line(`Spent this week: ${fmtMoney(weekSpend)} across ${weekTx.length} transaction${weekTx.length === 1 ? "" : "s"}`),
+      line(topCategory ? `Top category: ${topCategory[0]} (${fmtMoney(topCategory[1])})` : "No spending logged this week."),
+
+      section("Habits"),
+      line(habitPct == null ? "No habits tracked yet." : `${habitHits} of ${habitPossible} check-ins this week (${habitPct}%)`),
+
+      section("Upcoming (next 7 days)"),
+      ...(upcoming.length
+        ? upcoming.map((e) => line(`${e.title} — ${new Date(e.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`))
+        : [line("Nothing on the calendar.")]),
+    ],
+    styles: {
+      title: { fontSize: 18, bold: true, color: "#1a1a1a", margin: [0, 0, 0, 2] },
+      subtitle: { fontSize: 10, italics: true, color: "#767673", margin: [0, 0, 0, 14] },
+      section: { fontSize: 12, bold: true, color: "#1a1a1a", margin: [0, 14, 0, 6] },
+    },
+    defaultStyle: { font: "Roboto", fontSize: 10, color: "#33332f" },
+  };
+}
+
+function WeeklyDigestButton({ theme, fitness, golf, financial, history, transactions, habits, events }) {
+  const [busy, setBusy] = useState(false);
+  async function download() {
+    setBusy(true);
+    try {
+      const pdfMake = await ravenLoadPdfMake();
+      const doc = buildWeeklyDigestDocDefinition({ fitness, golf, financial, history, transactions, habits, events });
+      await pdfMake.createPdf(doc).download(`vantage-weekly-digest-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (err) {
+      toast.error(err && err.message ? err.message : "Couldn't build the digest.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <button
+      onClick={download}
+      disabled={busy}
+      className="v-btn"
+      title="Download weekly digest (PDF)"
+      aria-label="Download weekly digest (PDF)"
+      style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "38px", height: "38px", borderRadius: "50%", border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.textMuted, opacity: busy ? 0.6 : 1 }}
+    >
+      <IconFileText size={16} />
+    </button>
+  );
+}
+
 function Sidebar({
   theme,
   themeKey,
@@ -8360,6 +8747,7 @@ function Sidebar({
   financial,
   events,
   history,
+  habits,
   suggestionsCount,
   upcomingCount,
   weekAgendaCount,
@@ -8621,6 +9009,8 @@ function Sidebar({
       </button>
 
       <div className="v-rail-utilities">
+        <InstallAppButton theme={theme} />
+        <WeeklyDigestButton theme={theme} fitness={fitness} golf={golf} financial={financial} history={history} transactions={transactions} habits={habits} events={events} />
         <CalendarMenu
           theme={theme}
           integrations={integrations}
@@ -12194,13 +12584,29 @@ function NewsSection({ theme, state, setState }) {
 }
 
 /* ----------------------------------------------------------------------
-   APP LOCK — optional PIN gate
+   APP LOCK — optional PIN gate, with optional encryption at rest
 
-   A privacy lock, not full encryption: the PIN is verified with PBKDF2
-   (Web Crypto) against a stored salted hash, and the UI is gated behind a
-   lock screen. Data still lives in local storage, so this deters casual
-   access on a shared/lost device rather than defending against someone with
-   devtools. (Encrypting the sensitive stores at rest is a possible follow-up.)
+   The PIN itself is always verified with PBKDF2 (Web Crypto) against a
+   stored salted hash, and the UI is gated behind a lock screen — that part
+   alone deters casual access on a shared/lost device rather than defending
+   against someone with devtools, since the data still sits in local storage
+   in plain text.
+
+   Checking "Also encrypt stored data" closes that gap for whenever the app
+   is actually locked: a second PBKDF2 derivation produces a real AES-256-GCM
+   key (see deriveVaultKey/encryptJSON/decryptJSON below), never itself
+   persisted, only re-derivable from the correct PIN. "Lock now" snapshots
+   every store, encrypts it into dash.encryptedVault, and clears the
+   individual plaintext keys; unlocking decrypts, restores, and reloads.
+
+   Two disclosed limits, both worth knowing: (1) this only protects data
+   from the moment a lock actually happens (explicit "Lock now", or a fresh
+   page load that finds the vault already locked) — closing the tab without
+   locking first leaves that session's plaintext in place, same boundary the
+   PIN gate itself already had. (2) a background updater that fires while
+   locked (the reminders due-check, a stale-cache weather/news refresh) can
+   still write its own key back to plaintext, since the locked screen is a
+   full-screen overlay, not an unmount, of the rest of the app.
 ---------------------------------------------------------------------- */
 const LOCK_ITERATIONS = 150000;
 
@@ -12218,15 +12624,71 @@ async function derivePinHash(pin, saltBytes, iters) {
   const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: saltBytes, iterations: iters, hash: "SHA-256" }, key, 256);
   return bufToHex(bits);
 }
-async function makePinRecord(pin) {
+async function makePinRecord(pin, encrypt) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const hash = await derivePinHash(pin, salt, LOCK_ITERATIONS);
-  return { enabled: true, salt: bufToHex(salt), hash, iters: LOCK_ITERATIONS };
+  const rec = { enabled: true, salt: bufToHex(salt), hash, iters: LOCK_ITERATIONS };
+  if (encrypt) {
+    const encSalt = crypto.getRandomValues(new Uint8Array(16));
+    rec.encrypted = true;
+    rec.encSalt = bufToHex(encSalt);
+    __vaultKey = await deriveVaultKey(pin, rec.encSalt, LOCK_ITERATIONS);
+  }
+  return rec;
 }
 async function verifyPin(pin, rec) {
   if (!rec || !rec.salt) return false;
   const hash = await derivePinHash(pin, hexToBytes(rec.salt), rec.iters || LOCK_ITERATIONS);
   return hash === rec.hash;
+}
+
+// ----------------------------------------------------------------------
+// Optional encryption-at-rest layer, opt-in per PIN. A second PBKDF2
+// derivation (different salt from the verification hash above, standard
+// key-separation hygiene) produces a non-extractable AES-256-GCM key that
+// only ever exists in memory for the current unlocked session — it's never
+// itself written to storage, only derivable again from the correct PIN.
+// "Lock now" encrypts a full snapshot (snapshotAllStorage) into
+// dash.encryptedVault and clears every other dash.* key; unlocking decrypts
+// the vault, restores it, and reloads. This only protects data from the
+// moment an explicit lock happens (or a fresh page load finds the vault
+// already locked) — closing the tab without locking first leaves that
+// session's plaintext in place, same boundary the PIN gate itself already
+// has.
+// Deliberately not in STORAGE_KEYS: it's a device-local encryption artifact,
+// not something that should travel through the plaintext JSON backup file.
+const VAULT_STORAGE_KEY = "dash.encryptedVault";
+let __vaultKey = null;
+async function deriveVaultKey(pin, encSaltHex, iters) {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(pin), { name: "PBKDF2" }, false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt: hexToBytes(encSaltHex), iterations: iters, hash: "SHA-256" },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+async function encryptJSON(key, obj) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const enc = new TextEncoder();
+  const cipher = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, enc.encode(JSON.stringify(obj)));
+  return { iv: bufToHex(iv), data: btoa(String.fromCharCode(...new Uint8Array(cipher))) };
+}
+async function decryptJSON(key, envelope) {
+  const iv = hexToBytes(envelope.iv);
+  const bytes = Uint8Array.from(atob(envelope.data), (c) => c.charCodeAt(0));
+  const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, bytes);
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+// Wipes every registered store except the ones the lock screen itself
+// needs to render (theme) and the lock/vault records it needs to unlock.
+function clearAllStorageExcept(keepKeys) {
+  const keep = new Set(keepKeys);
+  Object.values(STORAGE_KEYS).forEach((key) => {
+    if (!keep.has(key)) localStorage.removeItem(key);
+  });
 }
 
 function IconLock({ size = 16 }) {
@@ -12242,6 +12704,7 @@ function LockScreen({ theme, lock, onUnlock }) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const inputRef = useRef(null);
 
   useEffect(() => { if (inputRef.current) inputRef.current.focus(); }, []);
@@ -12251,8 +12714,41 @@ function LockScreen({ theme, lock, onUnlock }) {
     if (!pin || checking) return;
     setChecking(true);
     const ok = await verifyPin(pin, lock);
-    setChecking(false);
-    if (ok) { onUnlock(); } else { setError(true); setPin(""); }
+    if (!ok) { setChecking(false); setError(true); setPin(""); return; }
+
+    if (!lock.encrypted) { setChecking(false); onUnlock(); return; }
+
+    __vaultKey = await deriveVaultKey(pin, lock.encSalt, lock.iters || LOCK_ITERATIONS);
+    const raw = localStorage.getItem(VAULT_STORAGE_KEY);
+    if (!raw) {
+      // Encryption was turned on but nothing's been locked yet since — the
+      // key's ready for the next "Lock now", current storage is already
+      // the real (unencrypted) data.
+      setChecking(false);
+      onUnlock();
+      return;
+    }
+    try {
+      const envelope = JSON.parse(raw);
+      const snap = await decryptJSON(__vaultKey, envelope);
+      restoreAllStorage(snap);
+      // Don't call onUnlock() here — that would flash the app with the
+      // blank-default state every store initialized to before this restore
+      // landed. A reload re-mounts everything reading the now-correct data.
+      // App()'s `locked` state otherwise re-derives from lock.enabled (still
+      // true) on that remount and would show the lock screen a second time
+      // for a PIN already entered once — this flag is a one-time bridge
+      // across exactly that reload, read and cleared on the other side.
+      try { sessionStorage.setItem("vantageJustUnlocked", "1"); } catch (e) {}
+      setChecking(false);
+      setRestoring(true);
+      setTimeout(() => window.location.reload(), 700);
+    } catch (err) {
+      setChecking(false);
+      setError(true);
+      setPin("");
+      __vaultKey = null;
+    }
   }
 
   return ReactDOM.createPortal(
@@ -12283,11 +12779,11 @@ function LockScreen({ theme, lock, onUnlock }) {
         {error && <div style={{ color: theme.danger, fontSize: "12.5px", fontWeight: 600, marginTop: "10px" }}>Incorrect PIN — try again.</div>}
         <button
           type="submit"
-          disabled={checking || !pin}
+          disabled={checking || restoring || !pin}
           className="v-btn"
-          style={{ marginTop: "18px", width: "100%", padding: "12px", borderRadius: "12px", fontSize: "14px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText, opacity: checking || !pin ? 0.6 : 1 }}
+          style={{ marginTop: "18px", width: "100%", padding: "12px", borderRadius: "12px", fontSize: "14px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText, opacity: checking || restoring || !pin ? 0.6 : 1 }}
         >
-          {checking ? "Checking…" : "Unlock"}
+          {restoring ? "Decrypting…" : checking ? "Checking…" : "Unlock"}
         </button>
       </form>
     </div>,
@@ -12301,7 +12797,9 @@ function LockMenu({ theme, lock, setLock, onLockNow }) {
   const [p1, setP1] = useState("");
   const [p2, setP2] = useState("");
   const [cur, setCur] = useState("");
+  const [encryptOn, setEncryptOn] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [busy, setBusy] = useState(false);
   const wrapRef = useRef(null);
 
   useEffect(() => {
@@ -12310,18 +12808,33 @@ function LockMenu({ theme, lock, setLock, onLockNow }) {
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
-  function reset() { setMode(null); setP1(""); setP2(""); setCur(""); setMsg(null); }
+  function reset() { setMode(null); setP1(""); setP2(""); setCur(""); setMsg(null); setBusy(false); }
 
   async function saveNew() {
     if (p1.length < 4) { setMsg("Use at least 4 digits/characters."); return; }
     if (p1 !== p2) { setMsg("PINs don't match."); return; }
     if (mode === "change" && !(await verifyPin(cur, lock))) { setMsg("Current PIN is incorrect."); return; }
-    const rec = await makePinRecord(p1);
+    setBusy(true);
+    const rec = await makePinRecord(p1, encryptOn);
+    // Already unlocked at this point (this menu only renders outside the lock
+    // screen), so current plaintext storage is the source of truth — refresh
+    // the vault from it now rather than waiting for the next "Lock now",
+    // otherwise a lock immediately after a PIN change would trust a
+    // still-old-key vault.
+    if (encryptOn) {
+      const snap = snapshotAllStorage();
+      const envelope = await encryptJSON(__vaultKey, snap);
+      saveJSON(VAULT_STORAGE_KEY, envelope);
+    } else {
+      localStorage.removeItem(VAULT_STORAGE_KEY);
+    }
     setLock(rec);
     reset(); setOpen(false);
   }
   async function disable() {
     if (!(await verifyPin(cur, lock))) { setMsg("Current PIN is incorrect."); return; }
+    localStorage.removeItem(VAULT_STORAGE_KEY);
+    __vaultKey = null;
     setLock({ enabled: false });
     reset(); setOpen(false);
   }
@@ -12348,11 +12861,11 @@ function LockMenu({ theme, lock, setLock, onLockNow }) {
               {enabled ? (
                 <React.Fragment>
                   <button onClick={() => { onLockNow(); setOpen(false); }} className="v-btn" style={menuBtn(theme)}>Lock now</button>
-                  <button onClick={() => setMode("change")} className="v-btn" style={menuBtn(theme)}>Change PIN</button>
+                  <button onClick={() => { setMode("change"); setEncryptOn(!!lock.encrypted); }} className="v-btn" style={menuBtn(theme)}>Change PIN</button>
                   <button onClick={() => setMode("disable")} className="v-btn" style={{ ...menuBtn(theme), color: theme.danger }}>Turn off lock</button>
                 </React.Fragment>
               ) : (
-                <button onClick={() => setMode("set")} className="v-btn" style={menuBtn(theme)}>Set a PIN</button>
+                <button onClick={() => { setMode("set"); setEncryptOn(false); }} className="v-btn" style={menuBtn(theme)}>Set a PIN</button>
               )}
             </div>
           )}
@@ -12362,9 +12875,13 @@ function LockMenu({ theme, lock, setLock, onLockNow }) {
               {mode === "change" && <input type="password" inputMode="numeric" value={cur} onChange={(e) => setCur(e.target.value)} placeholder="Current PIN" className="v-input" style={inputStyle} />}
               <input type="password" inputMode="numeric" value={p1} onChange={(e) => setP1(e.target.value)} placeholder="New PIN" className="v-input" style={inputStyle} />
               <input type="password" inputMode="numeric" value={p2} onChange={(e) => setP2(e.target.value)} placeholder="Confirm PIN" className="v-input" style={inputStyle} />
+              <label style={{ display: "flex", alignItems: "flex-start", gap: "7px", marginTop: "10px", fontSize: "11.5px", color: theme.textMuted, cursor: "pointer" }}>
+                <input type="checkbox" checked={encryptOn} onChange={(e) => setEncryptOn(e.target.checked)} style={{ marginTop: "2px" }} />
+                <span>Also encrypt stored data (AES-256, key derived from this PIN). Protects it once you lock — forgetting this PIN makes locked data unrecoverable.</span>
+              </label>
               {msg && <div style={{ color: theme.danger, fontSize: "11.5px", marginTop: "6px" }}>{msg}</div>}
               <div style={{ display: "flex", gap: "6px", marginTop: "10px" }}>
-                <button onClick={saveNew} className="v-btn" style={{ ...menuBtn(theme), background: theme.accent, color: theme.accentText, textAlign: "center", border: "none" }}>Save</button>
+                <button onClick={saveNew} disabled={busy} className="v-btn" style={{ ...menuBtn(theme), background: theme.accent, color: theme.accentText, textAlign: "center", border: "none", opacity: busy ? 0.6 : 1 }}>{busy ? "Saving…" : "Save"}</button>
                 <button onClick={reset} className="v-btn" style={{ ...menuBtn(theme), textAlign: "center" }}>Cancel</button>
               </div>
             </div>
@@ -12735,10 +13252,19 @@ function App() {
   const [themeKey, setThemeKey] = usePersistentState(STORAGE_KEYS.theme, "minimal");
   const theme = THEMES[themeKey] || THEMES.minimal;
   useEffect(() => { applyThemeVars(theme); }, [theme]);
-  const [page, navigate] = useHashRoute("home", PAGE_META.map((p) => p.id));
+  const [page, navigate, quickAction, clearQuickAction] = useHashRoute("home", PAGE_META.map((p) => p.id));
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [page]);
+  // The target page reads quickAction during its own render (e.g. autoOpenWeight)
+  // before this clears the hash back to the plain page, so a refresh or share
+  // doesn't keep re-triggering the same action.
+  useEffect(() => {
+    if (!quickAction) return;
+    const t = setTimeout(() => clearQuickAction(), 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quickAction]);
 
   const [fitness, setFitness] = usePersistentState(STORAGE_KEYS.fitness, DEFAULT_FITNESS);
   const [golf, setGolf] = usePersistentState(STORAGE_KEYS.golf, DEFAULT_GOLF);
@@ -12784,6 +13310,7 @@ function App() {
   const [journal, setJournal] = usePersistentState(STORAGE_KEYS.journal, DEFAULT_JOURNAL);
   const [goals, setGoals] = usePersistentState(STORAGE_KEYS.goals, DEFAULT_GOALS);
   const [transactions, setTransactions] = usePersistentState(STORAGE_KEYS.transactions, DEFAULT_TRANSACTIONS);
+  const [categoryRules, setCategoryRules] = usePersistentState(STORAGE_KEYS.categoryRules, []);
   const [youtube, setYoutube] = usePersistentState(STORAGE_KEYS.youtube, DEFAULT_YOUTUBE);
   const [sports, setSports] = usePersistentState(STORAGE_KEYS.sports, { cache: {}, fetchedAt: null });
   const [subscriptions, setSubscriptions] = usePersistentState(STORAGE_KEYS.subscriptions, DEFAULT_SUBSCRIPTIONS);
@@ -12800,7 +13327,29 @@ function App() {
   const [games, setGames] = usePersistentState(STORAGE_KEYS.games, DEFAULT_GAMES);
   const [news, setNews] = usePersistentState(STORAGE_KEYS.news, { topics: DEFAULT_NEWS_TOPICS, cache: {}, fetchedAt: null });
   const [lock, setLock] = usePersistentState(STORAGE_KEYS.lock, { enabled: false });
-  const [locked, setLocked] = useState(() => !!lock.enabled);
+  const [locked, setLocked] = useState(() => {
+    try {
+      if (sessionStorage.getItem("vantageJustUnlocked")) {
+        sessionStorage.removeItem("vantageJustUnlocked");
+        return false;
+      }
+    } catch (e) {}
+    return !!lock.enabled;
+  });
+  async function handleLockNow() {
+    if (lock.encrypted && __vaultKey) {
+      try {
+        const snap = snapshotAllStorage();
+        const envelope = await encryptJSON(__vaultKey, snap);
+        saveJSON(VAULT_STORAGE_KEY, envelope);
+        clearAllStorageExcept([STORAGE_KEYS.theme, STORAGE_KEYS.lock]);
+      } catch (e) {
+        toast.error("Couldn't encrypt before locking — locked without encrypting this time.");
+      }
+    }
+    __vaultKey = null;
+    setLocked(true);
+  }
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [reminders, setReminders] = usePersistentState(STORAGE_KEYS.reminders, { enabled: false, items: [], eventNotified: {} });
   const [youtubeVideos, setYoutubeVideos] = useState([]);
@@ -12873,7 +13422,18 @@ function App() {
     if (typeof window === "undefined" || !("Notification" in window)) return;
     function notify(body) {
       toast.reminder(body, { title: "Reminder", duration: 9000 });
-      if (reminders.enabled && Notification.permission === "granted") {
+      if (!reminders.enabled || Notification.permission !== "granted") return;
+      // The service worker's notification supports a click handler (see
+      // sw.js) that focuses/opens the app — a plain page-context
+      // Notification can't do that. Still only fires while this tab's JS is
+      // running to notice the reminder is due; a true "app fully closed"
+      // push would need a server to wake the service worker, which this
+      // no-backend app doesn't have.
+      if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+        navigator.serviceWorker.ready
+          .then((reg) => reg.showNotification("Vantage", { body, icon: "icon-192.png", badge: "icon-192.png", tag: "vantage-reminder" }))
+          .catch(() => { try { new Notification("Vantage", { body }); } catch (e) {} });
+      } else {
         try { new Notification("Vantage", { body }); } catch (e) {}
       }
     }
@@ -12979,6 +13539,7 @@ function App() {
         financial={financial}
         events={events}
         history={history}
+        habits={habits}
         suggestionsCount={suggestions.length}
         upcomingCount={allEvents.length}
         weekAgendaCount={weekAgendaCount}
@@ -13001,7 +13562,7 @@ function App() {
         onOpenMoTool={setMoTool}
         lock={lock}
         setLock={setLock}
-        onLockNow={() => setLocked(true)}
+        onLockNow={handleLockNow}
         onOpenPalette={() => setPaletteOpen(true)}
         reminders={reminders}
         setReminders={setReminders}
@@ -13056,7 +13617,7 @@ function App() {
             />
           )}
           {page === "fitness" && (
-            <FitnessSection theme={theme} data={fitness} setData={setFitness} history={history.fitness} onRecordWeight={recordWeight} />
+            <FitnessSection theme={theme} data={fitness} setData={setFitness} history={history.fitness} onRecordWeight={recordWeight} autoOpenWeight={quickAction === "log-weight"} />
           )}
           {page === "golf" && (
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -13088,7 +13649,7 @@ function App() {
             </div>
           )}
           {page === "transactions" && (
-            <TransactionsSection theme={theme} transactions={transactions} setTransactions={setTransactions} categoryOptions={[]} delay={0} />
+            <TransactionsSection theme={theme} transactions={transactions} setTransactions={setTransactions} categoryOptions={[]} delay={0} autoFocusAdd={quickAction === "add"} categoryRules={categoryRules} setCategoryRules={setCategoryRules} />
           )}
           {page === "upcoming" && (
             <UpcomingSection theme={theme} events={events} setEvents={setEvents} connectedEvents={allConnectedEvents} />
@@ -25254,6 +25815,7 @@ function FFPage({ theme, cheatSheets, setCheatSheets, customRankings, setCustomR
   );
 }
 
+runMigrations();
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(<App />);
 </script>

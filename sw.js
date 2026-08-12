@@ -1,4 +1,4 @@
-const CACHE_NAME = "vantage-v2";
+const CACHE_NAME = "vantage-v3";
 const APP_SHELL = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -13,6 +13,20 @@ self.addEventListener("activate", (event) => {
       .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
   );
   self.clients.claim();
+});
+
+// Reminder notifications (fired via registration.showNotification from the
+// page) focus an already-open Vantage tab instead of opening a duplicate.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const c of clients) {
+        if (c.url.includes(self.registration.scope) && "focus" in c) return c.focus();
+      }
+      return self.clients.openWindow("./");
+    })
+  );
 });
 
 // Same-origin app shell only — CDN scripts (React/Babel/Google/Microsoft) are
