@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<!-- CSP lives here (not just netlify.toml) because GitHub Pages has no
+     mechanism for custom response headers at all — this is the only way to
+     get any CSP enforcement on that copy of the site. Netlify additionally
+     gets it as a real header (see netlify.toml) for the earlier-blocking,
+     more robust delivery; frame-ancestors is ignored here by spec (meta tags
+     can't set it) but is enforced via the Netlify header + X-Frame-Options.
+     script-src needs 'unsafe-inline' for the inlined fflate lib, the compiled
+     app script build.js writes below, and the SW-registration snippet at the
+     bottom — none of them carry a nonce/hash. 'unsafe-eval' was needed only
+     for Babel Standalone's in-browser JSX transform; app.jsx is now compiled
+     ahead of time by build.js, so it's dropped. The real protection here is
+     the explicit host allowlist, which still blocks loading a script from any
+     origin not listed below. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://accounts.google.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://cdn.sheetjs.com; worker-src 'self' blob: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; connect-src 'self' https:; frame-src 'self'; base-uri 'self'; object-src 'none'" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Vantage</title>
+<!-- index.html is generated from app.jsx by build.js — edit app.jsx, not this file. -->
+<meta name="color-scheme" content="light dark" />
+<meta name="theme-color" content="#0b1f3a" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Vantage" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icon-192.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<style>
+  /* ==========================================================================
+     VANTAGE — global design system
+     Theme colors arrive as --v-* custom properties set on :root from the active
+     theme object (see applyThemeVars). Everything below is theme-agnostic so all
+     22 themes work, light and dark, without per-theme CSS.
+     ========================================================================== */
+  /* Display face used only by the Aurora Glass theme (--v-font-display),
+     everything else stays on the system sans stack. */
+  @font-face {
+    font-family: "Bricolage Grotesque";
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+    src: url(data:font/woff2;base64,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) format("woff2");
+  }
+  :root {
+    /* spacing scale */
+    --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+    --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px;
+
+    /* radius scale */
+    --r-xs: 6px; --r-sm: 8px; --r-md: 10px; --r-lg: 14px; --r-xl: 20px; --r-pill: 999px;
+
+    /* motion */
+    --ease: cubic-bezier(.2,.8,.2,1);
+    --ease-out: cubic-bezier(.16,1,.3,1);
+    --dur-1: 120ms; --dur-2: 180ms; --dur-3: 260ms;
+
+    /* elevation — light default, re-stepped for dark below */
+    --sh-1: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.08);
+    --sh-2: 0 4px 8px -2px rgba(16,24,40,.10), 0 2px 4px -2px rgba(16,24,40,.06);
+    --sh-3: 0 12px 24px -6px rgba(16,24,40,.14), 0 4px 8px -4px rgba(16,24,40,.08);
+    --sh-4: 0 24px 48px -12px rgba(16,24,40,.20);
+
+    /* layout */
+    --rail-w: 236px;
+    --topbar-h: 56px;
+
+    /* safe areas (0 on non-notched devices) */
+    --sa-t: env(safe-area-inset-top, 0px);
+    --sa-b: env(safe-area-inset-bottom, 0px);
+    --sa-l: env(safe-area-inset-left, 0px);
+    --sa-r: env(safe-area-inset-right, 0px);
+  }
+  :root[data-scheme="dark"] {
+    color-scheme: dark;
+    --sh-1: 0 1px 2px rgba(0,0,0,.40);
+    --sh-2: 0 4px 10px -2px rgba(0,0,0,.45);
+    --sh-3: 0 14px 28px -8px rgba(0,0,0,.55);
+    --sh-4: 0 28px 56px -16px rgba(0,0,0,.65);
+  }
+  :root[data-scheme="light"] { color-scheme: light; }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    /* paints behind the app so iOS rubber-band overscroll matches the theme */
+    background: var(--v-page-bg, #fafaf8);
+    color: var(--v-text, #1a1a1a);
+  }
+  #root { min-height: 100vh; min-height: 100dvh; }
+  ::selection { background: var(--v-accent-soft, rgba(120,120,255,0.3)); }
+  input, button, select, textarea { font-family: inherit; }
+  button { cursor: pointer; }
+  /* long unbroken strings (hashes, JWTs, URLs) must never widen the page */
+  pre, code { overflow-wrap: anywhere; }
+  img { max-width: 100%; }
+
+  @keyframes vFadeInUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes vFadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes vSheetUp { from { transform: translateY(6%); opacity: .6; } to { transform: translateY(0); opacity: 1; } }
+  @keyframes vShimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+  @keyframes v-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+  /* ---- Cards ---- */
+  .v-card {
+    position: relative;
+    /* Stacking context so the sheen can sit at z-index -1 — above the card
+       background, below the content. Without it the ::after composited over
+       the text: the FOR YOU label rendered 2.56:1 against a computed 4.97:1. */
+    isolation: isolate;
+    overflow: hidden;
+    transition: transform var(--dur-3) var(--ease), box-shadow var(--dur-3) var(--ease);
+    animation: vFadeInUp 0.5s var(--ease) both;
+  }
+  .v-card::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent-line, transparent);
+    opacity: 0.6;
+  }
+  /* A stat tile is small enough that a full-width bar dominates it — reduce it
+     to a short mark that reads as an accent rather than a rule. */
+  .v-hometile::before { height: 2px; width: 34px; opacity: 0.75; border-radius: 0 0 2px 0; }
+  /* Lift only where a real pointer can hover — on touch this fired on tap and
+     made cards jump. Elevation now follows the theme's scheme instead of a
+     hardcoded dark shadow that looked like soot on the light themes. */
+  @media (hover: hover) and (pointer: fine) {
+    .v-card:hover { transform: translateY(-3px); box-shadow: var(--sh-3) !important; }
+  }
+
+  /* ---- Buttons ---- */
+  .v-btn { transition: transform var(--dur-1) ease, filter var(--dur-1) ease, background var(--dur-1) ease; }
+  @media (hover: hover) and (pointer: fine) {
+    .v-btn:hover { filter: brightness(1.08); transform: translateY(-1px); box-shadow: inset 0 0 0 999px rgba(127,127,127,0.09); }
+    .v-navitem:hover, .v-card:hover, .v-hometile:hover, .v-swatch:hover { box-shadow: none; }
+  }
+  .v-btn:active { filter: brightness(0.95); transform: translateY(0); }
+  .v-btn[disabled], .v-btn:disabled { cursor: not-allowed; opacity: .55; filter: none; transform: none; }
+  /* Comfortable hit areas on touch. Opt out with .v-btn--tight for deliberately
+     tiny controls (habit grid squares, star ratings) that must stay small. */
+  @media (pointer: coarse) {
+    .v-btn:not(.v-btn--tight) { min-height: 40px; }
+    .v-navitem { min-height: 44px; }
+  }
+
+  /* ---- Inputs ---- */
+  .v-input { transition: border-color var(--dur-2) ease, box-shadow var(--dur-2) ease; max-width: 100%; }
+  .v-input:focus { outline: none; }
+  .v-input:focus-visible,
+  input:focus-visible, textarea:focus-visible, select:focus-visible {
+    outline: 2px solid var(--v-accent, currentColor);
+    outline-offset: 1px;
+    box-shadow: 0 0 0 4px var(--v-accent-soft, rgba(0,0,0,0.12));
+    border-color: var(--v-accent, currentColor) !important;
+  }
+  /* The 7-day agenda is a 760px row of fixed columns. On a phone that hid
+     four days behind a clip with no scrollbar; below 640px it wraps to a
+     2-up grid instead. Above that the row stays, with a right-edge fade so
+     the cut reads as "more" rather than as a rendering fault. */
+  .v-agenda-days {
+    mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+  }
+  .v-agenda-days.is-scrollend { mask-image: none; -webkit-mask-image: none; }
+  @media (max-width: 640px) {
+    .v-agenda-days {
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      overflow-x: visible !important;
+      mask-image: none; -webkit-mask-image: none;
+    }
+  }
+
+  /* Add-rows are laid out for desktop, so on a phone the optional fields get
+     squeezed until the placeholder truncates mid-word ("Category (optior").
+     Give inputs a floor and let the row wrap rather than compress. The min()
+     cap keeps that floor inside whatever column the input sits in, so a grid
+     cell can never be forced to overflow. */
+  @media (max-width: 640px) {
+    .v-main div:has(> .v-input) { flex-wrap: wrap; }
+    /* !important because these inputs set minWidth: 0 inline, which otherwise
+       wins over any stylesheet rule — the same reason the iOS font-size rule
+       below needs it. */
+    .v-main .v-input { min-width: min(100%, 15rem) !important; }
+    .v-main textarea.v-input { min-width: 100% !important; }
+  }
+
+  /* iOS zooms the page when a focused input's text is under 16px. Every input
+     in the app sets fontSize inline, so this has to be !important to land. */
+  @media (max-width: 640px) {
+    .v-input, input, select, textarea, .v-input.v-tabular { font-size: 16px !important; }
+    input[type="date"] { min-height: 40px; }
+  }
+
+  /* ---- Scrollbars ---- */
+  .v-scroll { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb, var(--v-divider, rgba(128,128,128,0.35))) transparent; }
+  .v-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+  .v-scroll::-webkit-scrollbar-track { background: transparent; }
+  .v-scroll::-webkit-scrollbar-thumb { background: var(--scroll-thumb, var(--v-divider, rgba(128,128,128,0.35))); border-radius: var(--r-pill); }
+  .v-scroll::-webkit-scrollbar-thumb:hover { filter: brightness(1.25); }
+  /* horizontal scrollers get momentum + no scroll chaining on touch */
+  .v-scroll-x { overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+
+  .v-swatch-box { transition: transform var(--dur-2) ease; }
+  .v-swatch:hover .v-swatch-box { transform: scale(1.08); }
+  .v-tabular { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; font-family: var(--v-font-display, inherit); }
+
+  /* Full-viewport embed shells (SecurityX). dvh keeps mobile browser chrome
+     from cropping the frame; the mobile tier also subtracts the top bar. */
+  .v-fullshell { height: 100vh; height: 100dvh; }
+  @media (max-width: 900px) {
+    .v-fullshell { height: calc(100dvh - var(--topbar-h) - var(--sa-t)); }
+  }
+
+  /* Icon-only buttons: grow the *hit* area on touch without moving anything.
+     A layout-affecting min-width would reflow the dense rows these sit in. */
+  .v-iconbtn { position: relative; }
+  @media (pointer: coarse) {
+    .v-iconbtn::after {
+      content: "";
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 44px; height: 44px;
+    }
+  }
+
+  /* Touch sizing for the deliberately small controls */
+  @media (pointer: coarse) {
+    .v-star { font-size: 22px !important; padding: 2px 4px !important; }
+    .v-rail-brand { min-height: 44px; }
+  }
+
+  /* Feed thumbnails (Sports). Class-driven so the column can shrink on phones
+     and so the real image and the alignment placeholder can never disagree. */
+  .v-feedthumb {
+    width: 104px; aspect-ratio: 16 / 10; border-radius: 10px;
+    flex-shrink: 0; display: block;
+  }
+  @media (max-width: 640px) { .v-feedthumb { width: 76px; border-radius: 8px; } }
+
+  /* ---- Ambient depth ----
+     A wide, very low-opacity wash of the theme's own accent behind everything.
+     It reads as depth rather than colour, and because it is derived from
+     --v-accent it suits all 27 themes without per-theme tuning. */
+  .v-app { position: relative; isolation: isolate; }
+  .v-app::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.13;
+    background:
+      radial-gradient(760px 420px at 6% -6%, var(--v-accent, transparent), transparent 62%),
+      radial-gradient(680px 380px at 96% 4%, var(--v-accent, transparent), transparent 58%);
+  }
+  :root[data-scheme="dark"] .v-app::before { opacity: 0.20; }
+
+  /* Cards get a faint top sheen so they read as lit surfaces rather than flat
+     rectangles. Clipped by the existing overflow:hidden. */
+  .v-card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0) 42%);
+  }
+  :root[data-scheme="light"] .v-card::after {
+    background: linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0) 46%);
+    mix-blend-mode: overlay;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .v-card:hover { border-color: var(--v-accent) !important; }
+  }
+
+  /* Active navigation: an accent rail plus a soft wash, so the current page is
+     legible at a glance instead of relying on a tint alone. */
+  .v-navitem { position: relative; }
+  .v-navitem.is-active::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 50%;
+    transform: translateY(-50%);
+    width: 3px; height: 62%;
+    border-radius: 0 3px 3px 0;
+    background: var(--v-accent);
+  }
+  .v-navitem.is-active {
+    background-image: linear-gradient(90deg, var(--v-accent-soft), transparent 78%);
+  }
+
+  /* ---- News feed ---- */
+  .v-feedgrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
+    gap: 12px;
+  }
+  .v-feedcard {
+    display: flex;
+    gap: 12px;
+    padding: 12px;
+    text-decoration: none;
+    align-items: flex-start;
+    transition: transform var(--dur-2) var(--ease), border-color var(--dur-2) ease, box-shadow var(--dur-2) ease;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .v-feedcard:hover { transform: translateY(-2px); border-color: var(--v-accent) !important; box-shadow: var(--sh-3); }
+  }
+  .v-feedart {
+    width: 84px; aspect-ratio: 1 / 1; border-radius: 10px;
+    flex-shrink: 0; object-fit: cover; display: block;
+  }
+  .v-feedart--gen { display: flex; align-items: center; justify-content: center; }
+  .v-feedart--gen img { width: 26px; height: 26px; border-radius: 6px; background: rgba(255,255,255,.9); padding: 3px; }
+  .v-feedcard__body { display: flex; flex-direction: column; gap: 5px; min-width: 0; flex: 1; }
+  .v-feedcard__title { font-size: 14px; font-weight: 700; line-height: 1.35; }
+  .v-feedcard__sum { font-size: 12.5px; line-height: 1.45; }
+  .v-feedcard__meta { display: flex; align-items: center; gap: 6px; font-size: 11.5px; margin-top: auto; }
+  .v-feedcard__meta img { border-radius: 3px; flex-shrink: 0; }
+  @media (max-width: 640px) {
+    .v-feedart { width: 68px; }
+    .v-feedcard__title { font-size: 13.5px; }
+  }
+
+  /* ---- Resume ---- */
+  .v-resume__head { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+  .v-resume__avatar {
+    width: 76px; height: 76px; border-radius: 20px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 27px; font-weight: 800; letter-spacing: -0.02em;
+    box-shadow: var(--sh-2);
+  }
+  .v-certgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); gap: 10px; }
+  .v-cert { display: flex; gap: 10px; align-items: flex-start; padding: 12px 13px; border-radius: var(--r-md); }
+  .v-resume__two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 16px; }
+  @media (max-width: 640px) {
+    .v-resume__avatar { width: 60px; height: 60px; border-radius: 16px; font-size: 21px; }
+  }
+
+  /* Print: the resume becomes a clean document — no app chrome, no ambient
+     wash, no card shadows, and nothing split awkwardly across a page break. */
+  @media print {
+    .v-noprint, .v-topbar, .v-rail, .v-scrim, .v-toasts { display: none !important; }
+    .v-app::before { display: none !important; }
+    .v-main { margin: 0 !important; padding: 0 !important; }
+    .v-container { max-width: none !important; padding: 0 !important; }
+    .v-resume .v-card {
+      border: none !important; box-shadow: none !important; background: #fff !important;
+      padding: 0 0 14px !important; break-inside: avoid;
+    }
+    .v-resume .v-card::before, .v-resume .v-card::after { display: none !important; }
+    .v-resume__job, .v-cert { break-inside: avoid; }
+    .v-resume, .v-resume * { color: #111 !important; }
+    .v-resume__avatar { box-shadow: none !important; }
+    .v-certgrid { grid-template-columns: 1fr 1fr !important; }
+  }
+
+  /* ---- MO tool help ---- */
+  .v-mohelp { border-radius: var(--r-md); padding: 13px 14px; margin-bottom: 18px; }
+  .v-mohelp ol { list-style: decimal; }
+
+  /* Home tile watermark — the same visual language as the page banners. */
+  .v-hometile { position: relative; overflow: hidden; }
+  .v-hometile[draggable="true"] { cursor: grab; }
+  .v-hometile--dragging { opacity: 0.4; }
+  .v-hometile__mark {
+    position: absolute;
+    right: -10px; bottom: -14px;
+    transform: scale(4.2);
+    transform-origin: bottom right;
+    opacity: 0.055;
+    pointer-events: none;
+  }
+  :root[data-scheme="dark"] .v-hometile__mark { opacity: 0.085; }
+  .v-hometile__glow {
+    position: absolute;
+    top: -40%; right: -30%;
+    width: 70%; height: 70%;
+    border-radius: 50%;
+    opacity: 0.16;
+    filter: blur(30px);
+    pointer-events: none;
+  }
+
+  /* Home "Snapshots" strip — a horizontally-scrolling row of page photos in
+     varied widths, separate from the per-page banner entirely. */
+  .v-snaprow {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+  }
+  .v-snapcard {
+    position: relative;
+    flex: 0 0 auto;
+    height: 128px;
+    border-radius: var(--r-md, 12px);
+    overflow: hidden;
+    display: block;
+    padding: 0;
+  }
+  .v-snapcard img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform 0.35s ease; }
+  .v-snapcard:hover img { transform: scale(1.05); }
+  .v-snapcard__veil { position: absolute; inset: 0; background: linear-gradient(200deg, transparent 40%, rgba(0,0,0,0.62) 100%); }
+  .v-snapcard__label {
+    position: absolute; left: 10px; right: 10px; bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 700; color: #fff;
+    text-shadow: 0 1px 6px rgba(0,0,0,0.35);
+  }
+  @media (max-width: 640px) { .v-snapcard { height: 104px; } }
+
+  /* ---- Home layouts ---- */
+  .v-home-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .v-home-cmd { display: grid; grid-template-columns: 1fr 1.35fr 0.85fr; gap: 16px; align-items: start; }
+  .v-home-brief { display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; align-items: start; }
+  .v-hometiles--dense { grid-template-columns: repeat(auto-fill, minmax(min(132px, 100%), 1fr)); gap: 10px; }
+  .v-hometiles--dense .v-hometile { padding: 12px; gap: 5px; }
+
+  .v-home-bento {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    align-items: stretch;
+  }
+  .v-bento-a { grid-column: span 2; }
+  .v-bento-b { grid-column: span 2; }
+  .v-bento-c { grid-column: span 2; }
+  .v-bento-d { grid-column: span 1; }
+  .v-bento-e { grid-column: span 1; }
+  .v-bento-f { grid-column: span 2; }
+  .v-home-bento > div { min-width: 0; display: flex; }
+  .v-home-bento > div > * { flex: 1; }
+
+  @media (max-width: 1180px) {
+    .v-home-cmd { grid-template-columns: 1fr 1fr; }
+    .v-home-cmd > .v-home-col:last-child { grid-column: span 2; }
+    .v-home-bento { grid-template-columns: repeat(2, 1fr); }
+    .v-bento-a, .v-bento-b, .v-bento-c, .v-bento-f { grid-column: span 2; }
+    .v-bento-d, .v-bento-e { grid-column: span 1; }
+  }
+  @media (max-width: 820px) {
+    .v-home-cmd, .v-home-brief { grid-template-columns: 1fr; }
+    .v-home-cmd > .v-home-col:last-child { grid-column: span 1; }
+    .v-home-bento { grid-template-columns: 1fr; }
+    .v-home-bento > div { grid-column: span 1 !important; }
+  }
+
+  /* Light text links inside card headers — padded enough to tap. */
+  .v-linkbtn { padding: 5px 9px; border-radius: var(--r-sm); }
+  @media (pointer: coarse) { .v-linkbtn { min-width: 44px; } }
+
+  /* ---- Collapsed rail (desktop) ----
+     Icons only, so the whole app gets ~165px of width back without losing
+     navigation. Hidden entirely below 900px, where the drawer takes over. */
+  .v-rail-collapse { margin-top: 4px; }
+  @media (max-width: 900px) { .v-rail-collapse { display: none !important; } }
+  @media (min-width: 901px) {
+    :root.rail-collapsed { --rail-w: 72px; }
+    :root.rail-collapsed .v-navitem__label,
+    :root.rail-collapsed .v-navitem__badge,
+    :root.rail-collapsed .v-rail-brand__text,
+    :root.rail-collapsed .v-railonly,
+    :root.rail-collapsed .v-navgroup > span,
+    :root.rail-collapsed .v-navgroup svg { display: none !important; } /* beats inline display on the carets */
+    :root.rail-collapsed .v-navgroup {
+      /* keep a divider where the group heading was */
+      height: 1px; padding: 0; margin: 9px 8px 5px; overflow: hidden;
+      background: var(--v-divider); border-radius: 1px;
+    }
+    :root.rail-collapsed .v-navitem,
+    :root.rail-collapsed .v-rail-brand,
+    :root.rail-collapsed .v-rail-collapse { justify-content: center; }
+    :root.rail-collapsed .v-rail-nav > button:first-child { justify-content: center; }
+    :root.rail-collapsed .v-navitem.is-active::before { width: 2.5px; }
+    /* The theme pill loses its label, so it becomes a round swatch button. */
+    :root.rail-collapsed .v-themebtn { padding: 6px; justify-content: center; }
+  }
+
+  /* ---- Per-page banner variants (see PageBanner) ---- */
+  .v-banner--corner-img {
+    width: 92px; height: 92px; border-radius: 14px; object-fit: cover; flex-shrink: 0;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.16);
+  }
+  @media (max-width: 640px) { .v-banner--corner-img { width: 64px; height: 64px; border-radius: 11px; } }
+
+  /* Banner image control — quiet until you go looking for it. */
+  .v-banner-edit {
+    position: absolute; top: 10px; right: 10px; z-index: 3;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; border-radius: 9px;
+    border: 1px solid rgba(255,255,255,0.35);
+    background: rgba(0,0,0,0.25); color: #fff;
+    opacity: 0; transition: opacity var(--dur-2) ease;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  }
+  div:hover > .v-banner-edit, .v-banner-edit:focus-visible { opacity: 1; }
+  @media (pointer: coarse) {
+    /* No hover to reveal it on touch, and it needs a real target. */
+    .v-banner-edit { opacity: 0.85; width: 40px; height: 40px; }
+  }
+  .v-banner-edit-panel {
+    position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 4;
+    display: flex; gap: 8px; flex-wrap: wrap;
+    padding: 8px; border-radius: var(--r-md);
+    background: rgba(0,0,0,0.45);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  }
+
+
+  /* ==========================================================================
+     APP SHELLS
+
+     Five arrangements of the same markup. Each shell only ever moves and
+     restyles .v-rail / .v-topbar / .v-main — nothing is duplicated, so no
+     shell can be missing a feature the others have.
+
+     Card styling is inline on the element (theme objects), so the surface
+     rules below need !important to win. That is contained to these blocks.
+
+     All of this is desktop-only (min-width: 901px). Below that the drawer
+     already owns navigation and every shell falls back to it, which is the
+     right answer on a phone regardless of the shell chosen.
+     ========================================================================== */
+  @media (min-width: 901px) {
+
+    /* ---------- CONSOLE — nav across the top, hairline rules, dense ---------- */
+    :root[data-shell="console"] {
+      --shell-bar-h: 54px;
+      --r-md: 6px; --r-lg: 7px; --r-xl: 8px;
+    }
+    :root[data-shell="console"] .v-rail {
+      top: 0; left: 0; right: 0; bottom: auto;
+      width: auto; height: var(--shell-bar-h);
+      flex-direction: row; align-items: center;
+      gap: 10px; padding: 0 14px; overflow: visible;
+    }
+    :root[data-shell="console"] .v-rail::before { border-right: none; border-bottom: 1px solid var(--rail-border); }
+    :root[data-shell="console"] .v-rail-nav {
+      flex-direction: row; align-items: center; gap: 1px;
+      overflow-x: auto; overflow-y: hidden; flex: 1; scrollbar-width: none;
+    }
+    :root[data-shell="console"] .v-rail-nav::-webkit-scrollbar { display: none; }
+    :root[data-shell="console"] .v-rail-utilities { flex-direction: row; align-items: center; gap: 6px; }
+    :root[data-shell="console"] .v-navgroup,
+    :root[data-shell="console"] .v-rail-collapse,
+    :root[data-shell="console"] .v-navitem__badge { display: none !important; }
+    :root[data-shell="console"] .v-navitem {
+      width: auto; flex-shrink: 0; padding: 6px 10px; white-space: nowrap;
+      font-size: 12.5px; letter-spacing: .01em;
+    }
+    :root[data-shell="console"] .v-navitem.is-active::before { display: none; }
+    :root[data-shell="console"] .v-navitem.is-active {
+      box-shadow: inset 0 -2px 0 var(--v-accent);
+      border-radius: 4px 4px 0 0;
+    }
+    :root[data-shell="console"] .v-shellbtn .v-railonly,
+    :root[data-shell="console"] .v-themebtn .v-railonly { display: none; }
+    :root[data-shell="console"] .v-main { margin-left: 0; margin-top: var(--shell-bar-h); }
+    :root[data-shell="console"] .v-container { max-width: 1560px; padding-left: 22px; padding-right: 22px; }
+    /* Cards become ruled rows: the point of this shell is data, not chrome. */
+    :root[data-shell="console"] .v-card {
+      background: transparent !important;
+      background-image: none !important;
+      border: none !important;
+      border-top: 1px solid var(--v-divider) !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      padding: 16px 2px !important;
+    }
+    :root[data-shell="console"] .v-tabular,
+    :root[data-shell="console"] table { font-variant-numeric: tabular-nums; }
+
+    /* The rail groups its items in wrapper divs. In a horizontal nav those
+       wrappers would lay out side by side as columns, so flatten them and let
+       the items themselves become the row. */
+    /* The 3px accent bar and the hover lift belong to a card. In the shells
+       that dissolve cards into ruled sections there is nothing to decorate or
+       lift, and both read as stray artefacts. */
+    :root[data-shell="console"] .v-card::before,
+    :root[data-shell="atelier"] .v-card::before,
+    :root[data-shell="zen"] .v-card::before { display: none; }
+    :root[data-shell="console"] .v-card:hover,
+    :root[data-shell="atelier"] .v-card:hover,
+    :root[data-shell="zen"] .v-card:hover { transform: none; box-shadow: none !important; }
+
+    :root[data-shell="console"] .v-rail-nav > div,
+    :root[data-shell="dock"] .v-rail-nav > div,
+    :root[data-shell="atelier"] .v-rail-nav > div { display: contents; }
+
+    :root[data-shell="console"] .v-shellmenu,
+    :root[data-shell="atelier"] .v-shellmenu { bottom: auto; top: calc(100% + 8px); }
+
+    /* ---------- DOCK — nav on the floor, full-bleed content, soft slabs ------ */
+    :root[data-shell="dock"] {
+      --shell-dock-h: 70px;
+      --r-md: 14px; --r-lg: 18px; --r-xl: 24px;
+    }
+    :root[data-shell="dock"] .v-rail {
+      /* Centred with auto margins, NOT translateX: a transform here would
+         make the rail the containing block for the fixed popovers inside it
+         and confine them to the dock. */
+      top: auto; left: 0; right: 0; bottom: calc(16px + var(--sa-b));
+      margin-inline: auto;
+      width: fit-content; max-width: calc(100vw - 40px); height: var(--shell-dock-h);
+      flex-direction: row; align-items: center; gap: 8px;
+      padding: 0 14px; border-radius: 22px; overflow: visible;
+      box-shadow: var(--sh-4);
+    }
+    :root[data-shell="dock"] .v-rail::before {
+      border-right: none; border: 1px solid var(--rail-border); border-radius: 22px;
+    }
+    :root[data-shell="dock"] .v-rail-nav {
+      flex-direction: row; align-items: center; gap: 2px;
+      overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+    }
+    :root[data-shell="dock"] .v-rail-nav::-webkit-scrollbar { display: none; }
+    :root[data-shell="dock"] .v-rail-utilities { flex-direction: row; align-items: center; gap: 4px; }
+    :root[data-shell="dock"] .v-rail-brand__text,
+    :root[data-shell="dock"] .v-navitem__label,
+    :root[data-shell="dock"] .v-navitem__badge,
+    :root[data-shell="dock"] .v-navgroup,
+    :root[data-shell="dock"] .v-railonly,
+    :root[data-shell="dock"] .v-rail-collapse { display: none !important; }
+    :root[data-shell="dock"] .v-navitem { width: auto; padding: 11px; justify-content: center; flex-shrink: 0; }
+    :root[data-shell="dock"] .v-navitem.is-active::before { display: none; }
+    :root[data-shell="dock"] .v-navitem.is-active { background: var(--v-accent-soft); color: var(--v-accent); }
+    :root[data-shell="dock"] .v-main { margin-left: 0; padding-bottom: calc(var(--shell-dock-h) + 40px); }
+    :root[data-shell="dock"] .v-container { max-width: 1180px; }
+    :root[data-shell="dock"] .v-card {
+      border-radius: 20px !important;
+      border-color: transparent !important;
+      box-shadow: var(--sh-2) !important;
+      padding: 26px !important;
+    }
+
+    /* ---------- ATELIER — masthead, narrow measure, serif display ----------- */
+    :root[data-shell="atelier"] { --r-md: 3px; --r-lg: 4px; --r-xl: 4px; }
+    /* The index wraps to however many rows it needs, so the masthead is left
+       in normal flow and sizes itself — a fixed height here would either clip
+       the nav or leave a gap. position:relative (not static) keeps ::before
+       anchored, and unlike transform it does not trap fixed popovers. */
+    :root[data-shell="atelier"] .v-rail {
+      position: relative;
+      top: auto; left: auto; right: auto; bottom: auto;
+      width: auto; height: auto;
+      flex-direction: column; align-items: center;
+      gap: 9px; padding: 18px 20px 12px; overflow: visible;
+    }
+    :root[data-shell="atelier"] .v-rail::before { border-right: none; border-bottom: 2px solid var(--v-text); background: var(--v-page-bg); backdrop-filter: none; }
+    :root[data-shell="atelier"] .v-rail-brand { flex-direction: column; gap: 4px; }
+    :root[data-shell="atelier"] .v-rail-brand__text {
+      font-family: ui-serif, Georgia, "Times New Roman", serif;
+      font-size: 30px !important; letter-spacing: .01em;
+    }
+    :root[data-shell="atelier"] .v-rail-nav {
+      flex-direction: row; flex-wrap: wrap; justify-content: center;
+      gap: 0 2px; overflow: visible; flex: 0 0 auto; max-width: 1180px;
+    }
+    :root[data-shell="atelier"] .v-rail-utilities { flex-direction: row; gap: 6px; }
+    :root[data-shell="atelier"] .v-navgroup,
+    :root[data-shell="atelier"] .v-navitem__badge,
+    :root[data-shell="atelier"] .v-navitem svg,
+    :root[data-shell="atelier"] .v-rail-collapse { display: none !important; }
+    :root[data-shell="atelier"] .v-navitem {
+      width: auto; padding: 2px 7px; font-size: 10.5px;
+      text-transform: uppercase; letter-spacing: .08em; font-weight: 700;
+    }
+    :root[data-shell="atelier"] .v-navitem__label { font-size: 10.5px; }
+    :root[data-shell="atelier"] .v-navitem.is-active::before { display: none; }
+    :root[data-shell="atelier"] .v-navitem.is-active { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 2px; }
+    :root[data-shell="atelier"] .v-main { margin-left: 0; margin-top: 0; }
+    :root[data-shell="atelier"] .v-container { max-width: 760px; }
+    /* Headings in this app are inline-styled divs, so there is no heading
+       element to target. An editorial shell wants the serif on the reading
+       matter anyway — set it on the column and keep controls in the UI face,
+       which is where a serif would actually hurt. */
+    :root[data-shell="atelier"] .v-main {
+      font-family: ui-serif, Georgia, "Times New Roman", serif;
+      letter-spacing: -.003em;
+    }
+    :root[data-shell="atelier"] .v-main button,
+    :root[data-shell="atelier"] .v-main input,
+    :root[data-shell="atelier"] .v-main select,
+    :root[data-shell="atelier"] .v-main textarea,
+    :root[data-shell="atelier"] .v-main .v-tabular,
+    :root[data-shell="atelier"] .v-main code {
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    :root[data-shell="atelier"] .v-card {
+      background: transparent !important;
+      background-image: none !important;
+      border: none !important;
+      border-top: 1px solid var(--v-text) !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      padding: 18px 0 !important;
+    }
+    :root[data-shell="atelier"] .v-main { line-height: 1.65; }
+
+    /* ---------- STUDIO — permanent icon rail, wide flat canvas -------------- */
+    :root[data-shell="studio"] {
+      --rail-w: 68px;
+      --r-md: 8px; --r-lg: 10px; --r-xl: 12px;
+    }
+    :root[data-shell="studio"] .v-navitem__label,
+    :root[data-shell="studio"] .v-navitem__badge,
+    :root[data-shell="studio"] .v-rail-brand__text,
+    :root[data-shell="studio"] .v-railonly,
+    :root[data-shell="studio"] .v-rail-collapse { display: none !important; }
+    :root[data-shell="studio"] .v-navgroup {
+      height: 1px; padding: 0; margin: 10px 6px; overflow: hidden;
+      background: var(--v-divider); border-radius: 1px;
+    }
+    :root[data-shell="studio"] .v-navgroup > span,
+    :root[data-shell="studio"] .v-navgroup svg { display: none !important; }
+    :root[data-shell="studio"] .v-navitem,
+    :root[data-shell="studio"] .v-rail-brand,
+    :root[data-shell="studio"] .v-shellbtn,
+    :root[data-shell="studio"] .v-themebtn { justify-content: center; }
+    :root[data-shell="studio"] .v-container { max-width: 1720px; padding-left: 30px; padding-right: 30px; }
+    :root[data-shell="studio"] .v-card {
+      border-radius: 10px !important;
+      border: 1.5px solid var(--v-card-border) !important;
+      box-shadow: none !important;
+      padding: 20px !important;
+    }
+
+    /* ---------- ZEN — navigation out of sight, one quiet column ------------- */
+    :root[data-shell="zen"] { --rail-w: 0px; }
+    :root[data-shell="zen"] .v-rail {
+      /* Animated with left rather than transform — same containing-block
+         reason as the dock. */
+      width: 236px;
+      left: -236px;
+      transition: left var(--dur-3) var(--ease-out);
+    }
+    :root[data-shell="zen"] .v-rail:hover,
+    :root[data-shell="zen"] .v-rail:focus-within { left: 0; }
+    /* A hairline handle at the screen edge, so the nav is discoverable
+       without being present. Widening the hit area, not the visible mark. */
+    :root[data-shell="zen"] .v-rail::after {
+      content: "";
+      position: absolute; top: 0; bottom: 0; left: 100%;
+      width: 16px;
+      background: linear-gradient(90deg, var(--v-accent), transparent 34%);
+      opacity: .5;
+    }
+    :root[data-shell="zen"] .v-rail:hover::after,
+    :root[data-shell="zen"] .v-rail:focus-within::after { opacity: 0; }
+    :root[data-shell="zen"] .v-main { margin-left: 0; }
+    :root[data-shell="zen"] .v-container {
+      max-width: 820px; padding-top: 42px; padding-bottom: 80px;
+    }
+    :root[data-shell="zen"] .v-card {
+      background: transparent !important;
+      background-image: none !important;
+      border: none !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      padding: 30px 0 !important;
+      border-bottom: 1px solid var(--v-divider) !important;
+    }
+    :root[data-shell="zen"] .v-main { font-size: 16.5px; line-height: 1.7; }
+  }
+
+  /* On a phone every shell defers to the drawer, which is already the right
+     pattern there — but the dock keeps its floor-level nav, since that is the
+     one shell whose whole idea is thumb reach. */
+  @media (max-width: 900px) {
+    :root[data-shell] .v-rail { /* drawer behaviour is untouched */ }
+  }
+
+  /* ---- Toasts ---- */
+  .v-toasts {
+    position: fixed;
+    z-index: 200;
+    right: calc(16px + var(--sa-r));
+    bottom: calc(16px + var(--sa-b));
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 10px;
+    width: min(380px, calc(100vw - 32px));
+    pointer-events: none;
+  }
+  .v-toast {
+    pointer-events: auto;
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 12px 12px 16px;
+    overflow: hidden;
+    box-shadow: var(--sh-4);
+    animation: vToastIn var(--dur-3) var(--ease-out) both;
+  }
+  .v-toast__bar {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+    background: var(--toast-tone);
+  }
+  .v-toast__icon { display: inline-flex; flex-shrink: 0; margin-top: 1px; }
+  .v-toast__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .v-toast__title { font-size: 13px; font-weight: 700; }
+  .v-toast__msg { font-size: 12.5px; line-height: 1.45; overflow-wrap: anywhere; }
+  .v-toast__action {
+    flex-shrink: 0; border: none; border-radius: var(--r-sm);
+    padding: 6px 10px; font-size: 12px; font-weight: 700;
+  }
+  .v-toast__close {
+    flex-shrink: 0; border: none; background: transparent;
+    padding: 2px; display: inline-flex; align-items: center;
+  }
+  @keyframes vToastIn {
+    from { opacity: 0; transform: translateY(10px) scale(.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  /* On a phone they belong at the top, under the bar, where the thumb isn't. */
+  @media (max-width: 640px) {
+    .v-toasts {
+      right: calc(10px + var(--sa-r));
+      left: calc(10px + var(--sa-l));
+      width: auto;
+      bottom: auto;
+      top: calc(var(--topbar-h) + var(--sa-t) + 10px);
+      flex-direction: column;
+    }
+  }
+
+  /* ---- Empty states ---- */
+  .v-empty {
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    gap: 6px; padding: clamp(20px, 4vw, 34px) 16px;
+  }
+  .v-empty svg { opacity: .9; margin-bottom: 2px; }
+  .v-empty__title { font-size: 14.5px; font-weight: 700; }
+  .v-empty__msg { font-size: 12.5px; line-height: 1.5; max-width: 42ch; }
+
+  /* Habit streak grid. Fourteen 18px squares are fine with a mouse; on touch
+     they need to be bigger, which means showing fewer of them — the last week
+     is what matters on a phone anyway. */
+  .v-habitcell { width: 18px; height: 18px; }
+  @media (pointer: coarse) { .v-habitcell { width: 26px; height: 26px; } }
+  @media (max-width: 640px) {
+    .v-habitgrid .v-habitcell:nth-child(-n+7) { display: none; }
+  }
+
+  /* ---- Skeleton loading ---- */
+  .v-skeleton {
+    background: linear-gradient(90deg,
+      var(--v-chip, rgba(128,128,128,.12)) 25%,
+      var(--v-divider, rgba(128,128,128,.22)) 37%,
+      var(--v-chip, rgba(128,128,128,.12)) 63%);
+    background-size: 800px 100%;
+    animation: vShimmer 1.4s linear infinite;
+    border-radius: var(--r-sm);
+  }
+
+  /* ==========================================================================
+     Command rail (desktop) / off-canvas drawer (mobile)
+     ========================================================================== */
+  .v-rail {
+    position: fixed;
+    top: var(--v-rail-gap, 0px); left: var(--v-rail-gap, 0px); bottom: var(--v-rail-gap, 0px);
+    width: var(--rail-w);
+    display: flex;
+    flex-direction: column;
+    padding: calc(20px + var(--sa-t)) 14px calc(20px + var(--sa-b)) calc(14px + var(--sa-l));
+    gap: 22px;
+    overflow: visible;
+    z-index: 40;
+    border-radius: var(--v-rail-radius, 0px);
+    box-shadow: var(--v-rail-shadow, none);
+  }
+  /* Background/blur live on a pseudo-element, not .v-rail itself — a
+     backdrop-filter on .v-rail would make it the containing block for
+     any position:fixed descendant (the popovers below), confining them
+     to the rail's narrow width instead of the viewport. */
+  .v-rail::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: var(--rail-bg);
+    border-right: 1px solid var(--rail-border);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  .v-rail-nav {
+    flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+    display: flex; flex-direction: column; gap: 2px;
+    /* Fades the last few pixels so a clipped label reads as "more below"
+       rather than as a rendering fault. Removed once scrolled to the end. */
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent 100%);
+  }
+  .v-rail-nav.is-scrollend {
+    mask-image: none; -webkit-mask-image: none;
+  }
+  .v-rail-utilities { display: flex; flex-direction: column; gap: 8px; }
+  @media (max-width: 900px) {
+    /* Stacked, these five cost 232px of drawer height for controls whose
+       widths already sum to less than one row. */
+    .v-rail-utilities { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px; }
+    .v-rail-utilities > * { flex: 0 0 auto; }
+  }
+  .v-main { margin-left: var(--rail-w); min-width: 0; }
+
+  .v-navitem {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    border: none;
+    background: transparent;
+    text-align: left;
+    padding: 9px 10px;
+    border-radius: var(--r-md);
+    cursor: pointer;
+    transition: background var(--dur-2) ease, color var(--dur-2) ease;
+  }
+  .v-navitem:hover { background: var(--navitem-hover, rgba(128,128,128,0.1)); }
+
+  /* Mobile top bar + scrim — hidden on desktop */
+  .v-topbar { display: none; }
+  .v-scrim { display: none; }
+
+  /* ---- Priority Stream ---- */
+  .v-stream-item {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 14px 4px;
+    border-bottom: 1px solid var(--stream-divider, rgba(128,128,128,0.14));
+  }
+  .v-stream-item:last-child { border-bottom: none; }
+
+  /* ---- Home overview tiles ---- */
+  .v-hometiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(clamp(132px, 14vw, 168px), 1fr));
+    gap: 12px;
+  }
+  .v-hometile {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    text-align: left;
+    border: none;
+    cursor: pointer;
+    padding: 14px 14px 13px;
+    transition: transform var(--dur-2) ease, box-shadow var(--dur-2) ease;
+  }
+  /* The icon and the label belong on one line; stacking them was most of the
+     empty space in the tile. */
+  .v-hometile__head { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .v-hometile__head > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @media (hover: hover) and (pointer: fine) {
+    .v-hometile:hover { transform: translateY(-2px); box-shadow: var(--sh-2); }
+  }
+
+  /* ---- Content container ---- */
+  .v-container { width: 100%; margin: 0 auto; padding: clamp(20px, 3.2vw, 34px) clamp(14px, 3vw, 24px) 72px; }
+  .v-container--reader { max-width: 820px; }
+  .v-container--wide  { max-width: 1200px; }
+  .v-container--xwide { max-width: 1320px; }
+  .v-container--full  { max-width: none; padding: 0; }
+
+  /* ---- Modals / sheets ---- */
+  .v-modal-overlay {
+    position: fixed; inset: 0; z-index: 120;
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: min(6vh, 48px) 16px;
+    background: rgba(0,0,0,0.6);
+    animation: vFadeIn var(--dur-2) ease both;
+    overscroll-behavior: contain;
+  }
+  .v-modal-card {
+    width: 100%; max-width: 820px;
+    max-height: 88vh; max-height: 88dvh;
+    overflow-y: auto;
+    animation: vFadeInUp var(--dur-3) var(--ease-out) both;
+  }
+  /* Phone: become a bottom sheet that uses the full width and most of the height */
+  @media (max-width: 640px) {
+    .v-modal-overlay { align-items: flex-end; padding: 0; }
+    .v-modal-card {
+      max-width: 100%;
+      max-height: 94vh; max-height: 94dvh;
+      border-radius: var(--r-xl) var(--r-xl) 0 0 !important;
+      border-bottom: none !important;
+      padding: 20px 16px calc(20px + var(--sa-b)) !important;
+      animation: vSheetUp var(--dur-3) var(--ease-out) both;
+    }
+  }
+
+  /* ---- Focus ring: visible on every theme (accent + a contrasting halo) ---- */
+  .v-btn:focus-visible, .v-navitem:focus-visible, .v-swatch:focus-visible,
+  .v-hometile:focus-visible, .v-rail-brand:focus-visible,
+  a:focus-visible, select:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--v-accent, #4d9bff);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px var(--v-accent-soft, rgba(120,120,255,0.4));
+    border-radius: var(--r-sm);
+  }
+
+  /* ==========================================================================
+     Breakpoints
+     1080px — narrow the rail so content keeps room on small laptops
+      900px — rail becomes an off-canvas drawer behind a top bar
+      640px — phone: sheets, tighter gutters, single-column grids
+     ========================================================================== */
+  @media (max-width: 1080px) {
+    :root { --rail-w: 208px; }
+  }
+
+  @media (max-width: 900px) {
+    .v-rail {
+      --drawer-w: min(310px, 86vw);
+      width: var(--drawer-w);
+      left: calc(-1 * var(--drawer-w) - 12px);
+      visibility: hidden;
+      transition: left var(--dur-3) var(--ease-out), visibility 0s linear var(--dur-3);
+      box-shadow: var(--sh-4);
+      padding-top: calc(16px + var(--sa-t));
+    }
+    .v-rail.is-open {
+      left: 0;
+      visibility: visible;
+      transition: left var(--dur-3) var(--ease-out), visibility 0s;
+    }
+    .v-rail::before { border-right: 1px solid var(--rail-border); }
+    .v-main { margin-left: 0; padding-top: calc(var(--topbar-h) + var(--sa-t)); }
+
+    .v-topbar {
+      position: fixed; top: 0; left: 0; right: 0;
+      z-index: 35;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: calc(var(--topbar-h) + var(--sa-t));
+      padding: var(--sa-t) calc(12px + var(--sa-r)) 0 calc(12px + var(--sa-l));
+      background: var(--rail-bg, var(--v-page-bg));
+      border-bottom: 1px solid var(--rail-border, var(--v-divider));
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .v-scrim {
+      display: block;
+      position: fixed; inset: 0;
+      z-index: 39;
+      background: rgba(0,0,0,0.5);
+      animation: vFadeIn var(--dur-2) ease both;
+      border: none;
+      width: 100%;
+    }
+    /* the drawer owns the whole viewport height on mobile */
+    .v-rail-nav { padding-bottom: 8px; }
+  }
+
+  @media (max-width: 640px) {
+    .v-hometiles { grid-template-columns: repeat(auto-fill, minmax(136px, 1fr)); gap: 10px; }
+    .v-card { border-radius: var(--r-lg) !important; }
+  }
+
+  @media (max-width: 400px) {
+    .v-hometiles { grid-template-columns: 1fr 1fr; gap: 8px; }
+  }
+
+  /* Wide screens: let dense pages breathe instead of a narrow ribbon */
+  @media (min-width: 1600px) {
+    .v-container--wide { max-width: 1360px; }
+    .v-container--xwide { max-width: 1480px; }
+  }
+
+  /* ---- Reduced motion ---- */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+    .v-card:hover, .v-btn:hover, .v-hometile:hover { transform: none !important; }
+  }
+
+  /* ---- Print ---- */
+  @media print {
+    .v-rail, .v-topbar, .v-scrim { display: none !important; }
+    .v-main { margin-left: 0 !important; padding-top: 0 !important; }
+    .v-card { box-shadow: none !important; break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+<!-- Optional calendar integrations: only used if you connect Google/Outlook via the header. -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- msauth's own CDN stopped serving browser 3.7.1 at its old path (404,
+     found 2026-08) — moved to the npm-mirrored build on jsdelivr (already
+     an allowed script-src host below) instead of chasing msauth's CDN
+     layout again, and bumped to the current @azure/msal-browser release. -->
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@5.18.0/lib/msal-browser.min.js" integrity="sha384-FQfSZjxaWBhzqI7u0+3M2/K/kFajbcK45G1GMnQdDzVZszPTSjjvWY9YEnJ9tEia" crossorigin="anonymous" async defer></script>
+
+<!-- PDF statement import (Transactions widget): pdf.js runs entirely client-side —
+     a statement PDF is parsed in the browser and never leaves the device. Bridged
+     onto window since it ships as an ES module but the app itself is a classic script. -->
+<script type="module">
+  import * as pdfjsLib from "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.2.108/pdf.min.mjs";
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.2.108/pdf.worker.min.mjs";
+  window.pdfjsLib = pdfjsLib;
+</script>
+
+<!-- fflate (MIT): tiny zip reader/writer, inlined so the PPTX deck builder works offline -->
+<script id="fflate-lib">
+!function(f){typeof module!='undefined'&&typeof exports=='object'?module.exports=f():typeof define!='undefined'&&define.amd?define(f):(typeof self!='undefined'?self:this).fflate=f()}(function(){var _e={};"use strict";var t=(typeof module!='undefined'&&typeof exports=='object'?function(_f){"use strict";var e,t=";var __w=require('worker_threads');__w.parentPort.on('message',function(m){onmessage({data:m})}),postMessage=function(m,t){__w.parentPort.postMessage(m,t)},close=process.exit;self=global";try{e=require("worker_threads").Worker}catch(e){}exports.default=e?function(r,n,o,a,s){var u=!1,i=new e(r+t,{eval:!0}).on("error",(function(e){return s(e,null)})).on("message",(function(e){return s(null,e)})).on("exit",(function(e){e&&!u&&s(Error("exited with code "+e),null)}));return i.postMessage(o,a),i.terminate=function(){return u=!0,e.prototype.terminate.call(i)},i}:function(e,t,r,n,o){setImmediate((function(){return o(Error("async operations unsupported - update to Node 12+ (or Node 10-11 with the --experimental-worker CLI flag)"),null)}));var a=function(){};return{terminate:a,postMessage:a}};return _f}:function(_f){"use strict";var e={};_f.default=function(r,t,s,a,n){var o=new Worker(e[t]||(e[t]=URL.createObjectURL(new Blob([r+';addEventListener("error",function(e){e=e.error;postMessage({$e$:[e.message,e.code,e.stack]})})'],{type:"text/javascript"}))));return o.onmessage=function(e){var r=e.data,t=r.$e$;if(t){var s=Error(t[0]);s.code=t[1],s.stack=t[2],n(s,null)}else n(null,r)},o.postMessage(s,a),o};return _f})({}),n=Uint8Array,r=Uint16Array,e=Int32Array,i=new n([0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0,0,0,0]),o=new n([0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13,0,0]),s=new n([16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15]),a=function(t,n){for(var i=new r(31),o=0;o<31;++o)i[o]=n+=1<<t[o-1];var s=new e(i[30]);for(o=1;o<30;++o)for(var a=i[o];a<i[o+1];++a)s[a]=a-i[o]<<5|o;return{b:i,r:s}},u=a(i,2),h=u.b,f=u.r;h[28]=258,f[258]=28;for(var l=a(o,0),c=l.b,p=l.r,v=new r(32768),d=0;d<32768;++d){var g=(43690&d)>>1|(21845&d)<<1;v[d]=((65280&(g=(61680&(g=(52428&g)>>2|(13107&g)<<2))>>4|(3855&g)<<4))>>8|(255&g)<<8)>>1}var y=function(t,n,e){for(var i=t.length,o=0,s=new r(n);o<i;++o)t[o]&&++s[t[o]-1];var a,u=new r(n);for(o=1;o<n;++o)u[o]=u[o-1]+s[o-1]<<1;if(e){a=new r(1<<n);var h=15-n;for(o=0;o<i;++o)if(t[o])for(var f=o<<4|t[o],l=n-t[o],c=u[t[o]-1]++<<l,p=c|(1<<l)-1;c<=p;++c)a[v[c]>>h]=f}else for(a=new r(i),o=0;o<i;++o)t[o]&&(a[o]=v[u[t[o]-1]++]>>15-t[o]);return a},m=new n(288);for(d=0;d<144;++d)m[d]=8;for(d=144;d<256;++d)m[d]=9;for(d=256;d<280;++d)m[d]=7;for(d=280;d<288;++d)m[d]=8;var b=new n(32);for(d=0;d<32;++d)b[d]=5;var w=y(m,9,0),x=y(m,9,1),z=y(b,5,0),k=y(b,5,1),M=function(t){for(var n=t[0],r=1;r<t.length;++r)t[r]>n&&(n=t[r]);return n},S=function(t,n,r){var e=n/8|0;return(t[e]|t[e+1]<<8)>>(7&n)&r},A=function(t,n){var r=n/8|0;return(t[r]|t[r+1]<<8|t[r+2]<<16)>>(7&n)},T=function(t){return(t+7)/8|0},D=function(t,r,e){return(null==r||r<0)&&(r=0),(null==e||e>t.length)&&(e=t.length),new n(t.subarray(r,e))};_e.FlateErrorCode={UnexpectedEOF:0,InvalidBlockType:1,InvalidLengthLiteral:2,InvalidDistance:3,StreamFinished:4,NoStreamHandler:5,InvalidHeader:6,NoCallback:7,InvalidUTF8:8,ExtraFieldTooLong:9,InvalidDate:10,FilenameTooLong:11,StreamFinishing:12,InvalidZipData:13,UnknownCompressionMethod:14};var C=["unexpected EOF","invalid block type","invalid length/literal","invalid distance","stream finished","no stream handler",,"no callback","invalid UTF-8 data","extra field too long","date not in range 1980-2099","filename too long","stream finishing","invalid zip data"],I=function(t,n,r){var e=Error(n||C[t]);if(e.code=t,Error.captureStackTrace&&Error.captureStackTrace(e,I),!r)throw e;return e},U=function(t,r,e,a){var u=t.length,f=a?a.length:0;if(!u||r.f&&!r.l)return e||new n(0);var l=!e,p=l||2!=r.i,v=r.i;l&&(e=new n(3*u));var d=function(t){var r=e.length;if(t>r){var i=new n(Math.max(2*r,t));i.set(e),e=i}},g=r.f||0,m=r.p||0,b=r.b||0,w=r.l,z=r.d,C=r.m,U=r.n,F=8*u;do{if(!w){g=S(t,m,1);var E=S(t,m+1,3);if(m+=3,!E){var Z=t[(J=T(m)+4)-4]|t[J-3]<<8,q=J+Z;if(q>u){v&&I(0);break}p&&d(b+Z),e.set(t.subarray(J,q),b),r.b=b+=Z,r.p=m=8*q,r.f=g;continue}if(1==E)w=x,z=k,C=9,U=5;else if(2==E){var O=S(t,m,31)+257,G=S(t,m+10,15)+4,L=O+S(t,m+5,31)+1;m+=14;for(var H=new n(L),j=new n(19),N=0;N<G;++N)j[s[N]]=S(t,m+3*N,7);m+=3*G;var P=M(j),B=(1<<P)-1,Y=y(j,P,1);for(N=0;N<L;){var J,K=Y[S(t,m,B)];if(m+=15&K,(J=K>>4)<16)H[N++]=J;else{var Q=0,R=0;for(16==J?(R=3+S(t,m,3),m+=2,Q=H[N-1]):17==J?(R=3+S(t,m,7),m+=3):18==J&&(R=11+S(t,m,127),m+=7);R--;)H[N++]=Q}}var V=H.subarray(0,O),W=H.subarray(O);C=M(V),U=M(W),w=y(V,C,1),z=y(W,U,1)}else I(1);if(m>F){v&&I(0);break}}p&&d(b+131072);for(var X=(1<<C)-1,$=(1<<U)-1,_=m;;_=m){var tt=(Q=w[A(t,m)&X])>>4;if((m+=15&Q)>F){v&&I(0);break}if(Q||I(2),tt<256)e[b++]=tt;else{if(256==tt){_=m,w=null;break}var nt=tt-254;tt>264&&(nt=S(t,m,(1<<(it=i[N=tt-257]))-1)+h[N],m+=it);var rt=z[A(t,m)&$],et=rt>>4;if(rt||I(3),m+=15&rt,W=c[et],et>3){var it=o[et];W+=A(t,m)&(1<<it)-1,m+=it}if(m>F){v&&I(0);break}p&&d(b+131072);var ot=b+nt;if(b<W){var st=f-W,at=Math.min(W,ot);for(st+b<0&&I(3);b<at;++b)e[b]=a[st+b]}for(;b<ot;++b)e[b]=e[b-W]}}r.l=w,r.p=_,r.b=b,r.f=g,w&&(g=1,r.m=C,r.d=z,r.n=U)}while(!g);return b!=e.length&&l?D(e,0,b):e.subarray(0,b)},F=function(t,n,r){var e=n/8|0;t[e]|=r<<=7&n,t[e+1]|=r>>8},E=function(t,n,r){var e=n/8|0;t[e]|=r<<=7&n,t[e+1]|=r>>8,t[e+2]|=r>>16},Z=function(t,e){for(var i=[],o=0;o<t.length;++o)t[o]&&i.push({s:o,f:t[o]});var s=i.length,a=i.slice();if(!s)return{t:N,l:0};if(1==s){var u=new n(i[0].s+1);return u[i[0].s]=1,{t:u,l:1}}i.sort((function(t,n){return t.f-n.f})),i.push({s:-1,f:25001});var h=i[0],f=i[1],l=0,c=1,p=2;for(i[0]={s:-1,f:h.f+f.f,l:h,r:f};c!=s-1;)h=i[i[l].f<i[p].f?l++:p++],f=i[l!=c&&i[l].f<i[p].f?l++:p++],i[c++]={s:-1,f:h.f+f.f,l:h,r:f};var v=a[0].s;for(o=1;o<s;++o)a[o].s>v&&(v=a[o].s);var d=new r(v+1),g=q(i[c-1],d,0);if(g>e){o=0;var y=0,m=g-e,b=1<<m;for(a.sort((function(t,n){return d[n.s]-d[t.s]||t.f-n.f}));o<s;++o){var w=a[o].s;if(!(d[w]>e))break;y+=b-(1<<g-d[w]),d[w]=e}for(y>>=m;y>0;){var x=a[o].s;d[x]<e?y-=1<<e-d[x]++-1:++o}for(;o>=0&&y;--o){var z=a[o].s;d[z]==e&&(--d[z],++y)}g=e}return{t:new n(d),l:g}},q=function(t,n,r){return-1==t.s?Math.max(q(t.l,n,r+1),q(t.r,n,r+1)):n[t.s]=r},O=function(t){for(var n=t.length;n&&!t[--n];);for(var e=new r(++n),i=0,o=t[0],s=1,a=function(t){e[i++]=t},u=1;u<=n;++u)if(t[u]==o&&u!=n)++s;else{if(!o&&s>2){for(;s>138;s-=138)a(32754);s>2&&(a(s>10?s-11<<5|28690:s-3<<5|12305),s=0)}else if(s>3){for(a(o),--s;s>6;s-=6)a(8304);s>2&&(a(s-3<<5|8208),s=0)}for(;s--;)a(o);s=1,o=t[u]}return{c:e.subarray(0,i),n:n}},G=function(t,n){for(var r=0,e=0;e<n.length;++e)r+=t[e]*n[e];return r},L=function(t,n,r){var e=r.length,i=T(n+2);t[i]=255&e,t[i+1]=e>>8,t[i+2]=255^t[i],t[i+3]=255^t[i+1];for(var o=0;o<e;++o)t[i+o+4]=r[o];return 8*(i+4+e)},H=function(t,n,e,a,u,h,f,l,c,p,v){F(n,v++,e),++u[256];for(var d=Z(u,15),g=d.t,x=d.l,k=Z(h,15),M=k.t,S=k.l,A=O(g),T=A.c,D=A.n,C=O(M),I=C.c,U=C.n,q=new r(19),H=0;H<T.length;++H)++q[31&T[H]];for(H=0;H<I.length;++H)++q[31&I[H]];for(var j=Z(q,7),N=j.t,P=j.l,B=19;B>4&&!N[s[B-1]];--B);var Y,J,K,Q,R=p+5<<3,V=G(u,m)+G(h,b)+f,W=G(u,g)+G(h,M)+f+14+3*B+G(q,N)+2*q[16]+3*q[17]+7*q[18];if(c>=0&&R<=V&&R<=W)return L(n,v,t.subarray(c,c+p));if(F(n,v,1+(W<V)),v+=2,W<V){Y=y(g,x,0),J=g,K=y(M,S,0),Q=M;var X=y(N,P,0);for(F(n,v,D-257),F(n,v+5,U-1),F(n,v+10,B-4),v+=14,H=0;H<B;++H)F(n,v+3*H,N[s[H]]);v+=3*B;for(var $=[T,I],_=0;_<2;++_){var tt=$[_];for(H=0;H<tt.length;++H)F(n,v,X[rt=31&tt[H]]),v+=N[rt],rt>15&&(F(n,v,tt[H]>>5&127),v+=tt[H]>>12)}}else Y=w,J=m,K=z,Q=b;for(H=0;H<l;++H){var nt=a[H];if(nt>255){var rt;E(n,v,Y[257+(rt=nt>>18&31)]),v+=J[rt+257],rt>7&&(F(n,v,nt>>23&31),v+=i[rt]);var et=31&nt;E(n,v,K[et]),v+=Q[et],et>3&&(E(n,v,nt>>5&8191),v+=o[et])}else E(n,v,Y[nt]),v+=J[nt]}return E(n,v,Y[256]),v+J[256]},j=new e([65540,131080,131088,131104,262176,1048704,1048832,2114560,2117632]),N=new n(0),P=function(t,s,a,u,h,l){var c=l.z||t.length,v=new n(u+c+5*(1+Math.ceil(c/7e3))+h),d=v.subarray(u,v.length-h),g=l.l,y=7&(l.r||0);if(s){y&&(d[0]=l.r>>3);for(var m=j[s-1],b=m>>13,w=8191&m,x=(1<<a)-1,z=l.p||new r(32768),k=l.h||new r(x+1),M=Math.ceil(a/3),S=2*M,A=function(n){return(t[n]^t[n+1]<<M^t[n+2]<<S)&x},C=new e(25e3),I=new r(288),U=new r(32),F=0,E=0,Z=l.i||0,q=0,O=l.w||0,G=0;Z+2<c;++Z){var N=A(Z),P=32767&Z,B=k[N];if(z[P]=B,k[N]=P,O<=Z){var Y=c-Z;if((F>7e3||q>24576)&&(Y>423||!g)){y=H(t,d,0,C,I,U,E,q,G,Z-G,y),q=F=E=0,G=Z;for(var J=0;J<286;++J)I[J]=0;for(J=0;J<30;++J)U[J]=0}var K=2,Q=0,R=w,V=P-B&32767;if(Y>2&&N==A(Z-V))for(var W=Math.min(b,Y)-1,X=Math.min(32767,Z),$=Math.min(258,Y);V<=X&&--R&&P!=B;){if(t[Z+K]==t[Z+K-V]){for(var _=0;_<$&&t[Z+_]==t[Z+_-V];++_);if(_>K){if(K=_,Q=V,_>W)break;var tt=Math.min(V,_-2),nt=0;for(J=0;J<tt;++J){var rt=Z-V+J&32767,et=rt-z[rt]&32767;et>nt&&(nt=et,B=rt)}}}V+=(P=B)-(B=z[P])&32767}if(Q){C[q++]=268435456|f[K]<<18|p[Q];var it=31&f[K],ot=31&p[Q];E+=i[it]+o[ot],++I[257+it],++U[ot],O=Z+K,++F}else C[q++]=t[Z],++I[t[Z]]}}for(Z=Math.max(Z,O);Z<c;++Z)C[q++]=t[Z],++I[t[Z]];y=H(t,d,g,C,I,U,E,q,G,Z-G,y),g||(l.r=7&y|d[y/8|0]<<3,y-=7,l.h=k,l.p=z,l.i=Z,l.w=O)}else{for(Z=l.w||0;Z<c+g;Z+=65535){var st=Z+65535;st>=c&&(d[y/8|0]=g,st=c),y=L(d,y+1,t.subarray(Z,st))}l.i=c}return D(v,0,u+T(y)+h)},B=function(){for(var t=new Int32Array(256),n=0;n<256;++n){for(var r=n,e=9;--e;)r=(1&r&&-306674912)^r>>>1;t[n]=r}return t}(),Y=function(){var t=-1;return{p:function(n){for(var r=t,e=0;e<n.length;++e)r=B[255&r^n[e]]^r>>>8;t=r},d:function(){return~t}}},J=function(){var t=1,n=0;return{p:function(r){for(var e=t,i=n,o=0|r.length,s=0;s!=o;){for(var a=Math.min(s+2655,o);s<a;++s)i+=e+=r[s];e=(65535&e)+15*(e>>16),i=(65535&i)+15*(i>>16)}t=e,n=i},d:function(){return(255&(t%=65521))<<24|(65280&t)<<8|(255&(n%=65521))<<8|n>>8}}},K=function(t,r,e,i,o){if(!o&&(o={l:1},r.dictionary)){var s=r.dictionary.subarray(-32768),a=new n(s.length+t.length);a.set(s),a.set(t,s.length),t=a,o.w=s.length}return P(t,null==r.level?6:r.level,null==r.mem?o.l?Math.ceil(1.5*Math.max(8,Math.min(13,Math.log(t.length)))):20:12+r.mem,e,i,o)},Q=function(t,n){var r={};for(var e in t)r[e]=t[e];for(var e in n)r[e]=n[e];return r},R=function(t,n,r){for(var e=t(),i=""+t,o=i.slice(i.indexOf("[")+1,i.lastIndexOf("]")).replace(/\s+/g,"").split(","),s=0;s<e.length;++s){var a=e[s],u=o[s];if("function"==typeof a){n+=";"+u+"=";var h=""+a;if(a.prototype)if(-1!=h.indexOf("[native code]")){var f=h.indexOf(" ",8)+1;n+=h.slice(f,h.indexOf("(",f))}else for(var l in n+=h,a.prototype)n+=";"+u+".prototype."+l+"="+a.prototype[l];else n+=h}else r[u]=a}return n},V=[],W=function(t){var n=[];for(var r in t)t[r].buffer&&n.push((t[r]=new t[r].constructor(t[r])).buffer);return n},X=function(n,r,e,i){if(!V[e]){for(var o="",s={},a=n.length-1,u=0;u<a;++u)o=R(n[u],o,s);V[e]={c:R(n[a],o,s),e:s}}var h=Q({},V[e].e);return(0,t.default)(V[e].c+";onmessage=function(e){for(var k in e.data)self[k]=e.data[k];onmessage="+r+"}",e,h,W(h),i)},$=function(){return[n,r,e,i,o,s,h,c,x,k,v,C,y,M,S,A,T,D,I,U,Tt,it,ot]},_=function(){return[n,r,e,i,o,s,f,p,w,m,z,b,v,j,N,y,F,E,Z,q,O,G,L,H,T,D,P,K,kt,it]},tt=function(){return[pt,gt,ct,Y,B]},nt=function(){return[vt,dt]},rt=function(){return[yt,ct,J]},et=function(){return[mt]},it=function(t){return postMessage(t,[t.buffer])},ot=function(t){return t&&{out:t.size&&new n(t.size),dictionary:t.dictionary}},st=function(t,n,r,e,i,o){var s=X(r,e,i,(function(t,n){s.terminate(),o(t,n)}));return s.postMessage([t,n],n.consume?[t.buffer]:[]),function(){s.terminate()}},at=function(t){return t.ondata=function(t,n){return postMessage([t,n],[t.buffer])},function(n){n.data.length?(t.push(n.data[0],n.data[1]),postMessage([n.data[0].length])):t.flush()}},ut=function(t,n,r,e,i,o,s){var a,u=X(t,e,i,(function(t,r){t?(u.terminate(),n.ondata.call(n,t)):Array.isArray(r)?1==r.length?(n.queuedSize-=r[0],n.ondrain&&n.ondrain(r[0])):(r[1]&&u.terminate(),n.ondata.call(n,t,r[0],r[1])):s(r)}));u.postMessage(r),n.queuedSize=0,n.push=function(t,r){n.ondata||I(5),a&&n.ondata(I(4,0,1),null,!!r),n.queuedSize+=t.length,u.postMessage([t,a=r],[t.buffer])},n.terminate=function(){u.terminate()},o&&(n.flush=function(){u.postMessage([])})},ht=function(t,n){return t[n]|t[n+1]<<8},ft=function(t,n){return(t[n]|t[n+1]<<8|t[n+2]<<16|t[n+3]<<24)>>>0},lt=function(t,n){return ft(t,n)+4294967296*ft(t,n+4)},ct=function(t,n,r){for(;r;++n)t[n]=r,r>>>=8},pt=function(t,n){var r=n.filename;if(t[0]=31,t[1]=139,t[2]=8,t[8]=n.level<2?4:9==n.level?2:0,t[9]=3,0!=n.mtime&&ct(t,4,Math.floor(new Date(n.mtime||Date.now())/1e3)),r){t[3]=8;for(var e=0;e<=r.length;++e)t[e+10]=r.charCodeAt(e)}},vt=function(t){31==t[0]&&139==t[1]&&8==t[2]||I(6,"invalid gzip data");var n=t[3],r=10;4&n&&(r+=2+(t[10]|t[11]<<8));for(var e=(n>>3&1)+(n>>4&1);e>0;e-=!t[r++]);return r+(2&n)},dt=function(t){var n=t.length;return(t[n-4]|t[n-3]<<8|t[n-2]<<16|t[n-1]<<24)>>>0},gt=function(t){return 10+(t.filename?t.filename.length+1:0)},yt=function(t,n){var r=n.level,e=0==r?0:r<6?1:9==r?3:2;if(t[0]=120,t[1]=e<<6|(n.dictionary&&32),t[1]|=31-(t[0]<<8|t[1])%31,n.dictionary){var i=J();i.p(n.dictionary),ct(t,2,i.d())}},mt=function(t,n){return(8!=(15&t[0])||t[0]>>4>7||(t[0]<<8|t[1])%31)&&I(6,"invalid zlib data"),(t[1]>>5&1)==+!n&&I(6,"invalid zlib data: "+(32&t[1]?"need":"unexpected")+" dictionary"),2+(t[1]>>3&4)};function bt(t,n){return"function"==typeof t&&(n=t,t={}),this.ondata=n,t}var wt=function(){function t(t,r){if("function"==typeof t&&(r=t,t={}),this.ondata=r,this.o=t||{},this.s={l:0,i:32768,w:32768,z:32768},this.b=new n(98304),this.o.dictionary){var e=this.o.dictionary.subarray(-32768);this.b.set(e,32768-e.length),this.s.i=32768-e.length}}return t.prototype.p=function(t,n){this.ondata(K(t,this.o,0,0,this.s),n)},t.prototype.push=function(t,r){this.ondata||I(5),this.s.l&&I(4);var e=t.length+this.s.z;if(e>this.b.length){if(e>2*this.b.length-32768){var i=new n(-32768&e);i.set(this.b.subarray(0,this.s.z)),this.b=i}var o=this.b.length-this.s.z;this.b.set(t.subarray(0,o),this.s.z),this.s.z=this.b.length,this.p(this.b,!1),this.b.set(this.b.subarray(-32768)),this.b.set(t.subarray(o),32768),this.s.z=t.length-o+32768,this.s.i=32766,this.s.w=32768}else this.b.set(t,this.s.z),this.s.z+=t.length;this.s.l=1&r,(this.s.z>this.s.w+8191||r)&&(this.p(this.b,r||!1),this.s.w=this.s.i,this.s.i-=2)},t.prototype.flush=function(){this.ondata||I(5),this.s.l&&I(4),this.p(this.b,!1),this.s.w=this.s.i,this.s.i-=2},t}();_e.Deflate=wt;var xt=function(){return function(t,n){ut([_,function(){return[at,wt]}],this,bt.call(this,t,n),(function(t){var n=new wt(t.data);onmessage=at(n)}),6,1)}}();function zt(t,n,r){return r||(r=n,n={}),"function"!=typeof r&&I(7),st(t,n,[_],(function(t){return it(kt(t.data[0],t.data[1]))}),0,r)}function kt(t,n){return K(t,n||{},0,0)}_e.AsyncDeflate=xt,_e.deflate=zt,_e.deflateSync=kt;var Mt=function(){function t(t,r){"function"==typeof t&&(r=t,t={}),this.ondata=r;var e=t&&t.dictionary&&t.dictionary.subarray(-32768);this.s={i:0,b:e?e.length:0},this.o=new n(32768),this.p=new n(0),e&&this.o.set(e)}return t.prototype.e=function(t){if(this.ondata||I(5),this.d&&I(4),this.p.length){if(t.length){var r=new n(this.p.length+t.length);r.set(this.p),r.set(t,this.p.length),this.p=r}}else this.p=t},t.prototype.c=function(t){this.s.i=+(this.d=t||!1);var n=this.s.b,r=U(this.p,this.s,this.o);this.ondata(D(r,n,this.s.b),this.d),this.o=D(r,this.s.b-32768),this.s.b=this.o.length,this.p=D(this.p,this.s.p/8|0),this.s.p&=7},t.prototype.push=function(t,n){this.e(t),this.c(n)},t}();_e.Inflate=Mt;var St=function(){return function(t,n){ut([$,function(){return[at,Mt]}],this,bt.call(this,t,n),(function(t){var n=new Mt(t.data);onmessage=at(n)}),7,0)}}();function At(t,n,r){return r||(r=n,n={}),"function"!=typeof r&&I(7),st(t,n,[$],(function(t){return it(Tt(t.data[0],ot(t.data[1])))}),1,r)}function Tt(t,n){return U(t,{i:2},n&&n.out,n&&n.dictionary)}_e.AsyncInflate=St,_e.inflate=At,_e.inflateSync=Tt;var Dt=function(){function t(t,n){this.c=Y(),this.l=0,this.v=1,wt.call(this,t,n)}return t.prototype.push=function(t,n){this.c.p(t),this.l+=t.length,wt.prototype.push.call(this,t,n)},t.prototype.p=function(t,n){var r=K(t,this.o,this.v&&gt(this.o),n&&8,this.s);this.v&&(pt(r,this.o),this.v=0),n&&(ct(r,r.length-8,this.c.d()),ct(r,r.length-4,this.l)),this.ondata(r,n)},t.prototype.flush=function(){wt.prototype.flush.call(this)},t}();_e.Gzip=Dt,_e.Compress=Dt;var Ct=function(){return function(t,n){ut([_,tt,function(){return[at,wt,Dt]}],this,bt.call(this,t,n),(function(t){var n=new Dt(t.data);onmessage=at(n)}),8,1)}}();function It(t,n,r){return r||(r=n,n={}),"function"!=typeof r&&I(7),st(t,n,[_,tt,function(){return[Ut]}],(function(t){return it(Ut(t.data[0],t.data[1]))}),2,r)}function Ut(t,n){n||(n={});var r=Y(),e=t.length;r.p(t);var i=K(t,n,gt(n),8),o=i.length;return pt(i,n),ct(i,o-8,r.d()),ct(i,o-4,e),i}_e.AsyncGzip=Ct,_e.AsyncCompress=Ct,_e.gzip=It,_e.compress=It,_e.gzipSync=Ut,_e.compressSync=Ut;var Ft=function(){function t(t,n){this.v=1,this.r=0,Mt.call(this,t,n)}return t.prototype.push=function(t,r){if(Mt.prototype.e.call(this,t),this.r+=t.length,this.v){var e=this.p.subarray(this.v-1),i=e.length>3?vt(e):4;if(i>e.length){if(!r)return}else this.v>1&&this.onmember&&this.onmember(this.r-e.length);this.p=e.subarray(i),this.v=0}Mt.prototype.c.call(this,r),!this.s.f||this.s.l||r||(this.v=T(this.s.p)+9,this.s={i:0},this.o=new n(0),this.push(new n(0),r))},t}();_e.Gunzip=Ft;var Et=function(){return function(t,n){var r=this;ut([$,nt,function(){return[at,Mt,Ft]}],this,bt.call(this,t,n),(function(t){var n=new Ft(t.data);n.onmember=function(t){return postMessage(t)},onmessage=at(n)}),9,0,(function(t){return r.onmember&&r.onmember(t)}))}}();function Zt(t,n,r){return r||(r=n,n={}),"function"!=typeof r&&I(7),st(t,n,[$,nt,function(){return[qt]}],(function(t){return it(qt(t.data[0],t.data[1]))}),3,r)}function qt(t,r){var e=vt(t);return e+8>t.length&&I(6,"invalid gzip data"),U(t.subarray(e,-8),{i:2},r&&r.out||new n(dt(t)),r&&r.dictionary)}_e.AsyncGunzip=Et,_e.gunzip=Zt,_e.gunzipSync=qt;var Ot=function(){function t(t,n){this.c=J(),this.v=1,wt.call(this,t,n)}return t.prototype.push=function(t,n){this.c.p(t),wt.prototype.push.call(this,t,n)},t.prototype.p=function(t,n){var r=K(t,this.o,this.v&&(this.o.dictionary?6:2),n&&4,this.s);this.v&&(yt(r,this.o),this.v=0),n&&ct(r,r.length-4,this.c.d()),this.ondata(r,n)},t.prototype.flush=function(){wt.prototype.flush.call(this)},t}();_e.Zlib=Ot;var Gt=function(){return function(t,n){ut([_,rt,function(){return[at,wt,Ot]}],this,bt.call(this,t,n),(function(t){var n=new Ot(t.data);onmessage=at(n)}),10,1)}}();function Lt(t,n,r){return r||(r=n,n={}),"function"!=typeof r&&I(7),st(t,n,[_,rt,function(){return[Ht]}],(function(t){return it(Ht(t.data[0],t.data[1]))}),4,r)}function Ht(t,n){n||(n={});var r=J();r.p(t);var e=K(t,n,n.dictionary?6:2,4);return yt(e,n),ct(e,e.length-4,r.d()),e}_e.AsyncZlib=Gt,_e.zlib=Lt,_e.zlibSync=Ht;var jt=function(){function t(t,n){Mt.call(this,t,n),this.v=t&&t.dictionary?2:1}return t.prototype.push=function(t,n){if(Mt.prototype.e.call(this,t),this.v){if(this.p.length<6&&!n)return;this.p=this.p.subarray(mt(this.p,this.v-1)),this.v=0}n&&(this.p.length<4&&I(6,"invalid zlib data"),this.p=this.p.subarray(0,-4)),Mt.prototype.c.call(this,n)},t}();_e.Unzlib=jt;var Nt=function(){return function(t,n){ut([$,et,function(){return[at,Mt,jt]}],this,bt.call(this,t,n),(function(t){var n=new jt(t.data);onmessage=at(n)}),11,0)}}();function Pt(t,n,r){return r||(r=n,n={}),"function"!=typeof r&&I(7),st(t,n,[$,et,function(){return[Bt]}],(function(t){return it(Bt(t.data[0],ot(t.data[1])))}),5,r)}function Bt(t,n){return U(t.subarray(mt(t,n&&n.dictionary),-4),{i:2},n&&n.out,n&&n.dictionary)}_e.AsyncUnzlib=Nt,_e.unzlib=Pt,_e.unzlibSync=Bt;var Yt=function(){function t(t,n){this.o=bt.call(this,t,n)||{},this.G=Ft,this.I=Mt,this.Z=jt}return t.prototype.i=function(){var t=this;this.s.ondata=function(n,r){t.ondata(n,r)}},t.prototype.push=function(t,r){if(this.ondata||I(5),this.s)this.s.push(t,r);else{if(this.p&&this.p.length){var e=new n(this.p.length+t.length);e.set(this.p),e.set(t,this.p.length)}else this.p=t;this.p.length>2&&(this.s=31==this.p[0]&&139==this.p[1]&&8==this.p[2]?new this.G(this.o):8!=(15&this.p[0])||this.p[0]>>4>7||(this.p[0]<<8|this.p[1])%31?new this.I(this.o):new this.Z(this.o),this.i(),this.s.push(this.p,r),this.p=null)}},t}();_e.Decompress=Yt;var Jt=function(){function t(t,n){Yt.call(this,t,n),this.queuedSize=0,this.G=Et,this.I=St,this.Z=Nt}return t.prototype.i=function(){var t=this;this.s.ondata=function(n,r,e){t.ondata(n,r,e)},this.s.ondrain=function(n){t.queuedSize-=n,t.ondrain&&t.ondrain(n)}},t.prototype.push=function(t,n){this.queuedSize+=t.length,Yt.prototype.push.call(this,t,n)},t}();function Kt(t,n,r){return r||(r=n,n={}),"function"!=typeof r&&I(7),31==t[0]&&139==t[1]&&8==t[2]?Zt(t,n,r):8!=(15&t[0])||t[0]>>4>7||(t[0]<<8|t[1])%31?At(t,n,r):Pt(t,n,r)}function Qt(t,n){return 31==t[0]&&139==t[1]&&8==t[2]?qt(t,n):8!=(15&t[0])||t[0]>>4>7||(t[0]<<8|t[1])%31?Tt(t,n):Bt(t,n)}_e.AsyncDecompress=Jt,_e.decompress=Kt,_e.decompressSync=Qt;var Rt=function(t,r,e,i){for(var o in t){var s=t[o],a=r+o,u=i;Array.isArray(s)&&(u=Q(i,s[1]),s=s[0]),s instanceof n?e[a]=[s,u]:(e[a+="/"]=[new n(0),u],Rt(s,a,e,i))}},Vt="undefined"!=typeof TextEncoder&&new TextEncoder,Wt="undefined"!=typeof TextDecoder&&new TextDecoder,Xt=0;try{Wt.decode(N,{stream:!0}),Xt=1}catch(t){}var $t=function(t){for(var n="",r=0;;){var e=t[r++],i=(e>127)+(e>223)+(e>239);if(r+i>t.length)return{s:n,r:D(t,r-1)};i?3==i?(e=((15&e)<<18|(63&t[r++])<<12|(63&t[r++])<<6|63&t[r++])-65536,n+=String.fromCharCode(55296|e>>10,56320|1023&e)):n+=String.fromCharCode(1&i?(31&e)<<6|63&t[r++]:(15&e)<<12|(63&t[r++])<<6|63&t[r++]):n+=String.fromCharCode(e)}},_t=function(){function t(t){this.ondata=t,Xt?this.t=new TextDecoder:this.p=N}return t.prototype.push=function(t,r){if(this.ondata||I(5),r=!!r,this.t)return this.ondata(this.t.decode(t,{stream:!0}),r),void(r&&(this.t.decode().length&&I(8),this.t=null));this.p||I(4);var e=new n(this.p.length+t.length);e.set(this.p),e.set(t,this.p.length);var i=$t(e),o=i.s,s=i.r;r?(s.length&&I(8),this.p=null):this.p=s,this.ondata(o,r)},t}();_e.DecodeUTF8=_t;var tn=function(){function t(t){this.ondata=t}return t.prototype.push=function(t,n){this.ondata||I(5),this.d&&I(4),this.ondata(nn(t),this.d=n||!1)},t}();function nn(t,r){if(r){for(var e=new n(t.length),i=0;i<t.length;++i)e[i]=t.charCodeAt(i);return e}if(Vt)return Vt.encode(t);var o=t.length,s=new n(t.length+(t.length>>1)),a=0,u=function(t){s[a++]=t};for(i=0;i<o;++i){if(a+5>s.length){var h=new n(a+8+(o-i<<1));h.set(s),s=h}var f=t.charCodeAt(i);f<128||r?u(f):f<2048?(u(192|f>>6),u(128|63&f)):f>55295&&f<57344?(u(240|(f=65536+(1047552&f)|1023&t.charCodeAt(++i))>>18),u(128|f>>12&63),u(128|f>>6&63),u(128|63&f)):(u(224|f>>12),u(128|f>>6&63),u(128|63&f))}return D(s,0,a)}function rn(t,n){if(n){for(var r="",e=0;e<t.length;e+=16384)r+=String.fromCharCode.apply(null,t.subarray(e,e+16384));return r}if(Wt)return Wt.decode(t);var i=$t(t),o=i.s;return(r=i.r).length&&I(8),o}_e.EncodeUTF8=tn,_e.strToU8=nn,_e.strFromU8=rn;var en=function(t){return 1==t?3:t<6?2:9==t?1:0},on=function(t,n){return n+30+ht(t,n+26)+ht(t,n+28)},sn=function(t,n,r){var e=ht(t,n+28),i=rn(t.subarray(n+46,n+46+e),!(2048&ht(t,n+8))),o=n+46+e,s=ft(t,n+20),a=r&&4294967295==s?an(t,o):[s,ft(t,n+24),ft(t,n+42)],u=a[0],h=a[1],f=a[2];return[ht(t,n+10),u,h,i,o+ht(t,n+30)+ht(t,n+32),f]},an=function(t,n){for(;1!=ht(t,n);n+=4+ht(t,n+2));return[lt(t,n+12),lt(t,n+4),lt(t,n+20)]},un=function(t){var n=0;if(t)for(var r in t){var e=t[r].length;e>65535&&I(9),n+=e+4}return n},hn=function(t,n,r,e,i,o,s,a){var u=e.length,h=r.extra,f=a&&a.length,l=un(h);ct(t,n,null!=s?33639248:67324752),n+=4,null!=s&&(t[n++]=20,t[n++]=r.os),t[n]=20,n+=2,t[n++]=r.flag<<1|(o<0&&8),t[n++]=i&&8,t[n++]=255&r.compression,t[n++]=r.compression>>8;var c=new Date(null==r.mtime?Date.now():r.mtime),p=c.getFullYear()-1980;if((p<0||p>119)&&I(10),ct(t,n,p<<25|c.getMonth()+1<<21|c.getDate()<<16|c.getHours()<<11|c.getMinutes()<<5|c.getSeconds()>>1),n+=4,-1!=o&&(ct(t,n,r.crc),ct(t,n+4,o<0?-o-2:o),ct(t,n+8,r.size)),ct(t,n+12,u),ct(t,n+14,l),n+=16,null!=s&&(ct(t,n,f),ct(t,n+6,r.attrs),ct(t,n+10,s),n+=14),t.set(e,n),n+=u,l)for(var v in h){var d=h[v],g=d.length;ct(t,n,+v),ct(t,n+2,g),t.set(d,n+4),n+=4+g}return f&&(t.set(a,n),n+=f),n},fn=function(t,n,r,e,i){ct(t,n,101010256),ct(t,n+8,r),ct(t,n+10,r),ct(t,n+12,e),ct(t,n+16,i)},ln=function(){function t(t){this.filename=t,this.c=Y(),this.size=0,this.compression=0}return t.prototype.process=function(t,n){this.ondata(null,t,n)},t.prototype.push=function(t,n){this.ondata||I(5),this.c.p(t),this.size+=t.length,n&&(this.crc=this.c.d()),this.process(t,n||!1)},t}();_e.ZipPassThrough=ln;var cn=function(){function t(t,n){var r=this;n||(n={}),ln.call(this,t),this.d=new wt(n,(function(t,n){r.ondata(null,t,n)})),this.compression=8,this.flag=en(n.level)}return t.prototype.process=function(t,n){try{this.d.push(t,n)}catch(t){this.ondata(t,null,n)}},t.prototype.push=function(t,n){ln.prototype.push.call(this,t,n)},t}();_e.ZipDeflate=cn;var pn=function(){function t(t,n){var r=this;n||(n={}),ln.call(this,t),this.d=new xt(n,(function(t,n,e){r.ondata(t,n,e)})),this.compression=8,this.flag=en(n.level),this.terminate=this.d.terminate}return t.prototype.process=function(t,n){this.d.push(t,n)},t.prototype.push=function(t,n){ln.prototype.push.call(this,t,n)},t}();_e.AsyncZipDeflate=pn;var vn=function(){function t(t){this.ondata=t,this.u=[],this.d=1}return t.prototype.add=function(t){var r=this;if(this.ondata||I(5),2&this.d)this.ondata(I(4+8*(1&this.d),0,1),null,!1);else{var e=nn(t.filename),i=e.length,o=t.comment,s=o&&nn(o),a=i!=t.filename.length||s&&o.length!=s.length,u=i+un(t.extra)+30;i>65535&&this.ondata(I(11,0,1),null,!1);var h=new n(u);hn(h,0,t,e,a,-1);var f=[h],l=function(){for(var t=0,n=f;t<n.length;t++)r.ondata(null,n[t],!1);f=[]},c=this.d;this.d=0;var p=this.u.length,v=Q(t,{f:e,u:a,o:s,t:function(){t.terminate&&t.terminate()},r:function(){if(l(),c){var t=r.u[p+1];t?t.r():r.d=1}c=1}}),d=0;t.ondata=function(e,i,o){if(e)r.ondata(e,i,o),r.terminate();else if(d+=i.length,f.push(i),o){var s=new n(16);ct(s,0,134695760),ct(s,4,t.crc),ct(s,8,d),ct(s,12,t.size),f.push(s),v.c=d,v.b=u+d+16,v.crc=t.crc,v.size=t.size,c&&v.r(),c=1}else c&&l()},this.u.push(v)}},t.prototype.end=function(){var t=this;2&this.d?this.ondata(I(4+8*(1&this.d),0,1),null,!0):(this.d?this.e():this.u.push({r:function(){1&t.d&&(t.u.splice(-1,1),t.e())},t:function(){}}),this.d=3)},t.prototype.e=function(){for(var t=0,r=0,e=0,i=0,o=this.u;i<o.length;i++)e+=46+(h=o[i]).f.length+un(h.extra)+(h.o?h.o.length:0);for(var s=new n(e+22),a=0,u=this.u;a<u.length;a++){var h;hn(s,t,h=u[a],h.f,h.u,-h.c-2,r,h.o),t+=46+h.f.length+un(h.extra)+(h.o?h.o.length:0),r+=h.b}fn(s,t,this.u.length,e,r),this.ondata(null,s,!0),this.d=2},t.prototype.terminate=function(){for(var t=0,n=this.u;t<n.length;t++)n[t].t();this.d=2},t}();function dn(t,r,e){e||(e=r,r={}),"function"!=typeof e&&I(7);var i={};Rt(t,"",i,r);var o=Object.keys(i),s=o.length,a=0,u=0,h=s,f=Array(s),l=[],c=function(){for(var t=0;t<l.length;++t)l[t]()},p=function(t,n){xn((function(){e(t,n)}))};xn((function(){p=e}));var v=function(){var t=new n(u+22),r=a,e=u-a;u=0;for(var i=0;i<h;++i){var o=f[i];try{var s=o.c.length;hn(t,u,o,o.f,o.u,s);var l=30+o.f.length+un(o.extra),c=u+l;t.set(o.c,c),hn(t,a,o,o.f,o.u,s,u,o.m),a+=16+l+(o.m?o.m.length:0),u=c+s}catch(t){return p(t,null)}}fn(t,a,f.length,e,r),p(null,t)};s||v();for(var d=function(t){var n=o[t],r=i[n],e=r[0],h=r[1],d=Y(),g=e.length;d.p(e);var y=nn(n),m=y.length,b=h.comment,w=b&&nn(b),x=w&&w.length,z=un(h.extra),k=0==h.level?0:8,M=function(r,e){if(r)c(),p(r,null);else{var i=e.length;f[t]=Q(h,{size:g,crc:d.d(),c:e,f:y,m:w,u:m!=n.length||w&&b.length!=x,compression:k}),a+=30+m+z+i,u+=76+2*(m+z)+(x||0)+i,--s||v()}};if(m>65535&&M(I(11,0,1),null),k)if(g<16e4)try{M(null,kt(e,h))}catch(t){M(t,null)}else l.push(zt(e,h,M));else M(null,e)},g=0;g<h;++g)d(g);return c}function gn(t,r){r||(r={});var e={},i=[];Rt(t,"",e,r);var o=0,s=0;for(var a in e){var u=e[a],h=u[0],f=u[1],l=0==f.level?0:8,c=(M=nn(a)).length,p=f.comment,v=p&&nn(p),d=v&&v.length,g=un(f.extra);c>65535&&I(11);var y=l?kt(h,f):h,m=y.length,b=Y();b.p(h),i.push(Q(f,{size:h.length,crc:b.d(),c:y,f:M,m:v,u:c!=a.length||v&&p.length!=d,o:o,compression:l})),o+=30+c+g+m,s+=76+2*(c+g)+(d||0)+m}for(var w=new n(s+22),x=o,z=s-o,k=0;k<i.length;++k){var M;hn(w,(M=i[k]).o,M,M.f,M.u,M.c.length);var S=30+M.f.length+un(M.extra);w.set(M.c,M.o+S),hn(w,o,M,M.f,M.u,M.c.length,M.o,M.m),o+=16+S+(M.m?M.m.length:0)}return fn(w,o,i.length,z,x),w}_e.Zip=vn,_e.zip=dn,_e.zipSync=gn;var yn=function(){function t(){}return t.prototype.push=function(t,n){this.ondata(null,t,n)},t.compression=0,t}();_e.UnzipPassThrough=yn;var mn=function(){function t(){var t=this;this.i=new Mt((function(n,r){t.ondata(null,n,r)}))}return t.prototype.push=function(t,n){try{this.i.push(t,n)}catch(t){this.ondata(t,null,n)}},t.compression=8,t}();_e.UnzipInflate=mn;var bn=function(){function t(t,n){var r=this;n<32e4?this.i=new Mt((function(t,n){r.ondata(null,t,n)})):(this.i=new St((function(t,n,e){r.ondata(t,n,e)})),this.terminate=this.i.terminate)}return t.prototype.push=function(t,n){this.i.terminate&&(t=D(t,0)),this.i.push(t,n)},t.compression=8,t}();_e.AsyncUnzipInflate=bn;var wn=function(){function t(t){this.onfile=t,this.k=[],this.o={0:yn},this.p=N}return t.prototype.push=function(t,r){var e=this;if(this.onfile||I(5),this.p||I(4),this.c>0){var i=Math.min(this.c,t.length),o=t.subarray(0,i);if(this.c-=i,this.d?this.d.push(o,!this.c):this.k[0].push(o),(t=t.subarray(i)).length)return this.push(t,r)}else{var s=0,a=0,u=void 0,h=void 0;this.p.length?t.length?((h=new n(this.p.length+t.length)).set(this.p),h.set(t,this.p.length)):h=this.p:h=t;for(var f=h.length,l=this.c,c=l&&this.d,p=function(){var t,n=ft(h,a);if(67324752==n){s=1,u=a,v.d=null,v.c=0;var r=ht(h,a+6),i=ht(h,a+8),o=2048&r,c=8&r,p=ht(h,a+26),d=ht(h,a+28);if(f>a+30+p+d){var g=[];v.k.unshift(g),s=2;var y,m=ft(h,a+18),b=ft(h,a+22),w=rn(h.subarray(a+30,a+=30+p),!o);4294967295==m?(t=c?[-2]:an(h,a),m=t[0],b=t[1]):c&&(m=-1),a+=d,v.c=m;var x={name:w,compression:i,start:function(){if(x.ondata||I(5),m){var t=e.o[i];t||x.ondata(I(14,"unknown compression type "+i,1),null,!1),(y=m<0?new t(w):new t(w,m,b)).ondata=function(t,n,r){x.ondata(t,n,r)};for(var n=0,r=g;n<r.length;n++)y.push(r[n],!1);e.k[0]==g&&e.c?e.d=y:y.push(N,!0)}else x.ondata(null,N,!0)},terminate:function(){y&&y.terminate&&y.terminate()}};m>=0&&(x.size=m,x.originalSize=b),v.onfile(x)}return"break"}if(l){if(134695760==n)return u=a+=12+(-2==l&&8),s=3,v.c=0,"break";if(33639248==n)return u=a-=4,s=3,v.c=0,"break"}},v=this;a<f-4&&"break"!==p();++a);if(this.p=N,l<0){var d=h.subarray(0,s?u-12-(-2==l&&8)-(134695760==ft(h,u-16)&&4):a);c?c.push(d,!!s):this.k[+(2==s)].push(d)}if(2&s)return this.push(h.subarray(a),r);this.p=h.subarray(a)}r&&(this.c&&I(13),this.p=null)},t.prototype.register=function(t){this.o[t.compression]=t},t}();_e.Unzip=wn;var xn="function"==typeof queueMicrotask?queueMicrotask:"function"==typeof setTimeout?setTimeout:function(t){t()};function zn(t,r,e){e||(e=r,r={}),"function"!=typeof e&&I(7);var i=[],o=function(){for(var t=0;t<i.length;++t)i[t]()},s={},a=function(t,n){xn((function(){e(t,n)}))};xn((function(){a=e}));for(var u=t.length-22;101010256!=ft(t,u);--u)if(!u||t.length-u>65558)return a(I(13,0,1),null),o;var h=ht(t,u+8);if(h){var f=h,l=ft(t,u+16),c=4294967295==l||65535==f;if(c){var p=ft(t,u-12);(c=101075792==ft(t,p))&&(f=h=ft(t,p+32),l=ft(t,p+48))}for(var v=r&&r.filter,d=function(r){var e=sn(t,l,c),u=e[0],f=e[1],p=e[2],d=e[3],g=e[4],y=on(t,e[5]);l=g;var m=function(t,n){t?(o(),a(t,null)):(n&&(s[d]=n),--h||a(null,s))};if(!v||v({name:d,size:f,originalSize:p,compression:u}))if(u)if(8==u){var b=t.subarray(y,y+f);if(p<524288||f>.8*p)try{m(null,Tt(b,{out:new n(p)}))}catch(t){m(t,null)}else i.push(At(b,{size:p},m))}else m(I(14,"unknown compression type "+u,1),null);else m(null,D(t,y,y+f));else m(null,null)},g=0;g<f;++g)d()}else a(null,{});return o}function kn(t,r){for(var e={},i=t.length-22;101010256!=ft(t,i);--i)(!i||t.length-i>65558)&&I(13);var o=ht(t,i+8);if(!o)return{};var s=ft(t,i+16),a=4294967295==s||65535==o;if(a){var u=ft(t,i-12);(a=101075792==ft(t,u))&&(o=ft(t,u+32),s=ft(t,u+48))}for(var h=r&&r.filter,f=0;f<o;++f){var l=sn(t,s,a),c=l[0],p=l[1],v=l[2],d=l[3],g=l[4],y=on(t,l[5]);s=g,h&&!h({name:d,size:p,originalSize:v,compression:c})||(c?8==c?e[d]=Tt(t.subarray(y,y+p),{out:new n(v)}):I(14,"unknown compression type "+c):e[d]=D(t,y,y+p))}return e}_e.unzip=zn,_e.unzipSync=kn;return _e});
+</script>
+
+<!-- Golf scorecard photos: browsers (aside from patchy Safari support) can't
+     render .heic/.heif files in an <img> tag at all, and iPhones shoot HEIC
+     by default — so HEIC uploads get converted to JPEG client-side before
+     they're stored, entirely in the browser. heic-to (not the older/more
+     common heic2any) is used because it tracks current libheif releases —
+     heic2any's bundled decoder rejected real iPhone HEIC files in testing. -->
+<script src="https://unpkg.com/heic-to@1.5.2/dist/iife/heic-to.js" integrity="sha384-cVm8gaWQ5+URpoh6ACKXpm8TuyoHkfIDDBkxvDoUdIZ18w8nV5en0lVQvWMwO/6S" crossorigin="anonymous" async defer></script>
+
+<!--APP-->
+
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => {
+        /* offline app-shell caching is a nice-to-have, not required */
+      });
+    });
+  }
+</script>
+</body>
+</html>

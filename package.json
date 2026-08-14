@@ -1,8 +1,15 @@
 {
-  "name": "vantage-tiktok-backend",
+  "name": "vantage",
   "private": true,
-  "description": "Netlify Functions backend for Vantage's TikTok posting integration. The Vantage frontend itself has no build step and lives entirely in index.html — this package.json exists only so Netlify can install dependencies for the functions in netlify/functions/.",
+  "description": "Vantage: a personal dashboard. The frontend's source of truth is app.jsx, compiled by build.js (Babel + Terser) into the self-contained index.html that both Netlify and GitHub Pages serve as-is — run `node build.js` after editing app.jsx and commit both. This package.json also carries the Netlify Functions dependencies for netlify/functions/ (Vantage's TikTok posting integration).",
+  "scripts": {
+    "build": "node build.js"
+  },
   "dependencies": {
     "@netlify/blobs": "^8.1.0"
+  },
+  "devDependencies": {
+    "@babel/standalone": "^7.28.4",
+    "terser": "^5.36.0"
   }
 }
