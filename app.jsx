@@ -960,7 +960,6 @@ const STORAGE_KEYS = {
   homeLayout: "dash.homeLayout",
   railCollapsed: "dash.railCollapsed",
   pageImages: "dash.pageImages",
-  appShell: "dash.appShell",
   appNoticeDraft: "dash.appNoticeDraft",
   games: "dash.games",
   dailyLog: "dash.dailyLog",
@@ -2855,27 +2854,6 @@ function isDarkTheme(theme) {
   if (bg != null) return bg < 0.5;
   return true;
 }
-/* ----------------------------------------------------------------------
-   App shells.
-
-   Five ways to wear the same app. Each one moves the navigation somewhere
-   different and changes the density and surface treatment to match — they are
-   layouts, not colour schemes, so they compose with all 27 themes rather than
-   replacing them.
-
-   Every shell is pure CSS over the existing markup: the rail, the top bar and
-   the main column are rearranged, never rebuilt. That is deliberate — no shell
-   can lose a feature, because there is only one copy of the app underneath.
----------------------------------------------------------------------- */
-const APP_SHELLS = [
-  { id: "rail",      name: "Rail",      blurb: "The original. Left sidebar, soft cards, comfortable density." },
-  { id: "console",   name: "Console",   blurb: "Navigation across the top, hairline rules instead of cards, data-dense." },
-  { id: "dock",      name: "Dock",      blurb: "Nav docked to the bottom, full-bleed content, large rounded surfaces." },
-  { id: "atelier",   name: "Atelier",   blurb: "Centred masthead, narrow reading column, serif headings." },
-  { id: "studio",    name: "Studio",    blurb: "Permanent icon rail, very wide canvas, flat high-contrast panels." },
-  { id: "zen",       name: "Zen",       blurb: "Navigation tucked away, one centred column, maximum quiet." },
-];
-
 const THEME_VAR_MAP = {
   "--v-page-bg": "pageBg",
   "--v-text": "text",
@@ -7608,73 +7586,6 @@ function ThemePopover({ theme, themeKey, setThemeKey, onClose }) {
   );
 }
 
-function ShellPicker({ theme, appShell, setAppShell }) {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef(null);
-  const current = APP_SHELLS.find((s) => s.id === appShell) || APP_SHELLS[0];
-
-  useEffect(() => {
-    if (!open) return;
-    function handleOutside(e) { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); }
-    function onKey(e) { if (e.key === "Escape") setOpen(false); }
-    document.addEventListener("mousedown", handleOutside);
-    document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", handleOutside); document.removeEventListener("keydown", onKey); };
-  }, [open]);
-
-  return (
-    <div ref={wrapRef} style={{ position: "relative" }}>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="v-btn v-shellbtn"
-        title={"Layout: " + current.name}
-        aria-label={"Layout: " + current.name}
-        aria-expanded={open}
-        style={{ display: "flex", alignItems: "center", gap: "9px", width: "100%", padding: "7px 11px", borderRadius: "999px", border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.textMuted, fontSize: "12.5px", fontWeight: 700 }}
-      >
-        <span style={{ display: "inline-flex", flexShrink: 0, color: theme.accent }}><IconLayout size={15} /></span>
-        <span className="v-railonly" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, textAlign: "left", flex: 1 }}>{current.name}</span>
-      </button>
-
-      {open && (
-        <div
-          className="v-scroll v-shellmenu"
-          role="menu"
-          style={{ position: "absolute", bottom: "calc(100% + 8px)", left: 0, width: "min(300px, 78vw)", zIndex: 60, maxHeight: "min(66vh, 460px)", overflowY: "auto", "--scroll-thumb": theme.divider, ...cardBackgroundStyle(theme), padding: "8px", animation: "vFadeInUp 0.16s ease both" }}
-        >
-          <div style={{ fontSize: "10.5px", fontWeight: 800, letterSpacing: "0.09em", textTransform: "uppercase", color: theme.textMuted, padding: "6px 8px 8px" }}>Layout</div>
-          {APP_SHELLS.map((s) => {
-            const on = s.id === current.id;
-            return (
-              <button
-                key={s.id}
-                role="menuitemradio"
-                aria-checked={on}
-                onClick={() => { setAppShell(s.id); setOpen(false); toast.success(s.name + " layout applied."); }}
-                className="v-btn"
-                style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 10px", borderRadius: "9px", border: "none", background: on ? theme.accentSoft : "transparent", color: theme.text, cursor: "pointer" }}
-              >
-                <span style={{ display: "block", fontSize: "13px", fontWeight: on ? 800 : 700, color: on ? theme.accent : theme.text }}>{s.name}</span>
-                <span style={{ display: "block", fontSize: "11.5px", color: theme.textMuted, marginTop: "2px", lineHeight: 1.4 }}>{s.blurb}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function IconLayout({ size = 15 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3.5" width="18" height="17" rx="2.5" />
-      <path d="M9 3.5v17" />
-      <path d="M9 10h12" />
-    </svg>
-  );
-}
-
 function ThemePicker({ theme, themeKey, setThemeKey }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
@@ -9527,8 +9438,6 @@ function AnnualDigestButton({ theme, fitness, golf, financial, history, transact
 function Sidebar({
   theme,
   themeKey,
-  appShell,
-  setAppShell,
   fitness,
   golf,
   trackers,
@@ -9883,7 +9792,6 @@ function Sidebar({
           setRavenProducts={setRavenProducts}
         />
         <RemindersMenu theme={theme} reminders={reminders} setReminders={setReminders} events={events} />
-        <ShellPicker theme={theme} appShell={appShell} setAppShell={setAppShell} />
         <ThemePicker theme={theme} themeKey={themeKey} setThemeKey={setThemeKey} />
         <LockMenu theme={theme} lock={lock} setLock={setLock} onLockNow={onLockNow} />
       </div>
@@ -13450,13 +13358,6 @@ function App() {
   // swapped from the banner itself rather than by editing the file.
   const [pageImages, setPageImages] = usePersistentState(STORAGE_KEYS.pageImages, {});
   const [homeTileOrder, setHomeTileOrder] = usePersistentState(STORAGE_KEYS.homeTileOrder, []);
-  // The shell lives on <html> so the whole stylesheet — rail, top bar, main
-  // column, cards — can key off it without threading a prop through the tree.
-  const [appShell, setAppShell] = usePersistentState(STORAGE_KEYS.appShell, "rail");
-  useEffect(() => {
-    document.documentElement.setAttribute("data-shell", appShell || "rail");
-    return () => document.documentElement.removeAttribute("data-shell");
-  }, [appShell]);
   const [games, setGames] = usePersistentState(STORAGE_KEYS.games, DEFAULT_GAMES);
   const [news, setNews] = usePersistentState(STORAGE_KEYS.news, { topics: DEFAULT_NEWS_TOPICS, cache: {}, fetchedAt: null });
   const [lock, setLock] = usePersistentState(STORAGE_KEYS.lock, { enabled: false });
@@ -13651,8 +13552,6 @@ function App() {
       <Sidebar
         theme={theme}
         themeKey={themeKey}
-        appShell={appShell}
-        setAppShell={setAppShell}
         fitness={fitness}
         golf={golf}
         trackers={trackers}
