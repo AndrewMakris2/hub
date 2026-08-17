@@ -11735,88 +11735,86 @@ function FeedSection({ theme, state, setState, categories, title, icon, intro })
 ---------------------------------------------------------------------- */
 const DEFAULT_RESUME = {
   name: "Andrew Makris",
-  title: "Senior Information Security Analyst",
-  location: "Boston, MA",
-  email: "andrew.makris@example.com",
-  phone: "(555) 010-4477",
+  title: "Information Security Analyst",
+  location: "Phoenix, AZ",
+  email: "amakris03@gmail.com",
+  phone: "623-806-9966",
   links: [
-    { label: "LinkedIn", url: "https://linkedin.com/in/example" },
-    { label: "GitHub", url: "https://github.com/example" },
-    { label: "Website", url: "https://example.com" },
+    { label: "LinkedIn", url: "https://linkedin.com/in/andrew-makris-441969258" },
+    { label: "GitHub", url: "https://github.com/AndrewMakris2" },
   ],
   summary:
-    "Information security analyst with 8+ years across endpoint security, vulnerability management and public-key infrastructure. Owns the certificate lifecycle and weekly executive security reporting, runs remediation across SentinelOne and IRU findings, and writes the policies that back SOC 2 and ISO 27001 evidence requests. Comfortable turning noisy scanner output into a short list of things that actually matter.",
+    "Information Security Analyst with 3+ years of enterprise security experience across healthcare and technology sectors. Reduced vulnerability count by 60% and remediated 100% of critical findings within 90 days. Proven expertise in threat hunting, threat modeling, EDR operations, HITRUST compliance, and PKI health reporting. Holds CompTIA CySA+ and SecAI+; actively pursuing SecurityX.",
   experience: [
     {
       company: "Mechanical Orchard",
-      title: "Senior Information Security Analyst",
-      start: "2023",
+      title: "Information Security Analyst",
+      start: "Dec 2025",
       end: "Present",
-      location: "Boston, MA",
+      location: "Full-Time, Remote",
       bullets: [
-        "Own the PKI certificate lifecycle across three cloud estates — issuance, rotation and revocation — and publish the weekly executive security report consumed by engineering leadership.",
-        "Cut critical and high vulnerability findings by 74% over two quarters by triaging SentinelOne and IRU exports against the CISA KEV catalog and driving remediation with system owners.",
-        "Authored 20+ security policies and procedures underpinning SOC 2 Type II and ISO 27001 evidence, reducing auditor follow-up requests by roughly half.",
-        "Built the internal tooling that automates vulnerability trend reporting and outdated-application outreach, replacing a manual spreadsheet process.",
-        "Lead phishing triage and end-user response, including header analysis, IOC extraction and takedown coordination with the MSSP.",
+        "Investigate and respond to security alerts daily using SentinelOne and Pondurance MDR, ensuring timely detection, containment, and remediation of incidents.",
+        "Reduced overall vulnerability count by 60% and achieved 100% remediation of critical findings within 90 days, materially improving organizational security posture.",
+        "Conduct weekly hypothesis-driven threat hunting and behavioral analysis across endpoints via SIEM and Okta log review, surfacing previously undetected threats.",
+        "Deliver weekly PKI security health reports and lead SecOps meetings presenting risk metrics and trending threat data to stakeholders.",
+        "Manage IT security tickets in Ravenna, resolving 10–20 per week while maintaining SLA compliance and collaborating with IT and DevSecOps leads on remediation.",
       ],
     },
     {
-      company: "Pondurance",
-      title: "Security Analyst II",
-      start: "2021",
-      end: "2023",
-      location: "Remote",
+      company: "Virtix Health / CorroHealth",
+      title: "Cybersecurity Analyst",
+      start: "Sep 2022",
+      end: "Present",
+      location: "Full-Time → Part-Time/Contract, Remote",
       bullets: [
-        "Investigated SIEM and EDR alerts across a portfolio of managed clients, escalating confirmed incidents with full timelines and containment recommendations.",
-        "Tuned detection rules to reduce false positives on a high-volume client by 38% without measurable loss of true-positive coverage.",
-        "Produced monthly client-facing risk reports translating technical findings into prioritized business remediation plans.",
+        "Led vulnerability management program using Qualys and Clearwater NDR; monitored EDR and SIEM platforms to detect, analyze, and respond to active threats across a 1,200+ endpoint environment.",
+        "Conducted IAM audits and access reviews in Okta and AWS IAM, enforcing least-privilege principles and strengthening identity governance.",
+        "Managed email security infrastructure using Inky and Mimecast, diagnosing and resolving inbound connector trust mismatches and maintaining blocklists.",
+        "Coordinated and led penetration testing engagements — acting as liaison between external vendors and internal product teams — including scoping, kickoff, threat modeling sessions, and remediation tracking.",
+        "Supported HITRUST certification and compliance through incident response, security investigations, and audit-readiness activities.",
+        "Drove active phishing incident response efforts including IOC analysis, firewall block rule implementation, and cross-platform containment across CrowdStrike, Sophos, and Inky.",
       ],
     },
     {
-      company: "Ravenna Systems",
-      title: "Systems Administrator",
-      start: "2019",
-      end: "2021",
-      location: "Indianapolis, IN",
+      company: "1stResponder",
+      title: "Cybersecurity Specialist",
+      start: "Mar 2026",
+      end: "Present",
+      location: "Part-Time/Contract",
       bullets: [
-        "Administered Windows Server, Active Directory and Microsoft 365 for a 400-seat organization.",
-        "Led the rollout of MFA and conditional access, taking coverage from 0% to 98% of accounts in one quarter.",
-        "Introduced automated patch management, bringing endpoints into a documented monthly compliance cycle.",
-      ],
-    },
-    {
-      company: "Ravenna Systems",
-      title: "IT Support Specialist",
-      start: "2017",
-      end: "2019",
-      location: "Indianapolis, IN",
-      bullets: [
-        "Resolved tier 1-2 endpoint, network and access issues with a consistent first-touch resolution rate above 80%.",
-        "Built the internal knowledge base that cut repeat tickets for the ten most common issues.",
+        "Lead tabletop exercises for client organizations, facilitating structured incident response walkthroughs that improve team readiness and surface real detection gaps.",
+        "Conduct proactive threat hunting for clients using CrowdStrike Falcon, identifying IOCs and suspicious behavioral patterns before escalation.",
+        "Serve as on-demand security advisor, providing guidance on best practices, threat awareness, and defensive strategy aligned to client risk profiles.",
       ],
     },
   ],
   certifications: [
-    { name: "CompTIA SecurityX (CAS-005)", issuer: "CompTIA", earned: "2026-02-14", expires: "2029-02-14", credential: "COMP-SX-448210" },
-    { name: "CompTIA CySA+", issuer: "CompTIA", earned: "2024-06-03", expires: "2027-06-03", credential: "COMP-CS-331902" },
-    { name: "CompTIA Security+", issuer: "CompTIA", earned: "2021-09-22", expires: "2027-06-03", credential: "COMP-SY-220481" },
-    { name: "Microsoft SC-200: Security Operations Analyst", issuer: "Microsoft", earned: "2023-04-11", expires: "", credential: "MS-SC200-90114" },
-    { name: "AWS Certified Cloud Practitioner", issuer: "Amazon Web Services", earned: "2022-08-30", expires: "2025-08-30", credential: "AWS-CP-771230" },
+    { name: "CompTIA CySA+", issuer: "CompTIA", earned: "", expires: "", credential: "" },
+    { name: "CompTIA SecAI+", issuer: "CompTIA", earned: "", expires: "", credential: "" },
+    { name: "CompTIA SecurityX (CAS-005) — In Progress", issuer: "CompTIA", earned: "", expires: "", credential: "" },
+    { name: "MTA Web Development", issuer: "Microsoft", earned: "", expires: "", credential: "" },
   ],
   skills: [
-    { group: "Security Operations", items: ["SentinelOne", "SIEM triage", "Incident response", "Phishing analysis", "Threat intel / CISA KEV"] },
-    { group: "Vulnerability Management", items: ["Tenable", "Qualys", "CVSS scoring", "Remediation tracking", "Risk acceptance"] },
-    { group: "PKI & Identity", items: ["Certificate lifecycle", "OpenSSL", "ACME / Let's Encrypt", "Active Directory", "MFA / conditional access"] },
-    { group: "Governance", items: ["SOC 2 Type II", "ISO 27001", "NIST CSF", "Policy authoring", "Evidence collection"] },
-    { group: "Platforms & Tooling", items: ["Windows Server", "Linux", "Microsoft 365", "AWS", "Python", "PowerShell"] },
+    { group: "Threat Detection & Response", items: ["Threat Hunting", "Threat Modeling (STRIDE)", "EDR & Alert Triage", "SIEM Analysis", "Incident Response"] },
+    { group: "Incident Response", items: ["IOC Analysis", "Containment & Eradication", "Forensics", "Phishing Response", "Behavioral Analysis"] },
+    { group: "Identity & Access Management", items: ["IAM/RBAC/MFA", "Okta Administration", "AWS IAM", "Azure AD/Entra ID"] },
+    { group: "Vulnerability Management", items: ["Qualys", "Patch Management", "Risk Analysis", "HITRUST Compliance", "Penetration Test Coordination"] },
+    { group: "Security Platforms", items: ["CrowdStrike Falcon", "SentinelOne", "Sophos", "Cylance", "Cisco Security Cloud"] },
+    { group: "Email Security", items: ["Inky/Mimecast Administration", "Connector Management", "Threat Analysis"] },
+    { group: "Security Vendor Management", items: ["Security Questionnaires", "Vendor Risk Assessment", "SAR Coordination"] },
+    { group: "Network & MDR", items: ["Clearwater NDR", "Pondurance MDR", "Firewall Policy", "IRU/Kanji"] },
+    { group: "Cloud & Infrastructure", items: ["AWS (IAM, EC2)", "Azure/Entra ID", "Cloud Security Posture", "PKI Reporting"] },
+    { group: "Automation & Scripting", items: ["Python", "PowerShell", "REST APIs", "Security Tooling Integration"] },
+    { group: "AI & Emerging Technology", items: ["Claude & LLM Proficiency", "AI Governance", "AI Security Assessment"] },
+    { group: "Compliance Frameworks", items: ["HIPAA", "NIST", "HITRUST", "Risk Management", "POA&Ms", "SSPs"] },
+    { group: "Training & Coursework", items: ["Azure AZ-900", "AWS Academy Cloud Foundations", "AWS Cloud Security Foundations", "LetsDefend SIEM Engineer", "Threat Hunting", "Vulnerability Management 101", "AI Cloud Security Fundamentals"] },
   ],
   education: [
-    { school: "Purdue University", degree: "B.S. Computer Information Technology", year: "2017", detail: "Concentration in network security" },
+    { school: "Grand Canyon University", degree: "B.S., Cybersecurity", year: "2024", detail: "Magna Cum Laude" },
+    { school: "WestMec", degree: "Full Stack Development", year: "2022", detail: "" },
   ],
   projects: [
     { name: "Vantage", detail: "Single-file personal and security operations dashboard — vulnerability analysis, PKI reporting, policy tracking and daily logs. Built with React, no backend; all data stays on device." },
-    { name: "Weekly PKI Report Automation", detail: "Template-driven PowerPoint generator that turns weekly certificate and vulnerability metrics into an executive deck in seconds." },
   ],
 };
 
@@ -12027,7 +12025,7 @@ function ResumeSectionPage({ theme, data, setData }) {
     setData(DEFAULT_RESUME);
     setDraft(JSON.stringify(DEFAULT_RESUME, null, 2));
     setErr("");
-    toast.info("Restored the sample resume.");
+    toast.info("Restored the default resume.");
   }
   function exportJson() {
     moDownload(`resume-${(r.name || "resume").toLowerCase().replace(/\s+/g, "-")}.json`, JSON.stringify(r, null, 2), "application/json");
@@ -12039,7 +12037,6 @@ function ResumeSectionPage({ theme, data, setData }) {
       <Card theme={theme} style={{ height: "auto" }} delay={0}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
           <SectionLabel theme={theme} icon={<IconUser />} style={{ margin: 0 }}>Resume</SectionLabel>
-          <span style={{ fontSize: "12px", color: theme.textFaint }}>Sample content — edit it to make it yours.</span>
           <div style={{ marginLeft: "auto", display: "flex", gap: "8px", flexWrap: "wrap" }}>
             <button onClick={() => window.print()} className="v-btn v-noprint" style={{ padding: "8px 14px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.text }}>Print / PDF</button>
             <button onClick={exportJson} className="v-btn v-noprint" style={{ padding: "8px 14px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.text }}>Export JSON</button>
@@ -12067,7 +12064,7 @@ function ResumeSectionPage({ theme, data, setData }) {
           {err && <div style={{ marginTop: "10px", fontSize: "12.5px", fontWeight: 600, color: theme.danger, background: theme.dangerSoft, borderRadius: "9px", padding: "9px 12px" }}>{err}</div>}
           <div style={{ display: "flex", gap: "10px", marginTop: "12px", flexWrap: "wrap" }}>
             <button onClick={save} className="v-btn" style={{ padding: "9px 18px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText }}>Save</button>
-            <button onClick={resetToSample} className="v-btn" style={{ marginLeft: "auto", padding: "9px 14px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, border: "none", background: theme.dangerSoft, color: theme.danger }}>Restore sample</button>
+            <button onClick={resetToSample} className="v-btn" style={{ marginLeft: "auto", padding: "9px 14px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, border: "none", background: theme.dangerSoft, color: theme.danger }}>Restore default</button>
           </div>
         </Card>
       )}
