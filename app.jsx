@@ -9944,7 +9944,7 @@ function HomeHeadlines({ theme, feeds, setFeeds, onNavigate, limit = 5, lead, sw
     setLoading(true);
     setFailed(false);
     try {
-      const items = parseFeedXml(await fetchFeedXml(def.url), 12);
+      const items = await fetchFeedItems(def.url, 12);
       if (!items.length) throw new Error("no stories");
       setFeeds((s) => ({
         ...(s || {}),
@@ -11362,9 +11362,10 @@ function BirthdaysSection({ theme, state, setState }) {
 /* ----------------------------------------------------------------------
    MOVIES — entertainment news (releases, casting, filming, cancellations)
 
-   Uses Google News RSS through a keyless CORS proxy (allorigins), the same
-   cache-and-degrade approach as the News/Sports tabs. Live fetches only work
-   on the deployed site; the sandbox/preview blocks outbound requests.
+   Uses Google News RSS through rss2json.com (see the unified headline
+   engine below for why), the same cache-and-degrade approach as the
+   News/Sports tabs. Live fetches only work on the deployed site; the
+   sandbox/preview blocks outbound requests.
 ---------------------------------------------------------------------- */
 const MOVIE_TOPICS = [
   { id: "releases", label: "Releases & dates", q: "movie release date 2026" },
@@ -11401,18 +11402,7 @@ function movieRelTime(str) {
 
 async function fetchMovieNews(topic) {
   const rss = `https://news.google.com/rss/search?q=${encodeURIComponent(topic.q)}&hl=en-US&gl=US&ceid=US:en`;
-  const r = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(rss)}`);
-  if (!r.ok) throw new Error("Movie news request failed (" + r.status + ")");
-  const text = await r.text();
-  const doc = new DOMParser().parseFromString(text, "text/xml");
-  return Array.from(doc.querySelectorAll("item")).slice(0, 16).map((it) => {
-    const get = (t) => { const el = it.querySelector(t); return el ? el.textContent : ""; };
-    const rawTitle = get("title");
-    const source = get("source") || (rawTitle.includes(" - ") ? rawTitle.split(" - ").pop() : "");
-    const title = source && rawTitle.endsWith(" - " + source) ? rawTitle.slice(0, -(source.length + 3)) : rawTitle;
-    const link = get("link");
-    return { id: link || rawTitle, title, link: link || "#", pub: get("pubDate"), source };
-  }).filter((x) => x.title);
+  return fetchFeedItems(rss, 16);
 }
 
 function MoviesSection({ theme, state, setState }) {
@@ -11482,133 +11472,58 @@ function MoviesSection({ theme, state, setState }) {
    (world, US, business, tech, security, movies, TV, gaming, sports).
 
    Google News RSS covers every topic without an API key, but it is not
-   CORS-enabled, so it goes through a proxy. Any single public proxy dies
-   sooner or later, so requests walk a chain with a per-attempt timeout and
-   only give up once every proxy has failed. Results cache per category, so
-   a dead network shows yesterday's headlines instead of an empty tab.
+   CORS-enabled, so it goes through rss2json.com — a free RSS-to-JSON
+   service built for exactly this browser use case (it sends real CORS
+   headers itself), rather than a generic CORS-proxy-any-URL service. This
+   replaced a 4-proxy fallback chain (allorigins, codetabs, corsproxy.io)
+   that had stopped working entirely: three of the four proxies were
+   unreachable, and the fourth (corsproxy.io) returned Google's own
+   "unusual traffic from your computer network" bot-block page — those
+   free proxies are shared by thousands of scrapers, so Google had rate-
+   limited their IPs. rss2json's free tier (10k requests/day) is far more
+   than a single-user dashboard needs. Results still cache per category,
+   so a dead network shows yesterday's headlines instead of an empty tab.
 ---------------------------------------------------------------------- */
-const FEED_PROXIES = [
-  { id: "allorigins-raw", build: (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`, extract: (t) => t },
-  { id: "codetabs", build: (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`, extract: (t) => t },
-  { id: "corsproxy", build: (u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`, extract: (t) => t },
-  {
-    id: "allorigins-get",
-    build: (u) => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
-    extract: (t) => { try { return JSON.parse(t).contents || ""; } catch (e) { return ""; } },
-  },
-];
 const FEED_STALE_MS = 25 * 60 * 1000;
 
-async function fetchTextWithTimeout(url, ms) {
-  // AbortController so one hung proxy can't stall the whole chain.
-  const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
-  const timer = ctrl ? setTimeout(() => ctrl.abort(), ms) : null;
-  try {
-    const r = await fetch(url, ctrl ? { signal: ctrl.signal } : undefined);
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    return await r.text();
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
-
-// How long to wait for one proxy before *also* trying the next one. Strictly
-// sequential fallback meant a proxy that was slow-but-alive cost the full
-// timeout before we moved on — four of those in a row is half a minute of
-// staring at a spinner. Hedging keeps the polite "try the first one" default
-// while making a slow proxy cost seconds rather than tens of seconds.
-const FEED_HEDGE_MS = 2500;
-
-function fetchFeedViaProxy(proxy, targetUrl, timeoutMs) {
-  return fetchTextWithTimeout(proxy.build(targetUrl), timeoutMs).then((raw) => {
-    const xml = proxy.extract(raw);
-    // A proxy that answers with something that is not a feed has failed, even
-    // though the HTTP request succeeded.
-    if (!xml || xml.indexOf("<item") === -1) throw new Error(proxy.id + ": no items");
-    return xml;
-  });
-}
-
-async function fetchFeedXml(targetUrl, timeoutMs) {
-  const cap = timeoutMs || 9000;
-  const pending = new Set();
-  let lastErr = null;
-
-  // Settled wrappers so one rejection never kills the race; the first proxy to
-  // return a real feed wins and the rest are left to time out on their own.
-  const start = (proxy) => {
-    const p = fetchFeedViaProxy(proxy, targetUrl, cap)
-      .then((xml) => ({ ok: true, xml, p }))
-      .catch((e) => ({ ok: false, err: e, p }));
-    pending.add(p);
-    return p;
-  };
-
-  let next = 0;
-  start(FEED_PROXIES[next++]);
-
-  while (pending.size) {
-    // Wait for a winner, or for the hedge delay to elapse so we can widen the
-    // net — whichever happens first. Once every proxy is in flight, just wait.
-    const more = next < FEED_PROXIES.length;
-    const timer = more
-      ? new Promise((res) => setTimeout(() => res({ hedge: true }), FEED_HEDGE_MS))
-      : null;
-    const winner = await (timer ? Promise.race([...pending, timer]) : Promise.race([...pending]));
-
-    if (winner.hedge) { start(FEED_PROXIES[next++]); continue; }
-    pending.delete(winner.p);
-    if (winner.ok) return winner.xml;
-    lastErr = winner.err;
-    if (more && !pending.size) start(FEED_PROXIES[next++]);
-  }
-
-  throw lastErr || new Error("all proxies failed");
-}
-
-function feedHost(url) {
-  try { return new URL(url).hostname.replace(/^www\./, ""); } catch (e) { return ""; }
-}
-// Publisher favicons are the one image guaranteed to exist for every article.
+// rss2json flattens Google's <source url="..."> element away, so there's no
+// reliable publisher domain to key a favicon off — item.host stays empty and
+// FeedArt/FeedCard already treat a missing favicon as optional (see below).
 function feedFavicon(host) {
   return host ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=64` : null;
 }
 
-function parseFeedXml(xml, limit) {
-  const doc = new DOMParser().parseFromString(xml, "text/xml");
-  const nodes = Array.from(doc.querySelectorAll("item, entry")).slice(0, limit || 24);
-  return nodes
+async function fetchFeedItems(targetUrl, limit) {
+  const url = "https://api.rss2json.com/v1/api.json?rss_url=" + encodeURIComponent(targetUrl);
+  const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), 9000) : null;
+  let json;
+  try {
+    const r = await fetch(url, ctrl ? { signal: ctrl.signal } : undefined);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    json = await r.json();
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+  if (json.status !== "ok" || !Array.isArray(json.items)) throw new Error("feed request failed");
+  return json.items
+    .slice(0, limit || 24)
     .map((it) => {
-      const txt = (sel) => { const el = it.querySelector(sel); return el ? el.textContent.trim() : ""; };
-      const rawTitle = txt("title");
+      const rawTitle = (it.title || "").trim();
       if (!rawTitle) return null;
-      // Google appends " - Publisher" to every headline; <source> holds the
-      // publisher and its site URL, which is also our favicon key.
-      const srcEl = it.querySelector("source");
-      const source = (srcEl && srcEl.textContent.trim()) || (rawTitle.includes(" - ") ? rawTitle.split(" - ").pop() : "");
+      // Google appends " - Publisher" to every headline.
+      const source = rawTitle.includes(" - ") ? rawTitle.split(" - ").pop() : "";
       const title = source && rawTitle.endsWith(" - " + source) ? rawTitle.slice(0, -(source.length + 3)) : rawTitle;
-      const linkEl = it.querySelector("link");
-      const link = (linkEl && (linkEl.textContent.trim() || linkEl.getAttribute("href"))) || "#";
-      const sourceUrl = (srcEl && srcEl.getAttribute("url")) || "";
-      const desc = txt("description");
-      // Some feeds carry real art; most Google News items do not.
-      const media = it.querySelector("[url]");
-      let image = "";
-      const mc = it.getElementsByTagName("media:content")[0] || it.getElementsByTagName("enclosure")[0];
-      if (mc && mc.getAttribute("url")) image = mc.getAttribute("url");
-      if (!image && desc) {
-        const im = desc.match(/<img[^>]+src=["']([^"']+)["']/i);
-        if (im) image = im[1];
-      }
+      const desc = (it.description || "").replace(/<[^>]*>/g, "").trim().slice(0, 240);
       return {
-        id: link || rawTitle,
+        id: it.guid || it.link || rawTitle,
         title,
-        link,
+        link: it.link || "#",
         source,
-        host: feedHost(sourceUrl || link),
-        pub: txt("pubDate") || txt("updated") || "",
-        image,
-        summary: desc ? desc.replace(/<[^>]*>/g, "").trim().slice(0, 240) : "",
+        host: "",
+        pub: it.pubDate || "",
+        image: it.thumbnail || "",
+        summary: desc,
       };
     })
     .filter(Boolean);
@@ -11737,8 +11652,7 @@ function FeedSection({ theme, state, setState, categories, title, icon, intro })
     setLoading(true);
     setError(null);
     try {
-      const xml = await fetchFeedXml(cat.url);
-      const items = parseFeedXml(xml, 24);
+      const items = await fetchFeedItems(cat.url, 24);
       if (!items.length) throw new Error("no stories");
       setState((s) => ({
         ...(s || {}),
