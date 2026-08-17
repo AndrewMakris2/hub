@@ -35,6 +35,7 @@ const SHELL = path.join(ROOT, "index.shell.html");
 // near the bottom of app.jsx for the loader that expects this contract.
 const CHUNKS = [
   { name: "ravenseye", src: path.join(ROOT, "app.ravenseye.jsx"), out: path.join(ROOT, "chunk-ravenseye.js") },
+  { name: "golf", src: path.join(ROOT, "app.golf.jsx"), out: path.join(ROOT, "chunk-golf.js") },
 ];
 
 function loadBabel() {
