@@ -957,7 +957,6 @@ const STORAGE_KEYS = {
   feeds: "dash.feeds",
   resume: "dash.resume",
   moHelp: "dash.moHelp",
-  homeLayout: "dash.homeLayout",
   railCollapsed: "dash.railCollapsed",
   pageImages: "dash.pageImages",
   appNoticeDraft: "dash.appNoticeDraft",
@@ -9800,31 +9799,6 @@ function Sidebar({
   );
 }
 
-function IconGrid({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3.5" y="3.5" width="7" height="7" rx="2" />
-      <rect x="13.5" y="3.5" width="7" height="7" rx="2" />
-      <rect x="3.5" y="13.5" width="7" height="7" rx="2" />
-      <rect x="13.5" y="13.5" width="7" height="7" rx="2" />
-    </svg>
-  );
-}
-
-/* ----------------------------------------------------------------------
-   HOME LAYOUTS
-
-   Five arrangements of the same modules. The layout is a stored preference,
-   switchable from the strip at the top of the page.
----------------------------------------------------------------------- */
-const HOME_LAYOUTS = [
-  { id: "command", label: "Command Center", blurb: "Three columns — agenda and reminders left, focus centre, stat rail right." },
-  { id: "focus", label: "Focus", blurb: "One calm column. Big greeting, what matters today, a few pinned tiles." },
-  { id: "bento", label: "Bento", blurb: "A modern bento grid of mixed-size tiles." },
-  { id: "briefing", label: "Briefing", blurb: "News-led, magazine style, with the day's agenda alongside." },
-  { id: "classic", label: "Classic", blurb: "The familiar layout — suggestions above the full tile grid." },
-];
-
 function homeGreeting() {
   const hr = new Date().getHours();
   if (hr < 5) return "Still up";
@@ -10237,34 +10211,11 @@ function HomeStatRail({ theme, pageStats, onNavigate, ids }) {
 const HOME_PINNED = ["fitness", "golf", "financial", "upcoming", "habits", "news"];
 const HOME_RAIL = ["fitness", "golf", "financial", "transactions", "subscriptions", "habits", "goals", "reading"];
 
-function HomeLayoutPicker({ theme, value, onChange }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", padding: "6px 2px 2px", opacity: 0.9 }}>
-      <span style={{ display: "inline-flex", color: theme.textFaint }}><IconGrid size={13} /></span>
-      <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: theme.textMuted }}>Layout</span>
-      <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
-        {HOME_LAYOUTS.map((l) => (
-          <button
-            key={l.id}
-            onClick={() => onChange(l.id)}
-            className="v-btn"
-            aria-pressed={value === l.id}
-            style={{ padding: "5px 11px", borderRadius: "999px", fontSize: "11.5px", fontWeight: 700, border: `1px solid ${value === l.id ? theme.accent : theme.cardBorder}`, background: value === l.id ? theme.accentSoft : "transparent", color: value === l.id ? theme.accent : theme.textMuted }}
-          >
-            {l.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function HomeOverview({
   theme, suggestions, weather, weatherStatus, onEnableWeather, onOpenBriefing, pageStats, onNavigate,
-  layout, setLayout, events, reminders, habits, feeds, setFeeds, profile, pageImages, tileOrder, setTileOrder,
+  events, feeds, setFeeds, profile,
 }) {
   const name = (profile && profile.name) ? String(profile.name).split(" ")[0] : "";
-  const picker = <HomeLayoutPicker theme={theme} value={layout} onChange={setLayout} />;
   const forYou = (
     <SuggestionsSection
       theme={theme}
@@ -10276,92 +10227,19 @@ function HomeOverview({
     />
   );
 
-  if (layout === "command") {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-        <HomeGreeting theme={theme} name={name} weather={weather} weatherStatus={weatherStatus} onEnableWeather={onEnableWeather} />
-        <div className="v-home-cmd">
-          <div className="v-home-col">
-            <HomeAgenda theme={theme} events={events} onNavigate={onNavigate} />
-            <HomeReminders theme={theme} reminders={reminders} onNavigate={onNavigate} />
-            <HomeHabits theme={theme} habits={habits} onNavigate={onNavigate} />
-          </div>
-          <div className="v-home-col">
-            {forYou}
-            <HomeHeadlines theme={theme} feeds={feeds} setFeeds={setFeeds} onNavigate={onNavigate} limit={6} />
-          </div>
-          <div className="v-home-col">
-            <HomeStatRail theme={theme} pageStats={pageStats} onNavigate={onNavigate} ids={HOME_RAIL} />
-          </div>
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <HomeGreeting theme={theme} name={name} weather={weather} weatherStatus={weatherStatus} onEnableWeather={onEnableWeather} />
+      <div className="v-home-brief">
+        <div className="v-home-col">
+          <HomeHeadlines theme={theme} feeds={feeds} setFeeds={setFeeds} onNavigate={onNavigate} limit={7} lead />
         </div>
-        {picker}
-      </div>
-    );
-  }
-
-  if (layout === "focus") {
-    // Reading matter keeps a comfortable measure; the tiles are a grid of
-    // numbers with no measure to respect, so they span the full width instead
-    // of leaving a dead gutter down each side of a wide window.
-    const col = { display: "flex", flexDirection: "column", gap: "16px", maxWidth: "clamp(760px, 62vw, 900px)", margin: "0 auto", width: "100%" };
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-        <div style={col}>
-          <HomeGreeting theme={theme} name={name} weather={weather} weatherStatus={weatherStatus} onEnableWeather={onEnableWeather} big />
+        <div className="v-home-col">
           {forYou}
           <HomeAgenda theme={theme} events={events} onNavigate={onNavigate} limit={4} />
-          <HomeHeadlines theme={theme} feeds={feeds} setFeeds={setFeeds} onNavigate={onNavigate} limit={6} lead switcher />
+          <HomeStatRail theme={theme} pageStats={pageStats} onNavigate={onNavigate} ids={HOME_RAIL.slice(0, 6)} />
         </div>
-        <HomeTiles theme={theme} pageStats={pageStats} onNavigate={onNavigate} ids={HOME_PINNED} order={tileOrder} onReorder={setTileOrder} />
-        <HomeSnapshots theme={theme} onNavigate={onNavigate} images={pageImages} />
-        <div style={col}>{picker}</div>
       </div>
-    );
-  }
-
-  if (layout === "bento") {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-        <div className="v-home-bento">
-          <div className="v-bento-a"><HomeGreeting theme={theme} name={name} weather={weather} weatherStatus={weatherStatus} onEnableWeather={onEnableWeather} big /></div>
-          <div className="v-bento-b">{forYou}</div>
-          <div className="v-bento-c"><HomeAgenda theme={theme} events={events} onNavigate={onNavigate} limit={4} /></div>
-          <div className="v-bento-d"><HomeHabits theme={theme} habits={habits} onNavigate={onNavigate} /></div>
-          <div className="v-bento-e"><HomeHeadlines theme={theme} feeds={feeds} setFeeds={setFeeds} onNavigate={onNavigate} limit={4} /></div>
-          <div className="v-bento-f"><HomeReminders theme={theme} reminders={reminders} onNavigate={onNavigate} /></div>
-        </div>
-        <HomeTiles theme={theme} pageStats={pageStats} onNavigate={onNavigate} dense order={tileOrder} onReorder={setTileOrder} />
-        {picker}
-      </div>
-    );
-  }
-
-  if (layout === "briefing") {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-        <HomeGreeting theme={theme} name={name} weather={weather} weatherStatus={weatherStatus} onEnableWeather={onEnableWeather} />
-        <div className="v-home-brief">
-          <div className="v-home-col">
-            <HomeHeadlines theme={theme} feeds={feeds} setFeeds={setFeeds} onNavigate={onNavigate} limit={7} lead />
-          </div>
-          <div className="v-home-col">
-            {forYou}
-            <HomeAgenda theme={theme} events={events} onNavigate={onNavigate} limit={4} />
-            <HomeStatRail theme={theme} pageStats={pageStats} onNavigate={onNavigate} ids={HOME_RAIL.slice(0, 6)} />
-          </div>
-        </div>
-        {picker}
-      </div>
-    );
-  }
-
-  // classic
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      {forYou}
-      <HomeSnapshots theme={theme} onNavigate={onNavigate} images={pageImages} />
-      <HomeTiles theme={theme} pageStats={pageStats} onNavigate={onNavigate} order={tileOrder} onReorder={setTileOrder} />
-      {picker}
     </div>
   );
 }
@@ -13353,7 +13231,6 @@ function App() {
   const [movies, setMovies] = usePersistentState(STORAGE_KEYS.movies, { cache: {}, fetchedAt: {} });
   const [feeds, setFeeds] = usePersistentState(STORAGE_KEYS.feeds, { cache: {}, fetchedAt: {} });
   const [resume, setResume] = usePersistentState(STORAGE_KEYS.resume, DEFAULT_RESUME);
-  const [homeLayout, setHomeLayout] = usePersistentState(STORAGE_KEYS.homeLayout, "focus");
   // Per-page banner image overrides, so a photo that stops loading can be
   // swapped from the banner itself rather than by editing the file.
   const [pageImages, setPageImages] = usePersistentState(STORAGE_KEYS.pageImages, {});
@@ -13633,17 +13510,10 @@ function App() {
               onOpenBriefing={() => setBriefingOpen(true)}
               pageStats={pageStats}
               onNavigate={navigate}
-              layout={homeLayout}
-              setLayout={setHomeLayout}
               events={allEvents}
-              reminders={reminders}
-              habits={habits}
               feeds={feeds}
               setFeeds={setFeeds}
               profile={profile}
-              pageImages={pageImages}
-              tileOrder={homeTileOrder}
-              setTileOrder={setHomeTileOrder}
             />
           )}
           {page === "fitness" && (
