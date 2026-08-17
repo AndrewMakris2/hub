@@ -15916,6 +15916,40 @@ function FFShadowRoot({ theme, children }) {
   );
 }
 
+function MoModalLoadingOverlay({ theme, error, onRetry, onClose }) {
+  const panelRef = useRef(null);
+  useOverlayBehaviour(onClose, panelRef);
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, background: "rgba(10,10,14,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}
+      onClick={onClose}
+    >
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        style={{ background: theme.cardBg, borderRadius: theme.cardRadius, padding: "28px 32px", minWidth: "260px", maxWidth: "340px", textAlign: "center", boxShadow: theme.cardShadow }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {error ? (
+          <>
+            <div style={{ color: theme.danger, fontWeight: 700, marginBottom: "8px" }}>Couldn't load this tool</div>
+            <div style={{ color: theme.textFaint, fontSize: "13px", marginBottom: "16px" }}>{error}</div>
+            <button
+              className="v-btn"
+              style={{ color: theme.accent, background: "transparent", border: `1px solid ${theme.cardBorder}`, fontWeight: 700, padding: "8px 16px", borderRadius: "8px" }}
+              onClick={onRetry}
+            >
+              Try again
+            </button>
+          </>
+        ) : (
+          <div style={{ color: theme.textMuted, fontSize: "13px" }}>Loading…</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // The Mechanical Orchard security-tooling suite (Vulnerability Analyzer, PKI
 // report generator, policy tracker, deck builder, and the rest) plus the
 // SecurityX study tool now ship as one shared chunk (see loadChunk()/
@@ -15936,7 +15970,6 @@ function LazyMoModals({
 }) {
   const [mod, setMod] = useState(() => (window.__vChunks && window.__vChunks.mechanicalorchard) ? window.__vChunks.mechanicalorchard : null);
   const [error, setError] = useState(null);
-  const panelRef = useRef(null);
 
   function attemptLoad() {
     setError(null);
@@ -15952,40 +15985,15 @@ function LazyMoModals({
     return () => { cancelled = true; };
   }, [moTool, mod]);
 
-  useOverlayBehaviour(() => setMoTool(null), panelRef);
-
   if (!moTool) return null;
 
+  // A separate component so useOverlayBehaviour (Escape/focus-trap/scroll-lock)
+  // only runs for the lifetime of this placeholder — LazyMoModals itself is
+  // always mounted (so the hook would fire, and re-lock scroll, on every
+  // App() render regardless of whether a tool is even open, which is exactly
+  // what broke page scrolling everywhere until this was split out).
   if (!mod) {
-    return (
-      <div
-        style={{ position: "fixed", inset: 0, background: "rgba(10,10,14,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}
-        onClick={() => setMoTool(null)}
-      >
-        <div
-          ref={panelRef}
-          tabIndex={-1}
-          style={{ background: theme.cardBg, borderRadius: theme.cardRadius, padding: "28px 32px", minWidth: "260px", maxWidth: "340px", textAlign: "center", boxShadow: theme.cardShadow }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {error ? (
-            <>
-              <div style={{ color: theme.danger, fontWeight: 700, marginBottom: "8px" }}>Couldn't load this tool</div>
-              <div style={{ color: theme.textFaint, fontSize: "13px", marginBottom: "16px" }}>{error}</div>
-              <button
-                className="v-btn"
-                style={{ color: theme.accent, background: "transparent", border: `1px solid ${theme.cardBorder}`, fontWeight: 700, padding: "8px 16px", borderRadius: "8px" }}
-                onClick={attemptLoad}
-              >
-                Try again
-              </button>
-            </>
-          ) : (
-            <div style={{ color: theme.textMuted, fontSize: "13px" }}>Loading…</div>
-          )}
-        </div>
-      </div>
-    );
+    return <MoModalLoadingOverlay theme={theme} error={error} onRetry={attemptLoad} onClose={() => setMoTool(null)} />;
   }
 
   const {
