@@ -980,6 +980,9 @@ const STORAGE_KEYS = {
   homeTileOrder: "dash.homeTileOrder",
   schemaVersion: "dash.schemaVersion",
   categoryRules: "dash.categoryRules",
+  jobSearchProfile: "dash.jobSearchProfile",
+  jobSearchCache: "dash.jobSearchCache",
+  jobSearchStatus: "dash.jobSearchStatus",
 };
 
 // "The War Room" fantasy-football port — defaults for the localStorage-backed
@@ -3491,6 +3494,16 @@ function IconChecklist({ size = 14 }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M9 6h11M9 12h11M9 18h11" />
       <path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2" />
+    </svg>
+  );
+}
+
+function IconBriefcase({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="7" width="20" height="14" rx="2" />
+      <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <path d="M2 13h20" />
     </svg>
   );
 }
@@ -8923,6 +8936,7 @@ const PAGE_META = [
   { id: "subscriptions", label: "Subscriptions", icon: <IconCreditCard size={14} /> },
   { id: "securityx", label: "SecurityX", icon: <IconAcademic size={14} /> },
   { id: "ravenseye", label: "Raven's Eye", icon: <IconRavenEye size={14} /> },
+  { id: "jobsearch", label: "Job Search", icon: <IconBriefcase size={14} /> },
 ];
 
 // Sidebar navigation grouped into collapsible sections. Any PAGE_META id not
@@ -8934,7 +8948,7 @@ const NAV_GROUPS = [
   { id: "schedule", label: "Schedule", ids: ["upcoming", "weather", "travel", "agenda"] },
   { id: "media", label: "Media", ids: ["youtube", "music", "news", "movies", "gaming", "watchlist", "videos", "reading", "games"] },
   { id: "personal", label: "Personal", ids: ["profile", "resume", "trackers", "goals", "journal", "habits", "mealplanning", "birthdays"] },
-  { id: "work", label: "Security & Work", ids: ["securityx", "ravenseye"] },
+  { id: "work", label: "Security & Work", ids: ["securityx", "ravenseye", "jobsearch"] },
 ];
 
 function NavChevron({ collapsed }) {
@@ -8962,6 +8976,7 @@ const PAGE_SUBTITLES = {
   profile: "About you", resume: "Experience, certifications and skills", trackers: "Little things worth tracking",
   goals: "Your life goals", journal: "Daily notes and reflections",
   habits: "Daily streaks", birthdays: "Never miss an occasion",
+  jobsearch: "Cybersecurity roles matched to your resume",
 };
 // Banner photos. These are hotlinked from third-party hosts, several of which
 // block cross-site requests or rotate their URLs — so every one degrades to the
@@ -8990,7 +9005,7 @@ function pageHue(id) { let h = 7; for (let i = 0; i < id.length; i++) h = (h * 3
 // Page-type -> container width. Dashboards and data-dense pages get room;
 // reading-style pages stay in a comfortable measure.
 const CONTAINER_WIDE = ["home"];
-const CONTAINER_XWIDE = ["fantasy", "ravenseye", "transactions", "videos", "golf", "reading", "games", "movies", "news", "sports"];
+const CONTAINER_XWIDE = ["fantasy", "ravenseye", "transactions", "videos", "golf", "reading", "games", "movies", "news", "sports", "jobsearch"];
 function containerVariant(page) {
   if (page === "securityx") return "v-container--full";
   // Home lays out its own measure per layout, so give it the room to do it.
@@ -13550,6 +13565,7 @@ function App() {
           {page === "ravenseye" && (
             <LazyRavenSection theme={theme} products={ravenProducts} setProducts={setRavenProducts} />
           )}
+          {page === "jobsearch" && <LazyJobSearchPage theme={theme} resume={resume} />}
         </div>
       </main>
 
@@ -16089,6 +16105,50 @@ function LazySecurityXSection({ theme }) {
   }
   const { SecurityXSection } = mod;
   return <SecurityXSection theme={theme} />;
+}
+
+function LazyJobSearchPage({ theme, resume }) {
+  const [mod, setMod] = useState(() => (window.__vChunks && window.__vChunks.jobsearch) ? window.__vChunks.jobsearch : null);
+  const [error, setError] = useState(null);
+
+  function attemptLoad() {
+    setError(null);
+    loadChunk("jobsearch", "chunk-jobsearch.js").then(setMod).catch((err) => setError(err.message || "Couldn't load Job Search."));
+  }
+
+  useEffect(() => {
+    if (mod) return;
+    let cancelled = false;
+    loadChunk("jobsearch", "chunk-jobsearch.js")
+      .then((m) => { if (!cancelled) setMod(m); })
+      .catch((err) => { if (!cancelled) setError(err.message || "Couldn't load Job Search."); });
+    return () => { cancelled = true; };
+  }, [mod]);
+
+  if (error) {
+    return (
+      <EmptyState
+        theme={theme}
+        art="search"
+        title="Couldn't load Job Search"
+        message={error}
+        action={
+          <button
+            className="v-btn"
+            style={{ color: theme.accent, background: "transparent", border: `1px solid ${theme.cardBorder}`, fontWeight: 700 }}
+            onClick={attemptLoad}
+          >
+            Try again
+          </button>
+        }
+      />
+    );
+  }
+  if (!mod) {
+    return <EmptyState theme={theme} art="search" title="Loading Job Search…" />;
+  }
+  const { JobSearchPage } = mod;
+  return <JobSearchPage theme={theme} resume={resume} />;
 }
 
 
@@ -19774,6 +19834,7 @@ window.__v = {
   IconShare,
   IconTrendingUp,
   IconUpload,
+  IconBriefcase,
 };
 window.__vChunks = window.__vChunks || {};
 window.__vChunkPromises = {};
