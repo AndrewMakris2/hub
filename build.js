@@ -27,6 +27,16 @@ const SRC = path.join(ROOT, "app.jsx");
 const OUT = path.join(ROOT, "index.html");
 const SHELL = path.join(ROOT, "index.shell.html");
 
+// Page chunks: compiled separately from app.jsx and written as their own
+// static .js file instead of being inlined into index.html, so a page's
+// code only downloads/parses/executes when someone actually opens it. Each
+// chunk reads shared core utilities off window.__v and registers what it
+// exports onto window.__vChunks — see the "LAZY-LOADED PAGE CHUNKS" comment
+// near the bottom of app.jsx for the loader that expects this contract.
+const CHUNKS = [
+  { name: "ravenseye", src: path.join(ROOT, "app.ravenseye.jsx"), out: path.join(ROOT, "chunk-ravenseye.js") },
+];
+
 function loadBabel() {
   for (const p of ["@babel/standalone", path.join(ROOT, "node_modules/@babel/standalone")]) {
     try { return require(p); } catch (e) { /* try the next location */ }
@@ -46,6 +56,39 @@ function loadTerser() {
 
 const MARKER = "<!--APP-->";
 
+// Shared compile step: JSX -> plain JS (Babel) -> minified (Terser, if
+// installed). Used for both app.jsx and each chunk in CHUNKS.
+async function compile(babel, terser, jsx, filename) {
+  const t0 = Date.now();
+  const { code } = babel.transform(jsx, {
+    presets: [["react", { runtime: "classic" }]],
+    filename,
+    compact: true,
+    comments: false,
+  });
+  const compiledMs = Date.now() - t0;
+
+  let out = code;
+  let minMs = 0;
+  if (terser) {
+    const t1 = Date.now();
+    // toplevel mangling is safe precisely because of the IIFE wrapper below —
+    // nothing in here is reachable by name from outside it, and no code
+    // depends on Function.prototype.name. Cross-scope names (window.__v,
+    // window.__vChunks) are plain object properties, which mangling never
+    // touches.
+    const res = await terser.minify(code, {
+      compress: { passes: 2 },
+      mangle: { toplevel: true },
+      format: { comments: false },
+    });
+    if (res.error) { console.error("terser failed on " + filename + ":", res.error); process.exit(1); }
+    out = res.code;
+    minMs = Date.now() - t1;
+  }
+  return { code, out, compiledMs, minMs };
+}
+
 async function main() {
   if (!fs.existsSync(SRC)) { console.error("Missing " + SRC); process.exit(1); }
   if (!fs.existsSync(SHELL)) { console.error("Missing " + SHELL); process.exit(1); }
@@ -57,34 +100,11 @@ async function main() {
     process.exit(1);
   }
 
-  const t0 = Date.now();
-  const { code } = loadBabel().transform(jsx, {
-    presets: [["react", { runtime: "classic" }]],
-    filename: "app.jsx",
-    compact: true,
-    comments: false,
-  });
-  const compiledMs = Date.now() - t0;
-
-  let out = code;
-  let minMs = 0;
+  const babel = loadBabel();
   const terser = loadTerser();
-  if (terser) {
-    const t1 = Date.now();
-    // toplevel mangling is safe precisely because of the IIFE below — nothing
-    // in here is reachable by name from outside, and no code depends on
-    // Function.prototype.name.
-    const res = await terser.minify(code, {
-      compress: { passes: 2 },
-      mangle: { toplevel: true },
-      format: { comments: false },
-    });
-    if (res.error) { console.error("terser failed:", res.error); process.exit(1); }
-    out = res.code;
-    minMs = Date.now() - t1;
-  } else {
-    console.log("(terser not installed — shipping unminified; npm install terser for a smaller page)");
-  }
+  if (!terser) console.log("(terser not installed — shipping unminified; npm install terser for a smaller page)");
+
+  const { code, out, compiledMs, minMs } = await compile(babel, terser, jsx, "app.jsx");
 
   // A literal </script> anywhere in the compiled output (inside a string, say)
   // would end the tag early and corrupt the document.
@@ -99,6 +119,20 @@ async function main() {
   console.log("compiled     " + kb(code.length) + "  in " + compiledMs + "ms");
   if (terser) console.log("minified     " + kb(out.length) + "  in " + minMs + "ms");
   console.log("index.html   " + kb(html.length) + "  (no Babel at runtime)");
+
+  for (const chunk of CHUNKS) {
+    if (!fs.existsSync(chunk.src)) { console.error("Missing chunk source " + chunk.src); process.exit(1); }
+    const chunkJsx = fs.readFileSync(chunk.src, "utf8");
+    const c = await compile(babel, terser, chunkJsx, path.basename(chunk.src));
+    const chunkSafe = c.out.replace(/<\/script>/gi, "<\\/script>");
+    const chunkOut = '(function(){"use strict";\n' + chunkSafe + "\n})();";
+    fs.writeFileSync(chunk.out, chunkOut);
+    console.log(
+      path.basename(chunk.src) + "  " + kb(chunkJsx.length) +
+      " -> " + path.basename(chunk.out) + "  " + kb(chunkOut.length) +
+      (terser ? "  in " + (c.compiledMs + c.minMs) + "ms" : "")
+    );
+  }
 }
 
 main();
