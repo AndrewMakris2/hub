@@ -1410,10 +1410,29 @@ function groupPdfTextItemsIntoLines(items) {
     .filter(Boolean);
 }
 
+// Lazily pull pdf.js from its CDN only when a PDF is actually read (bank
+// statement import here, Raven's Eye report scanning below) — keeps the
+// initial page weightless. It ships as an ES module with no UMD build, so
+// this uses a dynamic import() rather than the createElement("script")
+// pattern the other lazy-loaded libraries in this file use.
+function loadPdfJs() {
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if (window.__pdfjsPromise) return window.__pdfjsPromise;
+  window.__pdfjsPromise = import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.2.108/pdf.min.mjs")
+    .then((mod) => {
+      mod.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.2.108/pdf.worker.min.mjs";
+      window.pdfjsLib = mod;
+      return mod;
+    })
+    .catch((err) => {
+      window.__pdfjsPromise = null;
+      throw new Error("Couldn't load the PDF reader (are you offline?).");
+    });
+  return window.__pdfjsPromise;
+}
+
 async function extractPdfText(file) {
-  if (!window.pdfjsLib) {
-    throw new Error("The PDF reader hasn't finished loading yet — wait a moment and try again.");
-  }
+  await loadPdfJs();
   const buffer = await file.arrayBuffer();
   const pdf = await window.pdfjsLib.getDocument({ data: buffer }).promise;
   const allLines = [];
@@ -3735,10 +3754,31 @@ function isHeicFile(file) {
   return /image\/hei[cf]/i.test(file.type) || /\.(heic|heif)$/i.test(file.name || "");
 }
 
+// Lazily pull heic-to from its CDN only when a HEIC file is actually staged —
+// most uploads across the app are already JPEG/PNG, so this no longer has to
+// load on every page view for a conversion that rarely triggers.
+function loadHeicTo() {
+  if (window.HeicTo) return Promise.resolve(window.HeicTo);
+  if (window.__heicToPromise) return window.__heicToPromise;
+  window.__heicToPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://unpkg.com/heic-to@1.5.2/dist/iife/heic-to.js";
+    s.integrity = "sha384-cVm8gaWQ5+URpoh6ACKXpm8TuyoHkfIDDBkxvDoUdIZ18w8nV5en0lVQvWMwO/6S";
+    s.crossOrigin = "anonymous";
+    s.onload = () => (window.HeicTo ? resolve(window.HeicTo) : reject(new Error("HEIC converter failed to initialize.")));
+    s.onerror = () => {
+      window.__heicToPromise = null;
+      reject(new Error("Couldn't load the HEIC converter (are you offline?)."));
+    };
+    document.head.appendChild(s);
+  });
+  return window.__heicToPromise;
+}
+
 async function convertHeicIfNeeded(file) {
   if (!isHeicFile(file)) return file;
-  if (!window.HeicTo) return file;
   try {
+    await loadHeicTo();
     const blob = await window.HeicTo({ blob: file, type: "image/jpeg", quality: 0.85 });
     return new File([blob], file.name.replace(/\.(heic|heif)$/i, ".jpg"), { type: "image/jpeg" });
   } catch (err) {
@@ -8397,6 +8437,27 @@ async function fetchYoutubeUploads(accessToken) {
   return videos.slice(0, 40);
 }
 
+// Lazily pull msal-browser from its CDN only when the user actually clicks
+// "Connect Outlook" — most sessions never touch this integration, so it no
+// longer has to load on every page view to sit unused.
+function loadMsal() {
+  if (window.msal) return Promise.resolve(window.msal);
+  if (window.__msalPromise) return window.__msalPromise;
+  window.__msalPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/@azure/msal-browser@5.18.0/lib/msal-browser.min.js";
+    s.integrity = "sha384-FQfSZjxaWBhzqI7u0+3M2/K/kFajbcK45G1GMnQdDzVZszPTSjjvWY9YEnJ9tEia";
+    s.crossOrigin = "anonymous";
+    s.onload = () => (window.msal ? resolve(window.msal) : reject(new Error("Microsoft's auth library failed to initialize.")));
+    s.onerror = () => {
+      window.__msalPromise = null;
+      reject(new Error("Couldn't load Microsoft's auth library (are you offline?)."));
+    };
+    document.head.appendChild(s);
+  });
+  return window.__msalPromise;
+}
+
 function CalendarMenu({ theme, integrations, setIntegrations, googleAccounts, onAddGoogleAccount, onRemoveGoogleAccount, microsoftEvents, onMicrosoftEvents }) {
   const [open, setOpen] = useState(false);
   const [googleStatus, setGoogleStatus] = useState(null);
@@ -8489,13 +8550,10 @@ function CalendarMenu({ theme, integrations, setIntegrations, googleAccounts, on
       setMsStatus({ type: "error", message: "Add your Microsoft Client ID first." });
       return;
     }
-    if (!window.msal) {
-      setMsStatus({ type: "error", message: "Microsoft's auth script hasn't loaded yet — try again in a moment." });
-      return;
-    }
     setMsBusy(true);
     setMsStatus(null);
     try {
+      await loadMsal();
       const msalApp = new window.msal.PublicClientApplication({
         auth: { clientId, redirectUri: window.location.origin + window.location.pathname },
       });
@@ -16355,6 +16413,26 @@ async function dbDeletePolicyDoc(id) {
    reserved id; the token list + typed values persist in localStorage. */
 const DECK_TEMPLATE_ID = "__deck_template__";
 // Which parts of the package we scan/fill (slide + speaker-note text).
+// Lazily pull fflate from its CDN only when a .pptx template is scanned or
+// filled — used to ship inlined so the deck builder worked offline, but that
+// meant every page load parsed and ran it even for sessions that never touch
+// the deck builder. Same rationale as moLoadSheetJS above.
+function loadFflate() {
+  if (window.fflate) return Promise.resolve(window.fflate);
+  if (window.__fflatePromise) return window.__fflatePromise;
+  window.__fflatePromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "fflate.min.js";
+    s.onload = () => (window.fflate ? resolve(window.fflate) : reject(new Error("Zip engine failed to initialize.")));
+    s.onerror = () => {
+      window.__fflatePromise = null;
+      reject(new Error("Couldn't load the zip engine (are you offline?)."));
+    };
+    document.head.appendChild(s);
+  });
+  return window.__fflatePromise;
+}
+
 const DECK_XML_RE = /^ppt\/(slides|notesSlides)\/[^/]+\.xml$/;
 
 function xmlEscape(s) {
@@ -16400,6 +16478,7 @@ function deckFillXml(xml, values) {
 
 // Read a .pptx File → { tokens: [unique, in first-seen order], fileCount }.
 async function deckScanTemplate(file) {
+  await loadFflate();
   const buf = new Uint8Array(await file.arrayBuffer());
   const files = window.fflate.unzipSync(buf);
   const dec = new TextDecoder();
@@ -16423,6 +16502,7 @@ async function deckScanTemplate(file) {
 
 // Read the stored template blob, fill every slide, and return a new .pptx Blob.
 async function deckGenerate(values) {
+  await loadFflate();
   const rec = await dbGetPolicyDoc(DECK_TEMPLATE_ID);
   if (!rec || !rec.blob) throw new Error("No template stored — upload your deck first.");
   const buf = new Uint8Array(await rec.blob.arrayBuffer());
@@ -19179,10 +19259,6 @@ function DeckBuilderModal({ theme, deck, setDeck, onClose }) {
       setStatus({ type: "error", message: "Please upload a .pptx file (PowerPoint)." });
       return;
     }
-    if (!window.fflate) {
-      setStatus({ type: "error", message: "Zip engine didn't load — reload the page and try again." });
-      return;
-    }
     setBusy(true);
     setStatus({ type: "loading", message: `Reading ${file.name}…` });
     try {
@@ -21848,9 +21924,10 @@ function ravenLoadMammoth() {
 }
 
 // ---- Report text extraction (ported from fileText.js) ----
-// .pdf reuses the pdfjsLib already loaded in <head> for the golf/journal
-// scanning features elsewhere in Vantage — no new loader needed for it.
+// .pdf reuses loadPdfJs() (defined near extractPdfText, top of file) — same
+// on-demand pdf.js used by the Transactions PDF-statement import.
 async function ravenExtractTextFromPdf(file) {
+  await loadPdfJs();
   const buffer = await file.arrayBuffer();
   const doc = await window.pdfjsLib.getDocument({ data: buffer }).promise;
   const pages = [];
