@@ -2913,9 +2913,9 @@ function applyThemeVars(theme) {
 
 function cardBackgroundStyle(theme) {
   const style = {
-    border: `1px solid ${theme.cardBorder}`,
-    borderRadius: theme.cardRadius,
-    boxShadow: theme.cardShadow,
+    border: "1px solid var(--v-edge)",
+    borderRadius: "var(--r-card)",
+    boxShadow: "var(--sh-card)",
   };
   if (theme.cardStyle === "gradient") {
     style.backgroundImage = theme.cardBg;
@@ -3128,19 +3128,20 @@ function ToastHost({ theme }) {
   );
 }
 
-function SectionLabel({ theme, icon, children, style }) {
+function SectionLabel({ theme, icon, children, style, className }) {
   return (
     <div
+      className={"v-sectionlabel" + (className ? " " + className : "")}
       style={{
         display: "flex",
         alignItems: "center",
         gap: "8px",
-        fontSize: "12px",
+        fontSize: "11px",
         fontWeight: 700,
-        letterSpacing: "0.12em",
+        letterSpacing: "0.07em",
         textTransform: "uppercase",
         color: theme.sectionLabelColor,
-        marginBottom: "14px",
+        marginBottom: "12px",
         ...style,
       }}
     >
@@ -3156,10 +3157,8 @@ function Card({ theme, children, style, delay = 0 }) {
       className="v-card"
       style={{
         ...cardBackgroundStyle(theme),
-        padding: "22px",
+        padding: "var(--pad-card)",
         animationDelay: `${delay}ms`,
-        "--accent-line": theme.accent,
-        height: "100%",
         display: "flex",
         flexDirection: "column",
         ...style,
@@ -8918,6 +8917,7 @@ const PAGE_SUBTITLES = {
   goals: "Your life goals", journal: "Daily notes and reflections",
   habits: "Daily streaks", birthdays: "Never miss an occasion",
   jobsearch: "Cybersecurity roles matched to your resume",
+  gaming: "Releases, reveals, and esports",
 };
 // Banner photos. These are hotlinked from third-party hosts, several of which
 // block cross-site requests or rotate their URLs — so every one degrades to the
@@ -8942,18 +8942,18 @@ const PAGE_BANNER_VARIANT = {
   fantasy: "ribbon", youtube: "ribbon", videos: "ribbon", goals: "ribbon", trackers: "ribbon",
   fitness: "corner", habits: "corner", profile: "corner", resume: "corner", journal: "corner", reading: "corner",
 };
-function pageHue(id) { let h = 7; for (let i = 0; i < id.length; i++) h = (h * 33 + id.charCodeAt(i)) % 360; return h; }
 // Page-type -> container width. Dashboards and data-dense pages get room;
 // reading-style pages stay in a comfortable measure.
-const CONTAINER_WIDE = ["home"];
-const CONTAINER_XWIDE = ["fantasy", "ravenseye", "transactions", "videos", "golf", "reading", "games", "movies", "news", "sports", "jobsearch"];
+// Pages that are actually prose, and want a line length you can read rather
+// than the full width of a monitor. Everything else is a list, a grid or a
+// form and gets the room.
+const CONTAINER_READER = ["journal", "resume", "profile", "goals"];
+const CONTAINER_XWIDE = ["fantasy", "ravenseye", "transactions", "videos", "golf", "reading", "games", "movies", "news", "sports", "mo", "home", "jobsearch"];
 function containerVariant(page) {
   if (page === "securityx") return "v-container--full";
-  // Home lays out its own measure per layout, so give it the room to do it.
-  if (page === "home") return "v-container--xwide";
-  if (CONTAINER_WIDE.includes(page)) return "v-container--wide";
+  if (CONTAINER_READER.includes(page)) return "v-container--reader";
   if (CONTAINER_XWIDE.includes(page)) return "v-container--xwide";
-  return "v-container--reader";
+  return "v-container--wide";
 }
 
 function PageBanner({ theme, page, images, setImages }) {
@@ -8964,8 +8964,6 @@ function PageBanner({ theme, page, images, setImages }) {
 
   const meta = PAGE_META.find((m) => m.id === page);
   if (!meta || page === "securityx" || page === "ravenseye") return null;
-  const h = pageHue(page);
-  const grad = `linear-gradient(120deg, hsl(${h} 64% 47%), hsl(${(h + 42) % 360} 68% 37%))`;
   const override = images && Object.prototype.hasOwnProperty.call(images, page) ? images[page] : undefined;
   const img = (override !== undefined ? override : PAGE_BANNER_IMG[page]) || "";
   const showImg = img && !broken;
@@ -8998,27 +8996,23 @@ function PageBanner({ theme, page, images, setImages }) {
         placeholder="Paste an image URL, or leave blank for the gradient"
         className="v-input"
         autoFocus
-        style={{ flex: 1, minWidth: "180px", padding: "8px 10px", borderRadius: "8px", fontSize: "12.5px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}` }}
+        style={{ flex: 1, minWidth: "180px", padding: "8px 10px", borderRadius: "8px", fontSize: "13px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}` }}
       />
-      <button onClick={saveImg} className="v-btn" style={{ padding: "8px 13px", borderRadius: "8px", fontSize: "12.5px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText }}>Save</button>
-      <button onClick={() => { setDraft(""); setImages((prev) => ({ ...(prev || {}), [page]: "" })); setEditing(false); toast.info("Banner image cleared."); }} className="v-btn" style={{ padding: "8px 11px", borderRadius: "8px", fontSize: "12.5px", fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.textMuted }}>Clear</button>
+      <button onClick={saveImg} className="v-btn" style={{ padding: "8px 13px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText }}>Save</button>
+      <button onClick={() => { setDraft(""); setImages((prev) => ({ ...(prev || {}), [page]: "" })); setEditing(false); toast.info("Banner image cleared."); }} className="v-btn" style={{ padding: "8px 11px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.textMuted }}>Clear</button>
     </div>
   );
 
   // "corner" — the photo leaves the header entirely and becomes a small
   // floating square on a plain card, title/subtitle set in normal theme text.
-  if (variant === "corner") {
+  if (variant === "corner" && showImg) {
     return (
       <div style={{ ...cardBackgroundStyle(theme), position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", padding: "18px 20px", marginBottom: "22px" }}>
-        <div>
-          <div style={{ fontSize: "20px", fontWeight: 800, color: theme.text, letterSpacing: "-0.01em", fontFamily: "var(--v-font-display, inherit)" }}>{meta.label}</div>
-          {PAGE_SUBTITLES[page] && <div style={{ fontSize: "13px", color: theme.textMuted, marginTop: "3px" }}>{PAGE_SUBTITLES[page]}</div>}
+        <div style={{ minWidth: 0 }}>
+          <h1 className="v-pagehead__title">{meta.label}</h1>
+          {PAGE_SUBTITLES[page] && <p className="v-pagehead__sub">{PAGE_SUBTITLES[page]}</p>}
         </div>
-        {showImg ? (
-          <img src={img} alt="" loading="lazy" onError={() => setBroken(true)} className="v-banner--corner-img" />
-        ) : (
-          <span className="v-banner--corner-img" style={{ display: "flex", alignItems: "center", justifyContent: "center", background: theme.accentSoft, color: theme.accent, boxShadow: "none" }}>{meta.icon}</span>
-        )}
+        <img src={img} alt="" loading="lazy" onError={() => setBroken(true)} className="v-banner--corner-img" />
         {editBtn}
         {editPanelDark}
       </div>
@@ -9027,36 +9021,32 @@ function PageBanner({ theme, page, images, setImages }) {
 
   // "ribbon" — a slim strip banner, shorter than the hero, subtitle dropped
   // to keep it thin.
-  if (variant === "ribbon") {
+
+  // A photo the user chose is content and keeps a hero, with a scrim heavy
+  // enough at the text end to carry white type over any image.
+  if (showImg) {
     return (
-      <div style={{ position: "relative", overflow: "hidden", borderRadius: theme.cardRadius, padding: "12px 20px", marginBottom: "22px", minHeight: "56px", display: "flex", alignItems: "center", background: grad, boxShadow: theme.cardShadow }}>
-        {showImg && <img src={img} alt="" loading="lazy" onError={() => setBroken(true)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />}
-        {showImg && <div style={{ position: "absolute", inset: 0, background: `linear-gradient(100deg, hsl(${h} 64% 34% / 0.82), hsl(${(h + 42) % 360} 68% 28% / 0.72))` }} />}
-        <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ color: "rgba(255,255,255,0.85)", display: "inline-flex" }}>{meta.icon}</span>
-          <span style={{ fontSize: "16px", fontWeight: 800, color: "#fff", letterSpacing: "-0.01em", textShadow: "0 1px 6px rgba(0,0,0,0.25)", fontFamily: "var(--v-font-display, inherit)" }}>{meta.label}</span>
+      <div className="v-pagehero">
+        <img src={img} alt="" loading="lazy" onError={() => setBroken(true)} />
+        <div className="v-pagehero__scrim" />
+        <div className="v-pagehero__text">
+          <h1 className="v-pagehead__title">{meta.label}</h1>
+          {PAGE_SUBTITLES[page] && <p className="v-pagehead__sub">{PAGE_SUBTITLES[page]}</p>}
         </div>
-        {!showImg && (
-          <div style={{ position: "absolute", right: "14px", top: "50%", transform: "translateY(-50%) scale(2.6)", color: "rgba(255,255,255,0.16)", pointerEvents: "none", zIndex: 1 }}>{meta.icon}</div>
-        )}
         {editBtn}
         {editPanelDark}
       </div>
     );
   }
 
-  // "hero" — the original full-bleed banner.
+  // Otherwise the page names itself in type, on its own ground.
   return (
-    <div style={{ position: "relative", overflow: "hidden", borderRadius: theme.cardRadius, padding: "20px 24px", marginBottom: "22px", minHeight: "112px", display: "flex", alignItems: "center", background: grad, boxShadow: theme.cardShadow }}>
-      {showImg && <img src={img} alt="" loading="lazy" onError={() => setBroken(true)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />}
-      {showImg && <div style={{ position: "absolute", inset: 0, background: `linear-gradient(120deg, hsl(${h} 64% 40% / 0.74), hsl(${(h + 42) % 360} 68% 30% / 0.62))` }} />}
-      <div style={{ position: "relative", zIndex: 1 }}>
-        <div style={{ fontSize: "22px", fontWeight: 800, color: "#fff", letterSpacing: "-0.01em", textShadow: "0 1px 8px rgba(0,0,0,0.28)", fontFamily: "var(--v-font-display, inherit)" }}>{meta.label}</div>
-        {PAGE_SUBTITLES[page] && <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.92)", marginTop: "3px", textShadow: "0 1px 6px rgba(0,0,0,0.22)" }}>{PAGE_SUBTITLES[page]}</div>}
+    <div className="v-pagehead">
+      <span className="v-pagehead__chip" aria-hidden="true">{meta.icon}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <h1 className="v-pagehead__title">{meta.label}</h1>
+        {PAGE_SUBTITLES[page] && <p className="v-pagehead__sub">{PAGE_SUBTITLES[page]}</p>}
       </div>
-      {!showImg && (
-        <div style={{ position: "absolute", right: "14px", top: "50%", transform: "translateY(-50%) scale(4.6)", color: "rgba(255,255,255,0.16)", pointerEvents: "none", zIndex: 1 }}>{meta.icon}</div>
-      )}
       {editBtn}
       {editPanelDark}
     </div>

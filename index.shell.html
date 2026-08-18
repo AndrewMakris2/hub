@@ -43,6 +43,12 @@
     /* radius scale */
     --r-xs: 6px; --r-sm: 8px; --r-md: 10px; --r-lg: 14px; --r-xl: 20px; --r-pill: 999px;
 
+    /* Leading. Three steps, because a line box wants to be either tight
+       (a number, a control label), snug (a title) or comfortable (prose). */
+    --lh-tight: 1.2;
+    --lh-snug: 1.35;
+    --lh-body: 1.55;
+
     /* motion */
     --ease: cubic-bezier(.2,.8,.2,1);
     --ease-out: cubic-bezier(.16,1,.3,1);
@@ -53,6 +59,41 @@
     --sh-2: 0 4px 8px -2px rgba(16,24,40,.10), 0 2px 4px -2px rgba(16,24,40,.06);
     --sh-3: 0 12px 24px -6px rgba(16,24,40,.14), 0 4px 8px -4px rgba(16,24,40,.08);
     --sh-4: 0 24px 48px -12px rgba(16,24,40,.20);
+
+    /* Type. Nine steps: the app was rendering 26 distinct sizes, nine of
+       them crammed between 10.5 and 15px where a 0.5px step is invisible
+       individually and, in aggregate, is why nothing quite lines up. */
+    --fs-1: 11px;   /* eyebrow, meta, badge      */
+    --fs-2: 12px;   /* secondary                 */
+    --fs-3: 13px;   /* body — the workhorse      */
+    --fs-4: 14px;   /* emphasis                  */
+    --fs-5: 16px;   /* card title                */
+    --fs-6: 18px;   /* section title             */
+    --fs-7: 20px;   /* stat                      */
+    --fs-8: 24px;   /* page title                */
+    --fs-9: 30px;   /* display                   */
+
+    /* Surface. One edge weight, one radius, one elevation — the card was
+       taking all three from per-theme values that disagreed with each
+       other (Minimal shipped a 0.04-alpha shadow, i.e. none). */
+    --v-edge: color-mix(in oklab, var(--v-text, #000) 15%, transparent);
+    --v-edge-strong: color-mix(in oklab, var(--v-text, #000) 26%, transparent);
+    --r-card: 16px;
+    --pad-card: 18px 20px;
+    --sh-card:
+      0 1px 2px -1px color-mix(in oklab, var(--v-text, #000) 10%, transparent),
+      0 4px 12px -4px color-mix(in oklab, var(--v-text, #000) 8%, transparent),
+      0 16px 32px -16px color-mix(in oklab, var(--v-text, #000) 10%, transparent);
+    /* A hover/press state as an ink wash rather than filter: brightness(),
+       which lightens a dark button and washes out a light one — it cannot be
+       correct in both schemes at once. */
+    --state-hover: color-mix(in oklab, var(--v-text, #000) 6%, transparent);
+    --state-press: color-mix(in oklab, var(--v-text, #000) 11%, transparent);
+    /* One control height, so a row of inputs and buttons lines up. */
+    --control-h: 38px;
+    /* Round icon buttons are square by definition — one token so the touch
+       size cannot disagree with the pointer size and render an ellipse. */
+    --iconbtn: 38px;
 
     /* layout */
     --rail-w: 236px;
@@ -66,6 +107,8 @@
   }
   :root[data-scheme="dark"] {
     color-scheme: dark;
+    --v-edge: color-mix(in oklab, var(--v-text, #fff) 10%, transparent);
+    --v-edge-strong: color-mix(in oklab, var(--v-text, #fff) 20%, transparent);
     --sh-1: 0 1px 2px rgba(0,0,0,.40);
     --sh-2: 0 4px 10px -2px rgba(0,0,0,.45);
     --sh-3: 0 14px 28px -8px rgba(0,0,0,.55);
@@ -111,43 +154,106 @@
     isolation: isolate;
     overflow: hidden;
     transition: transform var(--dur-3) var(--ease), box-shadow var(--dur-3) var(--ease);
-    animation: vFadeInUp 0.5s var(--ease) both;
+    /* backwards, not both — see the note above: "both" retains the final
+       transform forever and turns every card into a containing block. */
+    animation: vFadeInUp 0.5s var(--ease) backwards;
   }
-  .v-card::before {
-    content: "";
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-    background: var(--accent-line, transparent);
-    opacity: 0.6;
-  }
-  /* A stat tile is small enough that a full-width bar dominates it — reduce it
-     to a short mark that reads as an accent rather than a rule. */
-  .v-hometile::before { height: 2px; width: 34px; opacity: 0.75; border-radius: 0 0 2px 0; }
+  /* The card's identity is its edge and its elevation. Nothing is painted
+     across the top: see the note above. */
   /* Lift only where a real pointer can hover — on touch this fired on tap and
      made cards jump. Elevation now follows the theme's scheme instead of a
      hardcoded dark shadow that looked like soot on the light themes. */
   @media (hover: hover) and (pointer: fine) {
-    .v-card:hover { transform: translateY(-3px); box-shadow: var(--sh-3) !important; }
+    /* !important because the border is an inline style — without it this rule
+       matches and changes nothing. */
+    .v-card:hover, .v-hometile:hover { border-color: var(--v-edge-strong) !important; }
   }
 
   /* ---- Buttons ---- */
-  .v-btn { transition: transform var(--dur-1) ease, filter var(--dur-1) ease, background var(--dur-1) ease; }
+  .v-btn {
+    transition: background var(--dur-1) ease, border-color var(--dur-1) ease, box-shadow var(--dur-1) ease;
+  }
+  /* The fallback shape, for the call sites that never gave one. */
+  .v-btn:not(.v-btn--tight):not(.v-navitem):not(.v-navgroup):not(.v-chip):not(.v-themebtn):not(.v-habitcell):not(.v-hometile):not(.v-card):not(.v-segmented__seg) {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 7px;
+    min-height: var(--control-h);
+    padding: 0 var(--sp-3);
+    border-radius: var(--r-sm);
+    font-size: var(--fs-3);
+    font-weight: 500;
+  }
+  /* Deliberately no `white-space: nowrap` here. Some buttons are cards —
+     the Mechanical Orchard tool tiles carry a wrapped description — and
+     forbidding the wrap pushed 158px of text out of the page. */
   @media (hover: hover) and (pointer: fine) {
-    .v-btn:hover { filter: brightness(1.08); transform: translateY(-1px); box-shadow: inset 0 0 0 999px rgba(127,127,127,0.09); }
+    .v-btn:hover { box-shadow: inset 0 0 0 999px var(--state-hover); }
     .v-navitem:hover, .v-card:hover, .v-hometile:hover, .v-swatch:hover { box-shadow: none; }
   }
-  .v-btn:active { filter: brightness(0.95); transform: translateY(0); }
-  .v-btn[disabled], .v-btn:disabled { cursor: not-allowed; opacity: .55; filter: none; transform: none; }
+  .v-btn:active { box-shadow: inset 0 0 0 999px var(--state-press); transform: none; }
+  /* No opacity: fading the control fades its LABEL, and measured on the
+     accentText/accent pair at .55 that is below 4.5:1 in 27 of 28 themes
+     (worst 2.28:1). State it as a surface instead, and keep the text readable. */
+  .v-btn[disabled], .v-btn:disabled {
+    cursor: not-allowed;
+    filter: none; transform: none;
+    background: color-mix(in oklab, var(--v-text) 7%, transparent) !important;
+    color: var(--v-text-muted) !important;
+    border-color: var(--v-edge) !important;
+    box-shadow: none !important;
+  }
   /* Comfortable hit areas on touch. Opt out with .v-btn--tight for deliberately
      tiny controls (habit grid squares, star ratings) that must stay small. */
   @media (pointer: coarse) {
-    .v-btn:not(.v-btn--tight) { min-height: 40px; }
+    :root { --control-h: 44px; --iconbtn: 44px; }
+    /* min-width as well as min-height: a control can miss the target size on
+       either axis, and the delete buttons were missing it on the one nothing
+       was checking. */
+    .v-btn:not(.v-btn--tight) { min-height: 44px; min-width: 44px; }
     .v-navitem { min-height: 44px; }
   }
 
   /* ---- Inputs ---- */
-  .v-input { transition: border-color var(--dur-2) ease, box-shadow var(--dur-2) ease; max-width: 100%; }
+  .v-input {
+    transition: border-color var(--dur-2) ease, box-shadow var(--dur-2) ease;
+    max-width: 100%;
+  }
+  /* Single-line controls share one height. The line box carries it rather
+     than padding, so an inline padding at the call site cannot re-break the
+     alignment. Textareas and the deliberately tiny controls opt out. */
+  input.v-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.v-input--bare),
+  select.v-input:not(.v-input--bare) {
+    min-height: var(--control-h);
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    line-height: calc(var(--control-h) - 2px);
+  }
+  textarea.v-input { min-height: var(--control-h); line-height: 1.55; }
+
+  /* An inline editor keeps the type of whatever it is standing in for. It
+     earns its hit area from the padding of the row it sits in, and it says it
+     is editable on hover and focus rather than by carrying a permanent box —
+     which is the thing that made these tiles look like static captions. */
+  .v-input--bare {
+    min-height: 0 !important;
+    line-height: 1.35 !important;
+    padding: 3px 5px !important;
+    margin: -3px -5px;
+    border-radius: 8px;
+    width: 100%;
+    background: transparent;
+    transition: background var(--dur-1) ease, box-shadow var(--dur-1) ease;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .v-input--bare:hover { background: var(--state-hover); }
+  }
+  .v-input--bare:focus-visible { background: var(--state-hover); }
+
+  /* A symbol bound to a field is one thing and must not be broken across
+     lines. */
+  .v-fieldpair { flex-wrap: nowrap !important; }
+  .v-main .v-fieldpair > .v-input,
+  .v-fieldpair > .v-input.v-input { min-width: 0 !important; }
   .v-input:focus { outline: none; }
   .v-input:focus-visible,
   input:focus-visible, textarea:focus-visible, select:focus-visible {
@@ -258,24 +364,6 @@
       radial-gradient(680px 380px at 96% 4%, var(--v-accent, transparent), transparent 58%);
   }
   :root[data-scheme="dark"] .v-app::before { opacity: 0.20; }
-
-  /* Cards get a faint top sheen so they read as lit surfaces rather than flat
-     rectangles. Clipped by the existing overflow:hidden. */
-  .v-card::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    background: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0) 42%);
-  }
-  :root[data-scheme="light"] .v-card::after {
-    background: linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0) 46%);
-    mix-blend-mode: overlay;
-  }
-  @media (hover: hover) and (pointer: fine) {
-    .v-card:hover { border-color: var(--v-accent) !important; }
-  }
 
   /* Active navigation: an accent rail plus a soft wash, so the current page is
      legible at a glance instead of relying on a tint alone. */
@@ -482,6 +570,65 @@
     :root.rail-collapsed .v-themebtn { padding: 6px; justify-content: center; }
   }
 
+  /* ---- Page header ------------------------------------------------------
+     A page names itself in type, on the page's own ground. The icon keeps a
+     tinted chip so the header has an anchor and the accent still shows up
+     once per page rather than as a 112px band of unrelated colour. */
+  .v-pagehead {
+    display: flex; align-items: center; gap: 14px;
+    padding: 2px 0 18px; margin-bottom: 22px;
+    border-bottom: 1px solid var(--v-edge);
+    position: relative;
+  }
+  .v-pagehead__chip {
+    flex-shrink: 0; width: 42px; height: 42px; border-radius: 12px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--v-accent-soft); color: var(--v-accent-on);
+  }
+  .v-pagehead__title {
+    margin: 0;
+    font-size: var(--fs-8); font-weight: 800; line-height: 1.15;
+    letter-spacing: -0.02em; color: var(--v-text);
+    font-family: var(--v-font-display, inherit);
+    /* A two-word page name should not break one word onto its own line. */
+    text-wrap: balance;
+  }
+  .v-pagehead__sub {
+    margin: 3px 0 0;
+    font-size: var(--fs-3); line-height: 1.45; color: var(--v-text-muted);
+  }
+  @media (max-width: 640px) {
+    .v-pagehead { gap: 11px; padding-bottom: 14px; margin-bottom: 16px; }
+    .v-pagehead__chip { width: 36px; height: 36px; border-radius: 10px; }
+  }
+
+  /* A photo the user chose keeps a hero. The scrim is a bottom-weighted
+     gradient sized to the text rather than a tint of a hashed hue, so white
+     type clears its background whatever the picture is. */
+  .v-pagehero {
+    position: relative; overflow: hidden;
+    border-radius: var(--r-card);
+    min-height: 132px; margin-bottom: 22px;
+    display: flex; align-items: flex-end;
+    box-shadow: var(--sh-card);
+    /* A ground of its own, under the photo. The title and subtitle here are
+       white because they sit on a scrim over a picture — but between the page
+       painting and the picture arriving there is no picture, and on a light
+       theme that is white type on a near-white page (measured 1.20:1). It is
+       not only the loading window: an image that 404s, or a network that
+       blocks it, leaves the page there for good if onError does not fire.
+       This makes the hero legible with no image at all. */
+    background: #2b2b2f;
+  }
+  .v-pagehero > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .v-pagehero__scrim {
+    position: absolute; inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.34) 46%, rgba(0,0,0,0.06) 100%);
+  }
+  .v-pagehero__text { position: relative; z-index: 1; padding: 18px 22px; }
+  .v-pagehero .v-pagehead__title { color: #fff; }
+  .v-pagehero .v-pagehead__sub { color: rgba(255,255,255,0.92); }
+
   /* ---- Per-page banner variants (see PageBanner) ---- */
   .v-banner--corner-img {
     width: 92px; height: 92px; border-radius: 14px; object-fit: cover; flex-shrink: 0;
@@ -494,9 +641,15 @@
     position: absolute; top: 10px; right: 10px; z-index: 3;
     display: inline-flex; align-items: center; justify-content: center;
     width: 30px; height: 30px; border-radius: 9px;
-    border: 1px solid rgba(255,255,255,0.35);
-    background: rgba(0,0,0,0.25); color: #fff;
+    border: 1px solid var(--v-edge);
+    background: transparent; color: var(--v-text-faint);
     opacity: 0; transition: opacity var(--dur-2) ease;
+  }
+  /* Over a photo it goes back to glass, where white-on-dark is the legible
+     choice and the blur has something to blur. */
+  .v-pagehero .v-banner-edit {
+    border-color: rgba(255,255,255,0.35);
+    background: rgba(0,0,0,0.25); color: #fff;
     backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
   }
   div:hover > .v-banner-edit, .v-banner-edit:focus-visible { opacity: 1; }
