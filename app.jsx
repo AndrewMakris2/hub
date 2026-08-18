@@ -9152,8 +9152,8 @@ function InstallAppButton({ theme }) {
     <button
       onClick={install}
       className="v-btn"
-      title="Install Vantage as an app"
-      aria-label="Install Vantage as an app"
+      title="Install BearVantageHub as an app"
+      aria-label="Install BearVantageHub as an app"
       style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "38px", height: "38px", borderRadius: "50%", border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.textMuted }}
     >
       <IconInstall size={16} />
@@ -9214,7 +9214,7 @@ function buildWeeklyDigestDocDefinition({ fitness, golf, financial, history, tra
     pageSize: "A4",
     pageMargins: [40, 40, 40, 40],
     content: [
-      { text: "Vantage Weekly Digest", style: "title" },
+      { text: "BearVantageHub Weekly Digest", style: "title" },
       { text: `${fmtDate(weekAgo)} – ${fmtDate(now)}`, style: "subtitle" },
 
       section("Fitness"),
@@ -9321,7 +9321,7 @@ function buildAnnualDigestDocDefinition({ fitness, golf, financial, history, tra
     pageSize: "A4",
     pageMargins: [40, 40, 40, 40],
     content: [
-      { text: `Year in Vantage — ${now.getFullYear()}`, style: "title" },
+      { text: `Year in BearVantageHub — ${now.getFullYear()}`, style: "title" },
       { text: `${yearStart.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${now.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`, style: "subtitle" },
 
       section("Fitness"),
@@ -9374,8 +9374,8 @@ function AnnualDigestButton({ theme, fitness, golf, financial, history, transact
       onClick={download}
       disabled={busy}
       className="v-btn"
-      title="Download Year in Vantage (PDF)"
-      aria-label="Download Year in Vantage (PDF)"
+      title="Download Year in BearVantageHub (PDF)"
+      aria-label="Download Year in BearVantageHub (PDF)"
       style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "38px", height: "38px", borderRadius: "50%", border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.textMuted, opacity: busy ? 0.6 : 1 }}
     >
       <IconTrendingUp size={16} />
@@ -9543,7 +9543,7 @@ function Sidebar({
           <span style={{ width: "28px", height: "28px", borderRadius: "9px", display: "flex", alignItems: "center", justifyContent: "center", background: theme.accentSoft, color: theme.accent, border: `1px solid ${theme.divider}`, flexShrink: 0 }}>
             <IconLogo />
           </span>
-          <span style={{ fontSize: "16px", fontWeight: theme.headerWeight, color: theme.text, letterSpacing: "-0.01em", whiteSpace: "nowrap" }}>Vantage</span>
+          <span style={{ fontSize: "16px", fontWeight: theme.headerWeight, color: theme.text, letterSpacing: "-0.01em", whiteSpace: "nowrap" }}>BearVantageHub</span>
         </button>
         <button
           onClick={openPalette}
@@ -12522,7 +12522,7 @@ function LockScreen({ theme, lock, onUnlock }) {
     >
       <form onSubmit={submit} style={{ ...cardBackgroundStyle(theme), padding: "34px 30px", width: "100%", maxWidth: "360px", textAlign: "center" }}>
         <div style={{ color: theme.accent, display: "inline-flex", marginBottom: "12px" }}><IconLock size={30} /></div>
-        <div style={{ fontSize: "19px", fontWeight: 800, color: theme.text, marginBottom: "4px" }}>Vantage is locked</div>
+        <div style={{ fontSize: "19px", fontWeight: 800, color: theme.text, marginBottom: "4px" }}>BearVantageHub is locked</div>
         <div style={{ fontSize: "13px", color: theme.textMuted, marginBottom: "20px" }}>Enter your PIN to continue.</div>
         <input
           ref={inputRef}
@@ -13201,7 +13201,7 @@ function App() {
     function notify(body) {
       toast.reminder(body, { title: "Reminder", duration: 9000 });
       if (reminders.enabled && Notification.permission === "granted") {
-        try { new Notification("Vantage", { body }); } catch (e) {}
+        try { new Notification("BearVantageHub", { body }); } catch (e) {}
       }
     }
     function check() {

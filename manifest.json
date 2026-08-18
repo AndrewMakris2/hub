@@ -1,6 +1,6 @@
 {
-  "name": "Vantage",
-  "short_name": "Vantage",
+  "name": "BearVantageHub",
+  "short_name": "BearVantageHub",
   "description": "A personal dashboard for fitness, golf, goals, and more.",
   "start_url": "./index.html",
   "scope": "./",
