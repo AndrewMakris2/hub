@@ -1110,6 +1110,12 @@ function usePersistentState(key, initial) {
   return [state, setState];
 }
 
+// One-shot deep-link actions (Shortcuts/home-screen icons) that App() should
+// auto-clear from the hash shortly after landing — as opposed to a page's own
+// persistent hash sub-route (e.g. Fantasy's "#fantasy/players"), which reuses
+// the same useHashRoute "action" field but must never be cleared.
+const ONE_SHOT_QUICK_ACTIONS = new Set(["log-weight", "add"]);
+
 // Minimal hash-based router — no library needed for a handful of pages.
 // The hash is the source of truth so pages are bookmarkable/shareable and
 // the browser's back/forward buttons work; validIds guards against a stale
@@ -13022,9 +13028,13 @@ function App() {
   }, [page]);
   // The target page reads quickAction during its own render (e.g. autoOpenWeight)
   // before this clears the hash back to the plain page, so a refresh or share
-  // doesn't keep re-triggering the same action.
+  // doesn't keep re-triggering the same action. Only real one-shot deep links
+  // (Shortcuts/home-screen icons) go here — useHashRoute's "action" is the same
+  // field pages with their own persistent hash sub-routes (Fantasy's
+  // useFantasySubRoute, "#fantasy/players", "#fantasy/trade-analyzer", ...) read
+  // to know which sub-page to show, and those must never get auto-cleared.
   useEffect(() => {
-    if (!quickAction) return;
+    if (!ONE_SHOT_QUICK_ACTIONS.has(quickAction)) return;
     const t = setTimeout(() => clearQuickAction(), 400);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
