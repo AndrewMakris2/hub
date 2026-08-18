@@ -2424,7 +2424,7 @@ function MealPlanningPage({ theme, state, setState }) {
                 className="v-btn"
                 style={{ display: "flex", flexDirection: "column", textAlign: "left", background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "10px", overflow: "hidden", padding: 0 }}
               >
-                <img src={r.thumb} alt="" style={{ width: "100%", aspectRatio: "1", objectFit: "cover" }} />
+                <img src={r.thumb} alt="" loading="lazy" decoding="async" style={{ width: "100%", aspectRatio: "1", objectFit: "cover" }} />
                 <div style={{ padding: "8px 10px" }}>
                   <div style={{ fontSize: "12.5px", fontWeight: 700, color: theme.text, lineHeight: 1.3 }}>{r.name}</div>
                   <div style={{ fontSize: "11px", color: theme.accent, marginTop: "4px", fontWeight: 600 }}>
@@ -2446,7 +2446,7 @@ function MealPlanningPage({ theme, state, setState }) {
             {s.savedRecipes.map((r) => (
               <div key={r.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 10px", background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "8px" }}>
                 {r.thumb ? (
-                  <img src={r.thumb} alt="" style={{ width: "36px", height: "36px", borderRadius: "6px", objectFit: "cover", flexShrink: 0 }} />
+                  <img src={r.thumb} alt="" loading="lazy" decoding="async" style={{ width: "36px", height: "36px", borderRadius: "6px", objectFit: "cover", flexShrink: 0 }} />
                 ) : (
                   <span style={{ width: "36px", height: "36px", borderRadius: "6px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: theme.chip, color: theme.accent }}>
                     <IconChefHat size={16} />
@@ -2531,7 +2531,7 @@ function MealPlanningPage({ theme, state, setState }) {
                     ×
                   </button>
                 </div>
-                {detail.thumb && <img src={detail.thumb} alt="" style={{ width: "100%", borderRadius: "10px", marginBottom: "14px" }} />}
+                {detail.thumb && <img src={detail.thumb} alt="" loading="lazy" decoding="async" style={{ width: "100%", borderRadius: "10px", marginBottom: "14px" }} />}
                 <button
                   onClick={() => saveRecipe(detail)}
                   disabled={s.savedRecipes.some((r) => r.id === detail.id)}
@@ -2907,6 +2907,19 @@ const THEME_VAR_MAP = {
   "--v-rail-radius": "railRadius",
   "--v-rail-shadow": "railShadow",
 };
+// Bricolage Grotesque is only used by the Aurora Glass theme's --v-font-display.
+// Loading it as a real file (fetched on demand) instead of embedding it as a
+// base64 @font-face in the static shell CSS keeps the other 27 themes from
+// paying ~30KB of critical-path payload for a font they never render.
+let __auroraFontInjected = false;
+function ensureAuroraFont() {
+  if (__auroraFontInjected || typeof document === "undefined") return;
+  __auroraFontInjected = true;
+  const style = document.createElement("style");
+  style.textContent = '@font-face{font-family:"Bricolage Grotesque";font-weight:700;font-style:normal;font-display:swap;src:url("bricolage-grotesque-700.woff2") format("woff2");}';
+  document.head.appendChild(style);
+}
+
 function applyThemeVars(theme) {
   if (typeof document === "undefined" || !theme) return;
   const root = document.documentElement;
@@ -2915,6 +2928,7 @@ function applyThemeVars(theme) {
     if (val != null) root.style.setProperty(cssVar, String(val));
   });
   root.setAttribute("data-scheme", isDarkTheme(theme) ? "dark" : "light");
+  if (theme.fontDisplay) ensureAuroraFont();
 }
 
 function cardBackgroundStyle(theme) {
