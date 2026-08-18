@@ -3,14 +3,15 @@
 // ...) only when a tool is actually opened (from the sidebar menu, Cmd-K
 // search, or the SecurityX page route) instead of shipping with every page
 // load. See app.jsx for the loadChunk()/window.__v bridge this depends on.
-const { useState, useEffect, useMemo, useRef } = React;
+const { useState, useEffect, useMemo, useRef, useContext } = React;
 const {
-  loadPdfJs, moDownload, moFormatTs, moDefaultPolicies, useOverlayBehaviour,
+  loadPdfJs, moDownload, moFormatTs, moDefaultPolicies, useOverlayBehaviour, MoEmbedContext,
   Card, EmptyState, SectionLabel, IconClose,
   DEFAULT_APP_NOTICE, DEFAULT_DAILY_LOG, DEFAULT_KEV,
   IconCertificate, IconClipboard, IconDeck, IconEnvelope, IconMegaphone, IconShield, IconWrench,
   MoButton, STORAGE_KEYS, cardBackgroundStyle, formatBytes, saveJSON, timeAgo, truncate, usePersistentState,
   toast, IconBookOpen, IconBulb, IconChecklist, IconLock, IconShare, IconTrendingUp, IconUpload,
+  MO_SEVERITY_ORDER, MO_SOURCE_HINTS, moFindingKeyOf, moDiffFindings,
 } = window.__v;
 
 /* ----------------------------------------------------------------------
@@ -48,7 +49,8 @@ const PKI_REPORT_FIELDS = [
 ];
 
 // Ordered severity buckets + fixed colors that read on any Vantage theme.
-const MO_SEVERITY_ORDER = ["Critical", "High", "Medium", "Low", "Info", "Unrated"];
+// MO_SEVERITY_ORDER itself lives in core (bridged in below) — MoDashboard
+// needs it before this chunk has loaded.
 const MO_SEVERITY_COLORS = {
   Critical: "#c0392b",
   High: "#e07a20",
@@ -171,21 +173,9 @@ function moDetectColumn(headers, candidates, taken) {
 }
 
 // Column hints per source. Auto-detection tries these in order, but the user
-// can always override via the mapping dropdowns.
-const MO_SOURCE_HINTS = {
-  s1: {
-    label: "SentinelOne (S1)",
-    severity: ["severity", "risk", "cvss"],
-    asset: ["endpoint", "host", "device", "agent", "machine", "computer"],
-    name: ["cve", "vulnerability", "name", "title", "application", "package"],
-  },
-  iru: {
-    label: "IRU",
-    severity: ["severity", "risk", "criticality", "cvss"],
-    asset: ["asset", "host", "ip", "system", "resource"],
-    name: ["cve", "vulnerability", "finding", "name", "title", "plugin"],
-  },
-};
+// can always override via the mapping dropdowns. MO_SOURCE_HINTS itself lives
+// in core (bridged in below) — MoDashboard needs it before this chunk has
+// loaded.
 
 // Lazily pull SheetJS from its CDN only when an .xlsx/.xls file is dropped —
 // CSV never needs it, and this keeps the initial page weightless.
@@ -620,9 +610,70 @@ function MoModal({ theme, title, subtitle, icon, onClose, children, footer, help
   const titleId = useRef("mo-modal-" + Math.random().toString(36).slice(2, 9)).current;
   const [moHelpDismissed, setMoHelpDismissed] = usePersistentState(STORAGE_KEYS.moHelp, {});
   const [helpForced, setHelpForced] = useState(false);
-  useOverlayBehaviour(onClose, panelRef);
+  const embedded = useContext(MoEmbedContext);
+  useOverlayBehaviour(onClose, panelRef, !embedded);
   const hasHelp = !!(helpId && MO_HELP[helpId]);
   const helpHidden = hasHelp && !!moHelpDismissed[helpId];
+
+  const helpBtn = hasHelp && helpHidden && (
+    <button
+      onClick={() => setHelpForced((v) => !v)}
+      className="v-btn v-iconbtn"
+      title="How to use this"
+      aria-label="How to use this"
+      style={{
+        border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.textMuted,
+        borderRadius: "10px", width: "34px", height: "34px", display: "inline-flex",
+        alignItems: "center", justifyContent: "center", flexShrink: 0, lineHeight: 1, fontWeight: 800, fontSize: "15px",
+      }}
+    >
+      ?
+    </button>
+  );
+  const helpPanel = hasHelp && (
+    <MoHelp
+      theme={theme}
+      toolId={helpId}
+      dismissed={moHelpDismissed}
+      setDismissed={setMoHelpDismissed}
+      forceOpen={helpForced}
+      onCloseForced={() => setHelpForced(false)}
+    />
+  );
+
+  // In-page: a section of the Mechanical Orchard page. No portal, no backdrop,
+  // no dialog semantics — it is not a dialog any more, and calling it one
+  // would tell a screen reader the rest of the page had gone away.
+  if (embedded) {
+    return (
+      <div ref={panelRef} className="v-mo-panel">
+        <button
+          onClick={onClose}
+          className="v-btn v-mo-back"
+          style={{
+            display: "inline-flex", alignItems: "center", gap: "7px", marginBottom: "14px",
+            padding: "7px 12px", borderRadius: "10px", border: `1px solid ${theme.cardBorder}`,
+            background: "transparent", color: theme.textMuted, fontSize: "13px", fontWeight: 700,
+          }}
+        >
+          <span aria-hidden="true">&#8592;</span> All tools
+        </button>
+        <div style={{ ...cardBackgroundStyle(theme), padding: "26px 28px" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", marginBottom: "18px" }}>
+            <span style={{ color: theme.accent, marginTop: "2px", display: "inline-flex" }}>{icon}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <h2 id={titleId} style={{ margin: 0, fontSize: "clamp(17px, 2.2vw, 19px)", fontWeight: 800, color: theme.text, lineHeight: 1.2 }}>{title}</h2>
+              {subtitle && <div style={{ fontSize: "13px", color: theme.textMuted, marginTop: "4px", lineHeight: 1.45 }}>{subtitle}</div>}
+            </div>
+            {helpBtn}
+          </div>
+          {helpPanel}
+          {children}
+          {footer && <div style={{ marginTop: "22px" }}>{footer}</div>}
+        </div>
+      </div>
+    );
+  }
 
   return ReactDOM.createPortal(
     <div
@@ -645,21 +696,7 @@ function MoModal({ theme, title, subtitle, icon, onClose, children, footer, help
             <div id={titleId} style={{ fontSize: "clamp(17px, 2.2vw, 19px)", fontWeight: 800, color: theme.text, lineHeight: 1.2 }}>{title}</div>
             {subtitle && <div style={{ fontSize: "13px", color: theme.textMuted, marginTop: "4px", lineHeight: 1.45 }}>{subtitle}</div>}
           </div>
-          {hasHelp && helpHidden && (
-            <button
-              onClick={() => setHelpForced((v) => !v)}
-              className="v-btn v-iconbtn"
-              title="How to use this"
-              aria-label="How to use this"
-              style={{
-                border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.textMuted,
-                borderRadius: "10px", width: "34px", height: "34px", display: "inline-flex",
-                alignItems: "center", justifyContent: "center", flexShrink: 0, lineHeight: 1, fontWeight: 800, fontSize: "15px",
-              }}
-            >
-              ?
-            </button>
-          )}
+          {helpBtn}
           <button
             onClick={onClose}
             className="v-btn v-iconbtn"
@@ -674,16 +711,7 @@ function MoModal({ theme, title, subtitle, icon, onClose, children, footer, help
             <IconClose />
           </button>
         </div>
-        {hasHelp && (
-          <MoHelp
-            theme={theme}
-            toolId={helpId}
-            dismissed={moHelpDismissed}
-            setDismissed={setMoHelpDismissed}
-            forceOpen={helpForced}
-            onCloseForced={() => setHelpForced(false)}
-          />
-        )}
+        {helpPanel}
         {children}
         {footer && <div style={{ marginTop: "22px" }}>{footer}</div>}
       </div>

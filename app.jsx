@@ -1,5 +1,5 @@
 
-const { useState, useEffect, useMemo, useRef } = React;
+const { useState, useEffect, useMemo, useRef, useContext, createContext } = React;
 
 /* ----------------------------------------------------------------------
    THEMES
@@ -7503,8 +7503,16 @@ function IconMegaphone({ size = 16 }) {
 }
 
 // Shared overlay behaviour: Escape, background scroll lock, focus move+restore.
-function useOverlayBehaviour(onClose, panelRef) {
+// Context flag: true when a MoModal is rendering embedded inside the
+// Mechanical Orchard page rather than as a portal-backed dialog. Created once
+// here in core and bridged into the chunk, so both sides see the same
+// Provider — a second createContext() call in the chunk would make its own
+// useContext() see only the default value, never the value set by App().
+const MoEmbedContext = createContext(false);
+
+function useOverlayBehaviour(onClose, panelRef, enabled = true) {
   useEffect(() => {
+    if (!enabled) return undefined;
     const opener = typeof document !== "undefined" ? document.activeElement : null;
     const FOCUSABLE = [
       "a[href]", "button:not([disabled])", "input:not([disabled]):not([type=\"hidden\"])",
@@ -7547,7 +7555,7 @@ function useOverlayBehaviour(onClose, panelRef) {
       releaseScroll();
       if (opener && typeof opener.focus === "function") opener.focus({ preventScroll: true });
     };
-  }, [onClose, panelRef]);
+  }, [onClose, panelRef, enabled]);
 }
 
 function MoButton({ theme, onClick, children, variant, disabled, style }) {
@@ -8870,6 +8878,244 @@ const MO_TOOLS = [
 const MO_TOOL_IDS = MO_TOOLS.map((t) => t.id);
 function moToolById(id) { return MO_TOOLS.find((t) => t.id === id) || null; }
 
+// Ordered severity buckets, and column hints per source for the Vulnerability
+// Analyzer's auto-detection. Live in core (bridged into the MO chunk) because
+// MoDashboard's summary cards need them before the chunk has loaded.
+const MO_SEVERITY_ORDER = ["Critical", "High", "Medium", "Low", "Info", "Unrated"];
+const MO_SOURCE_HINTS = {
+  s1: {
+    label: "SentinelOne (S1)",
+    severity: ["severity", "risk", "cvss"],
+    asset: ["endpoint", "host", "device", "agent", "machine", "computer"],
+    name: ["cve", "vulnerability", "name", "title", "application", "package"],
+  },
+  iru: {
+    label: "IRU",
+    severity: ["severity", "risk", "criticality", "cvss"],
+    asset: ["asset", "host", "ip", "system", "resource"],
+    name: ["cve", "vulnerability", "finding", "name", "title", "plugin"],
+  },
+};
+function moFindingKeyOf(f) {
+  return ((f.a || "").toLowerCase() + "|" + (f.n || "").toLowerCase());
+}
+// New / remediated / unchanged against the previous snapshot of the same
+// source. Returns null when there is nothing to compare against, so callers
+// can say so rather than implying a week of zero change.
+function moDiffFindings(current, previous) {
+  if (!current || !previous || !current.findings || !previous.findings) return null;
+  const prev = new Map(previous.findings.map((f) => [moFindingKeyOf(f), f]));
+  const cur = new Map(current.findings.map((f) => [moFindingKeyOf(f), f]));
+  const added = [], removed = [], worsened = [];
+  const rank = (s) => MO_SEVERITY_ORDER.indexOf(s);
+  cur.forEach((f, k) => {
+    const was = prev.get(k);
+    if (!was) added.push(f);
+    else if (rank(f.s) < rank(was.s)) worsened.push({ ...f, from: was.s });
+  });
+  prev.forEach((f, k) => { if (!cur.has(k)) removed.push(f); });
+  return { added, removed, worsened, unchanged: cur.size - added.length, since: previous.ts };
+}
+
+function moSourceStatus(snapshots, src) {
+  const mine = (snapshots || []).filter((s) => s.source === src).sort((x, y) => (x.ts < y.ts ? 1 : -1));
+  if (!mine.length) return null;
+  const latest = mine[0];
+  const prior = mine.slice(1).find((s) => s.findings);
+  const diff = latest.findings && prior ? moDiffFindings(latest, prior) : null;
+  return {
+    src,
+    latest,
+    diff,
+    critical: (latest.counts && latest.counts.Critical) || 0,
+    high: (latest.counts && latest.counts.High) || 0,
+  };
+}
+
+function MoStatCard({ theme, label, value, tone, note, sub }) {
+  return (
+    <div style={{ ...cardBackgroundStyle(theme), padding: "16px 18px", display: "flex", flexDirection: "column", gap: "3px", minWidth: 0 }}>
+      <div style={{ fontSize: "11px", fontWeight: 800, letterSpacing: "0.09em", textTransform: "uppercase", color: theme.sectionLabelColor }}>{label}</div>
+      <div
+        className="v-tabular"
+        style={{
+          fontSize: "24px",
+          // A dash is the absence of a number, so it should not be set in the
+          // same weight and colour as one.
+          fontWeight: value === "—" ? 400 : 800,
+          lineHeight: 1.15,
+          color: value === "—" ? theme.textFaint : (tone || theme.text),
+        }}
+      >
+        {value}
+      </div>
+      {sub && <div style={{ fontSize: "12px", color: theme.textMuted, lineHeight: 1.4 }}>{sub}</div>}
+      {note && <div style={{ fontSize: "12px", color: theme.textFaint, lineHeight: 1.4, marginTop: "2px" }}>{note}</div>}
+    </div>
+  );
+}
+
+function MoDashboard({ theme, snapshots, policies, dailyLog, cveWatchlist, appNotice, links, setLinks, onOpenTool }) {
+  const [editingLinks, setEditingLinks] = useState(false);
+
+  const status = useMemo(() => ({
+    s1: moSourceStatus(snapshots, "s1"),
+    iru: moSourceStatus(snapshots, "iru"),
+  }), [snapshots]);
+
+  const policyDone = (policies || []).filter((p) => p.status === "done").length;
+  const policyTotal = (policies || []).length;
+  const lastLog = ((dailyLog && dailyLog.entries) || [])[0] || null;
+  const watchCount = (cveWatchlist || []).length;
+  const watchChecked = (cveWatchlist || []).map((w) => w.fetchedAt).filter(Boolean).sort().pop() || null;
+  const noticeCount = ((appNotice && appNotice.history) || []).length;
+
+  const anySnapshot = !!(status.s1 || status.iru);
+  function updateLink(id, url) { setLinks((prev) => prev.map((l) => (l.id === id ? { ...l, url } : l))); }
+
+  // Movement, phrased as a clause rather than a signed number: "+3" next to a
+  // vulnerability count is ambiguous about whether it is good.
+  function movementNote(st) {
+    if (!st.diff) return "No earlier scan to compare against yet.";
+    const bits = [];
+    if (st.diff.added.length) bits.push(`${st.diff.added.length} new`);
+    if (st.diff.removed.length) bits.push(`${st.diff.removed.length} remediated`);
+    if (!bits.length) return "Unchanged since the previous scan.";
+    return bits.join(", ") + " since " + moFormatTs(st.diff.since) + ".";
+  }
+
+  return (
+    <div>
+      <div className="v-mo-stats">
+        {["s1", "iru"].map((src) => {
+          const st = status[src];
+          if (!st) return null;
+          return (
+            <MoStatCard
+              key={src}
+              theme={theme}
+              label={MO_SOURCE_HINTS[src].label}
+              value={st.critical + st.high}
+              tone={st.critical ? theme.danger : theme.text}
+              sub={`${st.critical} critical · ${st.high} high · ${st.latest.total} total`}
+              note={movementNote(st)}
+            />
+          );
+        })}
+        {!anySnapshot && (
+          <MoStatCard
+            theme={theme}
+            label="Vulnerabilities"
+            value="—"
+            sub="No scan saved yet"
+            note="Run an export through the Vulnerability Analyzer and save a snapshot; everything else on this page builds on that."
+          />
+        )}
+        <MoStatCard
+          theme={theme}
+          label="Policies"
+          value={`${policyDone}/${policyTotal}`}
+          tone={policyDone === policyTotal && policyTotal ? theme.positive : theme.text}
+          sub={policyTotal ? `${policyTotal - policyDone} still outstanding` : "None tracked"}
+        />
+        <MoStatCard
+          theme={theme}
+          label="CVE Watchlist"
+          value={watchCount}
+          sub={watchCount === 1 ? "keyword watched" : "keywords watched"}
+          note={watchChecked ? "Last checked " + moFormatTs(watchChecked) + "." : watchCount ? "Never checked." : "Nothing on the list."}
+        />
+        <MoStatCard
+          theme={theme}
+          label="Daily log"
+          value={lastLog ? moFormatTs(lastLog.at).split(",")[0] : "—"}
+          sub={lastLog ? "last entry saved" : "no entries yet"}
+          note={noticeCount ? noticeCount + (noticeCount === 1 ? " app notice drafted." : " app notices drafted.") : null}
+        />
+      </div>
+
+      {MO_TOOL_GROUPS.map((g) => {
+        const tools = MO_TOOLS.filter((t) => t.group === g.id);
+        if (!tools.length) return null;
+        return (
+          <div key={g.id} style={{ marginTop: "26px" }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap", marginBottom: "12px" }}>
+              <h2 style={{ margin: 0, fontSize: "13px", fontWeight: 800, letterSpacing: "0.09em", textTransform: "uppercase", color: theme.sectionLabelColor }}>{g.label}</h2>
+              <span style={{ fontSize: "13px", color: theme.textFaint }}>{g.blurb}</span>
+            </div>
+            <div className="v-mo-grid">
+              {tools.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => onOpenTool(t.id)}
+                  className="v-btn v-mo-tool"
+                  style={{
+                    ...cardBackgroundStyle(theme), textAlign: "left", padding: "16px 18px",
+                    display: "flex", alignItems: "flex-start", gap: "12px", color: theme.text,
+                    "--mo-tool-hover": theme.accentSoft, "--mo-tool-border": theme.accent,
+                  }}
+                >
+                  <span style={{ color: theme.accentOn, display: "inline-flex", flexShrink: 0, marginTop: "2px" }}>{t.icon}</span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: "block", fontSize: "14px", fontWeight: 700, marginBottom: "3px" }}>{t.label}</span>
+                    <span style={{ display: "block", fontSize: "12px", color: theme.textMuted, lineHeight: 1.45 }}>{t.desc}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+
+      <div style={{ marginTop: "26px" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginBottom: "12px" }}>
+          <h2 style={{ margin: 0, fontSize: "13px", fontWeight: 800, letterSpacing: "0.09em", textTransform: "uppercase", color: theme.sectionLabelColor, flex: 1 }}>Consoles</h2>
+          <button onClick={() => setEditingLinks((v) => !v)} className="v-btn" style={{ fontSize: "12px", fontWeight: 700, color: theme.accentOn, background: "transparent", border: "none", padding: 0 }}>
+            {editingLinks ? "Done" : "Edit links"}
+          </button>
+        </div>
+        <div className="v-mo-grid">
+          {(links || []).map((l) => (
+            editingLinks ? (
+              <div key={l.id} style={{ ...cardBackgroundStyle(theme), padding: "14px 16px" }}>
+                <div style={{ fontSize: "12px", fontWeight: 700, color: theme.textMuted, marginBottom: "6px" }}>{l.label}</div>
+                <input
+                  value={l.url}
+                  onChange={(e) => updateLink(l.id, e.target.value)}
+                  placeholder="https://…"
+                  className="v-input"
+                  style={{ width: "100%", padding: "8px 10px", borderRadius: "8px", fontSize: "13px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent }}
+                />
+              </div>
+            ) : (
+              <a
+                key={l.id}
+                href={l.url || undefined}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => { if (!l.url) { e.preventDefault(); setEditingLinks(true); } }}
+                className="v-btn v-mo-tool"
+                style={{
+                  ...cardBackgroundStyle(theme), padding: "16px 18px", textDecoration: "none",
+                  display: "flex", alignItems: "center", gap: "12px",
+                  color: l.url ? theme.text : theme.textFaint,
+                  "--mo-tool-hover": theme.accentSoft, "--mo-tool-border": theme.accent,
+                }}
+              >
+                <span style={{ color: theme.textMuted, display: "inline-flex", flexShrink: 0 }}><IconLink /></span>
+                <span style={{ flex: 1, minWidth: 0, fontSize: "14px", fontWeight: 700 }}>{l.label}</span>
+                <span style={{ color: theme.textFaint, display: "inline-flex", flexShrink: 0 }}>
+                  {l.url ? <IconExternal size={13} /> : <span style={{ fontSize: "12px", fontWeight: 700 }}>set link</span>}
+                </span>
+              </a>
+            )
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Every non-Home page BearVantageHub can navigate to. Order here drives both
 // the sidebar nav list and the Home overview tile grid.
 const PAGE_META = [
@@ -8901,6 +9147,7 @@ const PAGE_META = [
   { id: "news", label: "News", icon: <IconNews size={14} /> },
   { id: "sports", label: "Sports", icon: <IconTrophy size={14} /> },
   { id: "subscriptions", label: "Subscriptions", icon: <IconCreditCard size={14} /> },
+  { id: "mo", label: "Mechanical Orchard", icon: <IconOrchard size={14} /> },
   { id: "securityx", label: "SecurityX", icon: <IconAcademic size={14} /> },
   { id: "ravenseye", label: "Raven's Eye", icon: <IconRavenEye size={14} /> },
   { id: "jobsearch", label: "Job Search", icon: <IconBriefcase size={14} /> },
@@ -8921,7 +9168,7 @@ const NAV_GROUPS = [
   { id: "play", label: "Read & Play", ids: ["reading", "games", "music", "news"] },
   { id: "life", label: "Life", ids: ["profile", "resume", "goals", "trackers", "birthdays"] },
   { id: "plan", label: "Plan", ids: ["weather", "travel", "mealplanning"] },
-  { id: "work", label: "Security & Work", ids: ["securityx", "ravenseye", "jobsearch"] },
+  { id: "work", label: "Security & Work", ids: ["mo", "securityx", "ravenseye", "jobsearch"] },
 ];
 
 function NavChevron({ collapsed }) {
@@ -8951,6 +9198,7 @@ const PAGE_SUBTITLES = {
   habits: "Daily streaks", birthdays: "Never miss an occasion",
   jobsearch: "Cybersecurity roles matched to your resume",
   gaming: "Releases, reveals, and esports",
+  mo: "Security tooling and this week's numbers",
 };
 // Banner photos. These are hotlinked from third-party hosts, several of which
 // block cross-site requests or rotate their URLs — so every one degrades to the
@@ -9586,9 +9834,6 @@ function Sidebar({
   fantasySleeper,
   fantasyYahoo,
   ravenProducts,
-  moLinks,
-  setMoLinks,
-  onOpenMoTool,
   lock,
   setLock,
   onLockNow,
@@ -9690,7 +9935,6 @@ function Sidebar({
 
   const closeNav = () => setNavOpen(false);
   const go = (id) => { onNavigate(id); setNavOpen(false); };
-  const openTool = (t) => { onOpenMoTool(t); setNavOpen(false); };
   const openPalette = () => { onOpenPalette(); setNavOpen(false); };
 
   useEffect(() => {
@@ -9897,7 +10141,6 @@ function Sidebar({
             </div>
           );
         })()}
-        <MechanicalOrchardMenu theme={theme} links={moLinks} setLinks={setMoLinks} onOpenTool={openTool} />
       </div>
 
       <button
@@ -13335,7 +13578,12 @@ function App() {
   const [dailyLog, setDailyLog] = usePersistentState(STORAGE_KEYS.dailyLog, DEFAULT_DAILY_LOG);
   const [kev, setKev] = usePersistentState(STORAGE_KEYS.kev, DEFAULT_KEV);
   const [cveWatchlist, setCveWatchlist] = usePersistentState(STORAGE_KEYS.cveWatchlist, []);
-  const [moTool, setMoTool] = useState(null); // "vuln-s1" | "vuln-iru" | "pki" | "policy" | "deck" | null
+  // Which MO tool is open is a property of the URL, not of component state:
+  // "#mo" is the dashboard, "#mo/vuln-s1" is a tool. That makes a tool
+  // bookmarkable, makes the back button step out of it rather than off the
+  // page, and means there is only one place the answer can come from.
+  const moTool = page === "mo" && quickAction && MO_TOOL_IDS.includes(quickAction) ? quickAction : null;
+  const openMoTool = (id) => navigate(id ? "mo/" + id : "mo");
   const [ravenProducts, setRavenProducts] = usePersistentState(STORAGE_KEYS.ravenProducts, []);
   const [trackers, setTrackers] = usePersistentState(STORAGE_KEYS.trackers, DEFAULT_TRACKERS);
   const [financial, setFinancial] = usePersistentState(STORAGE_KEYS.financial, DEFAULT_FINANCIAL);
@@ -13607,9 +13855,6 @@ function App() {
         fantasySleeper={fantasySleeper}
         fantasyYahoo={fantasyYahoo}
         ravenProducts={ravenProducts}
-        moLinks={moLinks}
-        setMoLinks={setMoLinks}
-        onOpenMoTool={setMoTool}
         lock={lock}
         setLock={setLock}
         onLockNow={handleLockNow}
@@ -13793,6 +14038,43 @@ function App() {
           )}
           {page === "sports" && <SportsSection theme={theme} state={sports} setState={setSports} />}
           {page === "subscriptions" && <SubscriptionsSection theme={theme} subs={subscriptions} setSubs={setSubscriptions} />}
+          {page === "mo" && (
+            moTool ? (
+              <LazyMoModals
+                theme={theme}
+                moTool={moTool}
+                openMoTool={openMoTool}
+                moSnapshots={moSnapshots}
+                setMoSnapshots={setMoSnapshots}
+                pkiReport={pkiReport}
+                setPkiReport={setPkiReport}
+                moPolicies={moPolicies}
+                setMoPolicies={setMoPolicies}
+                deck={deck}
+                setDeck={setDeck}
+                moAppNotice={moAppNotice}
+                setMoAppNotice={setMoAppNotice}
+                dailyLog={dailyLog}
+                setDailyLog={setDailyLog}
+                kev={kev}
+                setKev={setKev}
+                cveWatchlist={cveWatchlist}
+                setCveWatchlist={setCveWatchlist}
+              />
+            ) : (
+              <MoDashboard
+                theme={theme}
+                snapshots={moSnapshots}
+                policies={moPolicies}
+                dailyLog={dailyLog}
+                cveWatchlist={cveWatchlist}
+                appNotice={moAppNotice}
+                links={moLinks}
+                setLinks={setMoLinks}
+                onOpenTool={openMoTool}
+              />
+            )
+          )}
           {page === "securityx" && <LazySecurityXSection theme={theme} />}
           {page === "ravenseye" && (
             <LazyRavenSection theme={theme} products={ravenProducts} setProducts={setRavenProducts} />
@@ -13816,7 +14098,7 @@ function App() {
             financialAccounts: financial.accounts, subscriptions, habits: habits.items, books: reading.books, savedRecipes: mealPlanning.savedRecipes,
           }}
           onNavigate={navigate}
-          onOpenMoTool={setMoTool}
+          onOpenMoTool={openMoTool}
           onClose={() => setPaletteOpen(false)}
         />
       )}
@@ -13827,7 +14109,7 @@ function App() {
           page={page}
           pageVisits={pageVisits}
           onNavigate={navigate}
-          onOpenMoTool={setMoTool}
+          onOpenMoTool={openMoTool}
           onClose={() => setShowDirectory(false)}
         />
       )}
@@ -13835,28 +14117,6 @@ function App() {
       {briefingOpen && suggestions.length > 0 && (
         <BriefingModal theme={theme} suggestions={suggestions} weather={weather} onClose={dismissBriefing} />
       )}
-
-      <LazyMoModals
-        theme={theme}
-        moTool={moTool}
-        setMoTool={setMoTool}
-        moSnapshots={moSnapshots}
-        setMoSnapshots={setMoSnapshots}
-        pkiReport={pkiReport}
-        setPkiReport={setPkiReport}
-        moPolicies={moPolicies}
-        setMoPolicies={setMoPolicies}
-        deck={deck}
-        setDeck={setDeck}
-        moAppNotice={moAppNotice}
-        setMoAppNotice={setMoAppNotice}
-        dailyLog={dailyLog}
-        setDailyLog={setDailyLog}
-        kev={kev}
-        setKev={setKev}
-        cveWatchlist={cveWatchlist}
-        setCveWatchlist={setCveWatchlist}
-      />
     </div>
   );
 }
@@ -13900,11 +14160,14 @@ function MoModalLoadingOverlay({ theme, error, onRetry, onClose }) {
 // report generator, policy tracker, deck builder, and the rest) plus the
 // SecurityX study tool now ship as one shared chunk (see loadChunk()/
 // window.__v near the bottom of this file) instead of every page's bundle —
-// same rationale as Raven's Eye and Golf. MechanicalOrchardMenu (the sidebar
-// popover listing these tools) stays in core since it's always mounted; only
-// the tools themselves, opened on demand, are lazy-loaded.
+// same rationale as Raven's Eye and Golf. Only the tools themselves, opened
+// on demand, are lazy-loaded; MoDashboard (the "#mo" landing page) is core so
+// it renders instantly. Rendered wrapped in <MoEmbedContext.Provider
+// value={true}> — every modal inside opens as a plain page panel, not a
+// portal dialog, because it's a tool on the Mechanical Orchard page now, not
+// an overlay floating above whatever page you were on.
 function LazyMoModals({
-  theme, moTool, setMoTool,
+  theme, moTool, openMoTool,
   moSnapshots, setMoSnapshots,
   pkiReport, setPkiReport,
   moPolicies, setMoPolicies,
@@ -13939,7 +14202,7 @@ function LazyMoModals({
   // App() render regardless of whether a tool is even open, which is exactly
   // what broke page scrolling everywhere until this was split out).
   if (!mod) {
-    return <MoModalLoadingOverlay theme={theme} error={error} onRetry={attemptLoad} onClose={() => setMoTool(null)} />;
+    return <MoModalLoadingOverlay theme={theme} error={error} onRetry={attemptLoad} onClose={() => openMoTool(null)} />;
   }
 
   const {
@@ -13949,50 +14212,50 @@ function LazyMoModals({
   } = mod;
 
   return (
-    <>
+    <MoEmbedContext.Provider value={true}>
       {(moTool === "vuln-s1" || moTool === "vuln-iru") && (
         <VulnerabilityAnalyzerModal
           theme={theme}
           initialSource={moTool === "vuln-iru" ? "iru" : "s1"}
           snapshots={moSnapshots}
           setSnapshots={setMoSnapshots}
-          onClose={() => setMoTool(null)}
+          onClose={() => openMoTool(null)}
         />
       )}
       {moTool === "pki" && (
-        <PkiReportModal theme={theme} values={pkiReport} setValues={setPkiReport} onClose={() => setMoTool(null)} />
+        <PkiReportModal theme={theme} values={pkiReport} setValues={setPkiReport} onClose={() => openMoTool(null)} />
       )}
       {moTool === "policy" && (
-        <PolicyTrackerModal theme={theme} policies={moPolicies} setPolicies={setMoPolicies} onClose={() => setMoTool(null)} />
+        <PolicyTrackerModal theme={theme} policies={moPolicies} setPolicies={setMoPolicies} onClose={() => openMoTool(null)} />
       )}
       {moTool === "deck" && (
-        <DeckBuilderModal theme={theme} deck={deck} setDeck={setDeck} onClose={() => setMoTool(null)} />
+        <DeckBuilderModal theme={theme} deck={deck} setDeck={setDeck} onClose={() => openMoTool(null)} />
       )}
       {moTool === "appnotice" && (
-        <AppNoticeModal theme={theme} state={moAppNotice} setState={setMoAppNotice} onClose={() => setMoTool(null)} />
+        <AppNoticeModal theme={theme} state={moAppNotice} setState={setMoAppNotice} onClose={() => openMoTool(null)} />
       )}
       {moTool === "dailylog" && (
-        <DailyLogModal theme={theme} snapshots={moSnapshots} notices={(moAppNotice && moAppNotice.history) || []} policies={moPolicies} state={dailyLog} setState={setDailyLog} onClose={() => setMoTool(null)} />
+        <DailyLogModal theme={theme} snapshots={moSnapshots} notices={(moAppNotice && moAppNotice.history) || []} policies={moPolicies} state={dailyLog} setState={setDailyLog} onClose={() => openMoTool(null)} />
       )}
       {moTool === "kev" && (
-        <KevLookupModal theme={theme} state={kev} setState={setKev} onClose={() => setMoTool(null)} />
+        <KevLookupModal theme={theme} state={kev} setState={setKev} onClose={() => openMoTool(null)} />
       )}
       {moTool === "vulntrend" && (
-        <VulnTrendModal theme={theme} snapshots={moSnapshots} onClose={() => setMoTool(null)} />
+        <VulnTrendModal theme={theme} snapshots={moSnapshots} onClose={() => openMoTool(null)} />
       )}
       {moTool === "toolkit" && (
-        <SecurityToolkitModal theme={theme} onClose={() => setMoTool(null)} />
+        <SecurityToolkitModal theme={theme} onClose={() => openMoTool(null)} />
       )}
       {moTool === "phish" && (
-        <PhishHeaderModal theme={theme} onClose={() => setMoTool(null)} />
+        <PhishHeaderModal theme={theme} onClose={() => openMoTool(null)} />
       )}
       {moTool === "cve-watch" && (
-        <CveWatchlistModal theme={theme} watchlist={cveWatchlist} setWatchlist={setCveWatchlist} onClose={() => setMoTool(null)} />
+        <CveWatchlistModal theme={theme} watchlist={cveWatchlist} setWatchlist={setCveWatchlist} onClose={() => openMoTool(null)} />
       )}
       {moTool === "pwned-pw" && (
-        <PasswordBreachModal theme={theme} onClose={() => setMoTool(null)} />
+        <PasswordBreachModal theme={theme} onClose={() => openMoTool(null)} />
       )}
-    </>
+    </MoEmbedContext.Provider>
   );
 }
 
@@ -14083,174 +14346,6 @@ function LazyJobSearchPage({ theme, resume }) {
   const { JobSearchPage } = mod;
   return <JobSearchPage theme={theme} resume={resume} />;
 }
-
-
-/* ---- The nav-tab popover that ties it all together ---- */
-function MechanicalOrchardMenu({ theme, links, setLinks, onOpenTool }) {
-  const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState(null);
-  const [editingLinks, setEditingLinks] = useState(false);
-  const btnRef = useRef(null);
-  const popRef = useRef(null);
-
-  function place() {
-    const el = btnRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const M = 12;
-    const wide = window.innerWidth > 900;
-    const width = Math.min(320, window.innerWidth - M * 2);
-    // Clear the whole rail, not just the button, so a collapsed or resized
-    // rail still opens the menu cleanly beside it.
-    const rail = document.querySelector(".v-rail");
-    const railRight = rail ? rail.getBoundingClientRect().right : r.right;
-    let left = wide ? railRight + 10 : r.left;
-    left = Math.max(M, Math.min(left, window.innerWidth - width - M));
-    // Decide the height first, then place the menu so that height always fits —
-    // otherwise a trigger low in the mobile drawer pushes the menu off-screen.
-    const height = Math.min(560, window.innerHeight - M * 2);
-    let top = wide ? r.top : r.bottom + 8;
-    top = Math.max(M, Math.min(top, window.innerHeight - height - M));
-    setPos({ top, left, width, maxHeight: Math.min(height, window.innerHeight - top - M) });
-  }
-
-  function toggle() {
-    if (open) { setOpen(false); return; }
-    place();
-    setOpen(true);
-  }
-
-  useEffect(() => {
-    if (!open) return;
-    function onDown(e) {
-      if (popRef.current && !popRef.current.contains(e.target) && btnRef.current && !btnRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    }
-    function onKey(e) { if (e.key === "Escape") setOpen(false); }
-    let lastW = window.innerWidth;
-    function onResize() {
-      // Vertical-only resizes are mobile URL-bar chrome, not a real layout change.
-      if (window.innerWidth === lastW) { place(); return; }
-      lastW = window.innerWidth;
-      setOpen(false);
-    }
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    window.addEventListener("resize", onResize);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-      window.removeEventListener("resize", onResize);
-    };
-  }, [open]);
-
-  function pick(toolId) { setOpen(false); onOpenTool(toolId); }
-  function updateLink(id, url) { setLinks((prev) => prev.map((l) => (l.id === id ? { ...l, url } : l))); }
-
-  const tools = MO_TOOLS;
-
-  return (
-    <React.Fragment>
-      <button
-        ref={btnRef}
-        onClick={toggle}
-        title="Mechanical Orchard"
-        className="v-btn v-navitem"
-        style={{
-          color: open ? theme.accent : theme.text,
-          background: open ? theme.accentSoft : "transparent",
-          "--navitem-hover": theme.accentSoft,
-        }}
-      >
-        <span style={{ color: open ? theme.accent : theme.textMuted, flexShrink: 0, display: "inline-flex" }}><IconOrchard size={14} /></span>
-        <span className="v-navitem__label" style={{ fontSize: "13.5px", fontWeight: open ? 700 : 600, flex: 1, textAlign: "left" }}>Mechanical Orchard</span>
-        <span className="v-railonly" style={{ fontSize: "9px", color: theme.textMuted, flexShrink: 0, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s ease" }}>&#9662;</span>
-      </button>
-
-      {open && pos && ReactDOM.createPortal(
-        <div
-          ref={popRef}
-          className="v-scroll"
-          style={{
-            position: "fixed", top: pos.top, left: pos.left, width: pos.width, zIndex: 90,
-            maxHeight: pos.maxHeight ? pos.maxHeight + "px" : "min(78vh, 560px)", overflowY: "auto", "--scroll-thumb": theme.divider,
-            ...cardBackgroundStyle(theme), padding: "12px", animation: "vFadeInUp 0.16s ease both",
-          }}
-        >
-          <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: theme.sectionLabelColor, padding: "4px 8px 8px" }}>Tools</div>
-          {tools.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => pick(t.id)}
-              className="v-btn"
-              style={{
-                display: "flex", alignItems: "center", gap: "10px", width: "100%", textAlign: "left",
-                border: "none", background: "transparent", color: theme.text, padding: "9px 8px", borderRadius: "9px",
-                "--navitem-hover": theme.accentSoft,
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = theme.accentSoft)}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-            >
-              <span style={{ color: theme.accent, display: "inline-flex", flexShrink: 0 }}>{t.icon}</span>
-              <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: "block", fontSize: "13px", fontWeight: 600 }}>{t.label}</span>
-                <span style={{ display: "block", fontSize: "11px", color: theme.textFaint }}>{t.desc}</span>
-              </span>
-            </button>
-          ))}
-
-          <div style={{ height: "1px", background: theme.divider, margin: "10px 4px" }} />
-
-          <div style={{ display: "flex", alignItems: "center", padding: "0 8px 8px" }}>
-            <span style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: theme.sectionLabelColor, flex: 1 }}>Links</span>
-            <button onClick={() => setEditingLinks((v) => !v)} className="v-btn" style={{ fontSize: "11px", fontWeight: 700, color: theme.accent, background: "transparent", border: "none", padding: 0 }}>
-              {editingLinks ? "Done" : "Edit"}
-            </button>
-          </div>
-
-          {links.map((l) => (
-            editingLinks ? (
-              <div key={l.id} style={{ padding: "4px 8px 8px" }}>
-                <div style={{ fontSize: "11px", fontWeight: 700, color: theme.textMuted, marginBottom: "4px" }}>{l.label}</div>
-                <input
-                  value={l.url}
-                  onChange={(e) => updateLink(l.id, e.target.value)}
-                  placeholder="https://…"
-                  className="v-input"
-                  style={{ width: "100%", padding: "7px 9px", borderRadius: "8px", fontSize: "12px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent }}
-                />
-              </div>
-            ) : (
-              <a
-                key={l.id}
-                href={l.url || undefined}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => { if (!l.url) { e.preventDefault(); setEditingLinks(true); } else { setOpen(false); } }}
-                className="v-btn"
-                style={{
-                  display: "flex", alignItems: "center", gap: "10px", width: "100%", textDecoration: "none",
-                  color: l.url ? theme.text : theme.textFaint, padding: "9px 8px", borderRadius: "9px",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = theme.accentSoft)}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-              >
-                <span style={{ color: theme.textMuted, display: "inline-flex", flexShrink: 0 }}><IconLink /></span>
-                <span style={{ flex: 1, fontSize: "13px", fontWeight: 600 }}>{l.label}</span>
-                <span style={{ color: theme.textFaint, display: "inline-flex", flexShrink: 0 }}>
-                  {l.url ? <IconExternal size={13} /> : <span style={{ fontSize: "11px" }}>set link</span>}
-                </span>
-              </a>
-            )
-          ))}
-        </div>,
-        document.body
-      )}
-    </React.Fragment>
-  );
-}
-
 
 // Raven's Eye now ships as its own chunk (see loadChunk()/window.__v near
 // the bottom of this file) instead of being part of every page's bundle.
@@ -14407,6 +14502,7 @@ window.__v = {
   truncate,
   usePersistentState,
   useOverlayBehaviour,
+  MoEmbedContext,
   toast,
   IconBookOpen,
   IconBulb,
@@ -14416,6 +14512,10 @@ window.__v = {
   IconTrendingUp,
   IconUpload,
   IconBriefcase,
+  MO_SEVERITY_ORDER,
+  MO_SOURCE_HINTS,
+  moFindingKeyOf,
+  moDiffFindings,
 };
 window.__vChunks = window.__vChunks || {};
 window.__vChunkPromises = {};

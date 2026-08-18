@@ -980,6 +980,47 @@
     .v-dir__grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr)); }
   }
 
+  /* --- Mechanical Orchard dashboard --------------------------------------
+     The status strip and the tool grid are both "as many as fit, minimum
+     legible width" — auto-fit rather than a fixed column count, so the same
+     rule serves a phone, a laptop and an ultrawide without breakpoints. The
+     stat cards get a smaller minimum than the tool cards because they hold a
+     number and a line, not a number and a paragraph. */
+  .v-mo-stats {
+    display: grid;
+    /* 13rem rather than something roomier so all five status cards fit one
+       row at a normal laptop width — a lone fifth card wrapping onto its own
+       row reads as a different section rather than as the end of this one. */
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+    gap: 12px;
+  }
+  .v-mo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+    gap: 12px;
+  }
+  /* A tool card is a button, so it has to say so on hover and focus without
+     moving the text — the cards sit in a grid and any size change would
+     shove its neighbours. Border colour and lift only. */
+  .v-mo-tool {
+    cursor: pointer;
+    transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .v-mo-tool:hover,
+  .v-mo-tool:focus-visible {
+    border-color: var(--mo-tool-border, var(--v-accent, currentColor)) !important;
+    transform: translateY(-2px);
+    box-shadow: var(--sh-2, 0 6px 18px rgba(0,0,0,0.10));
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .v-mo-tool { transition: none; }
+    .v-mo-tool:hover, .v-mo-tool:focus-visible { transform: none; }
+  }
+  /* A tool rendered in the page rather than in a dialog. The modal card had a
+     max-height and its own scrollbar because it floated; in the page the
+     document scrolls, so neither applies. */
+  .v-mo-panel { animation: vFadeInUp 0.16s ease both; }
+
   /* ---- Focus ring: visible on every theme (accent + a contrasting halo) ---- */
   .v-btn:focus-visible, .v-navitem:focus-visible, .v-swatch:focus-visible,
   .v-hometile:focus-visible, .v-rail-brand:focus-visible,
