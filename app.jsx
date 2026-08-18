@@ -969,7 +969,8 @@ const STORAGE_KEYS = {
   news: "dash.news",
   lock: "dash.lock",
   reminders: "dash.reminders",
-  navCollapsed: "dash.navCollapsed",
+  navOpenGroup: "dash.navOpenGroup",
+  pageVisits: "dash.pageVisits",
   ravenProducts: "dash.ravenProducts",
   trips: "dash.trips",
   mealPlanning: "dash.mealPlanning",
@@ -7160,7 +7161,7 @@ function ThemePicker({ theme, themeKey, setThemeKey }) {
   }, []);
 
   return (
-    <div ref={wrapRef} style={{ position: "relative" }}>
+    <div ref={wrapRef} className="v-themewrap" style={{ position: "relative" }}>
       <button
         onClick={() => setOpen((o) => !o)}
         className="v-btn v-themebtn"
@@ -8843,8 +8844,34 @@ function YouTubeSection({ theme, integrations, setIntegrations, videos, onVideos
   );
 }
 
-// Every non-Home page Vantage can navigate to. Order here drives both the
-// sidebar nav list and the Home overview tile grid.
+// The Mechanical Orchard toolset. Grouped by what you are actually doing:
+// looking at what came out of a scanner, producing something for someone
+// else to read, or checking one thing quickly.
+const MO_TOOL_GROUPS = [
+  { id: "assess", label: "Assess", blurb: "What the scanners found, and how it is moving." },
+  { id: "produce", label: "Produce", blurb: "Turn findings into something a person can read." },
+  { id: "lookup", label: "Look up", blurb: "Answer one question, fast." },
+];
+const MO_TOOLS = [
+  { id: "vuln-s1", group: "assess", icon: <IconShield size={15} />, label: "Vulnerability Analyzer — S1", desc: "Read a SentinelOne export: severity split, worst assets, and what moved since last week" },
+  { id: "vuln-iru", group: "assess", icon: <IconShield size={15} />, label: "Vulnerability Analyzer — IRU", desc: "The same analysis for an IRU export" },
+  { id: "vulntrend", group: "assess", icon: <IconTrendingUp size={15} />, label: "Vulnerability Trends", desc: "Chart saved snapshots over time, per source" },
+  { id: "policy", group: "assess", icon: <IconClipboard size={15} />, label: "Policy & Procedure Writeup", desc: "Track the ~20 documents a program is expected to hold, and store the files" },
+  { id: "deck", group: "produce", icon: <IconDeck size={15} />, label: "Weekly Report Deck", desc: "Fill a PPTX template — auto-filled from the latest snapshot" },
+  { id: "pki", group: "produce", icon: <IconCertificate size={15} />, label: "PKI Report Generator", desc: "Assemble the recurring certificate-authority report" },
+  { id: "dailylog", group: "produce", icon: <IconClipboard size={15} />, label: "Daily InfoSec Log", desc: "Compile the day's snapshots, notices and policy movement into one entry" },
+  { id: "appnotice", group: "produce", icon: <IconMegaphone size={15} />, label: "Outdated App Notice", desc: "Draft the update-or-remove message to send a user" },
+  { id: "kev", group: "lookup", icon: <IconShield size={15} />, label: "CVE / KEV Lookup", desc: "Check a CVE against CISA's Known Exploited catalogue" },
+  { id: "cve-watch", group: "lookup", icon: <IconShield size={15} />, label: "CVE Watchlist", desc: "Watch vendors and products against live NVD data" },
+  { id: "toolkit", group: "lookup", icon: <IconWrench size={15} />, label: "Security Utility Belt", desc: "Extract IOCs, defang, decode base64/JWT, hash" },
+  { id: "phish", group: "lookup", icon: <IconEnvelope size={15} />, label: "Phishing Header Analyzer", desc: "Read SPF/DKIM/DMARC results and the relay hops" },
+  { id: "pwned-pw", group: "lookup", icon: <IconLock size={15} />, label: "Password Breach Check", desc: "k-anonymity lookup — the password never leaves the browser" },
+];
+const MO_TOOL_IDS = MO_TOOLS.map((t) => t.id);
+function moToolById(id) { return MO_TOOLS.find((t) => t.id === id) || null; }
+
+// Every non-Home page BearVantageHub can navigate to. Order here drives both
+// the sidebar nav list and the Home overview tile grid.
 const PAGE_META = [
   { id: "fitness", label: "Fitness", icon: <IconDumbbell /> },
   { id: "golf", label: "Golf", icon: <IconGolf /> },
@@ -8882,12 +8909,18 @@ const PAGE_META = [
 // Sidebar navigation grouped into collapsible sections. Any PAGE_META id not
 // listed here still renders (see the "ungrouped" fallback in Sidebar), so
 // adding a page without touching this list never drops it from the nav.
+// No group larger than five. With one group open at a time, the rail's height
+// is (headers + the open group), so a nine-item group like the old "Media"
+// single-handedly made the nav scroll again — 836px of rail against 634px of
+// window. Five is also about where a list stops being scannable at a glance.
 const NAV_GROUPS = [
-  { id: "health", label: "Health & Play", ids: ["fitness", "golf", "fantasy", "sports"] },
+  { id: "today", label: "Today", ids: ["upcoming", "agenda", "habits", "journal"] },
+  { id: "health", label: "Health & Sport", ids: ["fitness", "golf", "fantasy", "sports"] },
   { id: "money", label: "Money", ids: ["financial", "transactions", "subscriptions"] },
-  { id: "schedule", label: "Schedule", ids: ["upcoming", "weather", "travel", "agenda"] },
-  { id: "media", label: "Media", ids: ["youtube", "music", "news", "movies", "gaming", "watchlist", "videos", "reading", "games"] },
-  { id: "personal", label: "Personal", ids: ["profile", "resume", "trackers", "goals", "journal", "habits", "mealplanning", "birthdays"] },
+  { id: "watch", label: "Video", ids: ["movies", "watchlist", "youtube", "videos", "gaming"] },
+  { id: "play", label: "Read & Play", ids: ["reading", "games", "music", "news"] },
+  { id: "life", label: "Life", ids: ["profile", "resume", "goals", "trackers", "birthdays"] },
+  { id: "plan", label: "Plan", ids: ["weather", "travel", "mealplanning"] },
   { id: "work", label: "Security & Work", ids: ["securityx", "ravenseye", "jobsearch"] },
 ];
 
@@ -9053,6 +9086,147 @@ function PageBanner({ theme, page, images, setImages }) {
   );
 }
 
+class PageErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidUpdate(prev) {
+    // A new page gets a clean slate; otherwise one bad page would look like a
+    // broken app for the rest of the session.
+    if (prev.page !== this.props.page && this.state.error) this.setState({ error: null });
+  }
+  render() {
+    if (!this.state.error) return this.props.children;
+    const theme = this.props.theme;
+    return (
+      <div style={{ ...cardBackgroundStyle(theme), padding: "24px 26px", marginTop: "8px" }}>
+        <h2 style={{ margin: 0, fontSize: "var(--fs-6)", fontWeight: 800, color: theme.text }}>This page didn't load</h2>
+        <p style={{ fontSize: "var(--fs-3)", color: theme.textMuted, marginTop: "8px", maxWidth: "60ch" }}>
+          Something in this page's saved data isn't in a shape it understands, so it stopped rather than
+          showing you something wrong. Everything else still works — the navigation is on the left.
+        </p>
+        <pre className="v-scroll" style={{ marginTop: "12px", padding: "10px 12px", borderRadius: "10px", background: theme.accentSoft, color: theme.textMuted, fontSize: "var(--fs-2)", overflowX: "auto" }}>
+          {String(this.state.error && this.state.error.message ? this.state.error.message : this.state.error)}
+        </pre>
+        <div style={{ display: "flex", gap: "8px", marginTop: "14px", flexWrap: "wrap" }}>
+          <button
+            onClick={() => this.setState({ error: null })}
+            className="v-btn"
+            style={{ border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.text }}
+          >
+            Try again
+          </button>
+          <button
+            onClick={() => { window.location.hash = ""; this.setState({ error: null }); }}
+            className="v-btn"
+            style={{ border: "none", background: theme.accent, color: theme.accentText, fontWeight: 700 }}
+          >
+            Go home
+          </button>
+        </div>
+      </div>
+    );
+  }
+}
+
+function AllPagesDirectory({ theme, page, pageVisits, onNavigate, onOpenMoTool, onClose }) {
+  const [q, setQ] = useState("");
+  const panelRef = useRef(null);
+  useOverlayBehaviour(onClose, panelRef);
+
+  const needle = q.trim().toLowerCase();
+  const match = (label) => !needle || label.toLowerCase().includes(needle);
+
+  // Pages by their nav group, plus any page not in a group (so a page can
+  // never be invisible here just because someone forgot to file it).
+  const grouped = NAV_GROUPS.map((g) => ({
+    label: g.label,
+    items: g.ids
+      .map((id) => PAGE_META.find((p) => p.id === id))
+      .filter((m) => m && match(m.label))
+      .map((m) => ({ kind: "page", id: m.id, label: m.label, icon: m.icon })),
+  }));
+  const filed = new Set(NAV_GROUPS.flatMap((g) => g.ids));
+  const orphans = PAGE_META.filter((m) => !filed.has(m.id) && match(m.label))
+    .map((m) => ({ kind: "page", id: m.id, label: m.label, icon: m.icon }));
+  if (orphans.length) grouped.push({ label: "Other", items: orphans });
+
+  // The MO tools are routes with no home in the navigation. They get one.
+  grouped.push({
+    label: "Mechanical Orchard tools",
+    items: MO_TOOLS.filter((t) => match(t.label))
+      .map((t) => ({ kind: "tool", id: t.id, label: t.label, icon: t.icon })),
+  });
+
+  const sections = grouped.filter((g) => g.items.length);
+  const total = sections.reduce((n, g) => n + g.items.length, 0);
+
+  function pick(item) {
+    if (item.kind === "tool") onOpenMoTool(item.id);
+    else onNavigate(item.id);
+    onClose();
+  }
+
+  return ReactDOM.createPortal(
+    <div className="v-modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div ref={panelRef} className="v-scroll v-modal-card v-dir" role="dialog" aria-modal="true" aria-label="All pages"
+        style={{ "--scroll-thumb": theme.divider, ...cardBackgroundStyle(theme), padding: "20px 22px" }}>
+        <div className="v-dir__head">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={"Filter " + (PAGE_META.length + MO_TOOLS.length) + " destinations…"}
+            className="v-input"
+            autoFocus
+            style={{ flex: 1, minWidth: "160px", padding: "0 12px", borderRadius: "10px", fontSize: "var(--fs-4)", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}` }}
+          />
+          <button onClick={onClose} className="v-btn v-iconbtn" aria-label="Close" title="Close"
+            style={{ border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.textMuted, borderRadius: "10px", width: "34px", height: "34px", flexShrink: 0 }}>
+            <IconClose />
+          </button>
+        </div>
+
+        {sections.map((g) => (
+          <div key={g.label} style={{ marginTop: "16px" }}>
+            <div style={{ fontSize: "var(--fs-1)", fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: theme.sectionLabelColor, marginBottom: "8px" }}>{g.label}</div>
+            <div className="v-dir__grid">
+              {g.items.map((item) => {
+                const current = item.kind === "page" && item.id === page;
+                // A page never opened is worth pointing at once: it is the only
+                // cue for something you do not know to look for.
+                const unseen = item.kind === "page" && !(pageVisits || {})[item.id] && item.id !== page;
+                return (
+                  <button
+                    key={item.kind + item.id}
+                    onClick={() => pick(item)}
+                    className={"v-btn v-dir__item" + (current ? " is-current" : "")}
+                    style={{ border: `1px solid ${current ? theme.accent : "var(--v-edge)"}`, background: current ? theme.accentSoft : "transparent", color: theme.text }}
+                  >
+                    <span style={{ color: current ? theme.accentOn : theme.textMuted, display: "inline-flex", flexShrink: 0 }}>{item.icon}</span>
+                    <span style={{ flex: 1, minWidth: 0, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
+                    {unseen && <span className="v-dir__dot" title="Not opened yet" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+
+        {!total && (
+          <div style={{ marginTop: "18px", fontSize: "var(--fs-3)", color: theme.textMuted }}>
+            Nothing matches "{q.trim()}".
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function NavItem({ theme, icon, label, value, active, onClick }) {
   return (
     <button
@@ -9062,7 +9236,9 @@ function NavItem({ theme, icon, label, value, active, onClick }) {
       className={"v-btn v-navitem" + (active ? " is-active" : "")}
       style={{
         color: active ? (theme.accentOn || theme.accent) : theme.text,
-        background: active ? theme.accentSoft : "transparent",
+        // Deliberately unset when inactive: an inline "transparent" would beat
+        // the stylesheet's :hover rule and the row would never light up.
+        ...(active ? { background: theme.accentSoft } : null),
         "--navitem-hover": theme.accentSoft,
       }}
     >
@@ -9070,8 +9246,8 @@ function NavItem({ theme, icon, label, value, active, onClick }) {
       <span
         className="v-navitem__label"
         style={{
-          fontSize: "13.5px",
-          fontWeight: active ? 700 : 600,
+          fontSize: "13px",
+          fontWeight: active ? 650 : 500,
           flex: 1,
           minWidth: 0,
           overflow: "hidden",
@@ -9085,7 +9261,11 @@ function NavItem({ theme, icon, label, value, active, onClick }) {
       {value !== null && value !== undefined && value !== "" && (
         <span
           className="v-tabular v-navitem__badge"
-          style={{ fontSize: "12px", fontWeight: 700, color: active ? (theme.accentOn || theme.accent) : theme.textMuted, flexShrink: 0 }}
+          // textMuted, not textFaint: these counts are the only live data in
+          // the rail, and textFaint measures below AA in 14 of 20 themes at
+          // this size. The hierarchy against the label comes from weight and
+          // size, which cost nothing in contrast.
+          style={{ fontSize: "11px", fontWeight: 600, color: active ? (theme.accentOn || theme.accent) : theme.textMuted, flexShrink: 0 }}
         >
           {value}
         </span>
@@ -9442,14 +9622,50 @@ function Sidebar({
   habits,
   workouts,
   reading,
+  pageVisits,
+  onOpenDirectory,
 }) {
   const doneGoals = goals.filter((g) => g.status === "done").length;
-  const [navCollapsed, setNavCollapsed] = usePersistentState(STORAGE_KEYS.navCollapsed, {});
+  const [navOpenGroup, setNavOpenGroup] = usePersistentState(STORAGE_KEYS.navOpenGroup, null);
+  // The group holding the current page, so arriving anywhere — including by
+  // deep link or by the palette — opens the rail on the right section.
+  const groupOfPage = (NAV_GROUPS.find((g) => g.ids.includes(page)) || {}).id || null;
+  // Home belongs to no group, so without a fallback the rail would open on
+  // Home showing nothing but Home — and collapsed to icons, a single icon.
+  const openGroup = navOpenGroup !== null ? navOpenGroup : (groupOfPage || NAV_GROUPS[0].id);
+  useEffect(() => {
+    // Following a link into another section moves the rail with you rather
+    // than leaving it open on where you used to be.
+    if (groupOfPage && groupOfPage !== openGroup) setNavOpenGroup(groupOfPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupOfPage]);
+
+  // The five pages actually opened most, which on a personal dashboard is a
+  // much better nav than an alphabetical list of thirty-one.
+  const frequentPages = useMemo(() => {
+    const counts = pageVisits || {};
+    // A page already listed in the open section is not repeated up here: the
+    // section is the real listing, and two identical rows a few pixels apart
+    // read as a rendering fault rather than as a shortcut.
+    const inOpenSection = new Set(((NAV_GROUPS.find((g) => g.id === openGroup) || {}).ids) || []);
+    return Object.keys(counts)
+      .filter((id) => counts[id] >= 2 && !inOpenSection.has(id) && PAGE_META.some((p) => p.id === id))
+      .sort((a, b) => counts[b] - counts[a])
+      // Four, not five: five plus six group headers plus the open group came to
+      // 668px against 634px of rail on a 1000px window, which put the whole
+      // point — a nav that never scrolls — 34px out of reach.
+      .slice(0, 4)
+      .map((id) => PAGE_META.find((p) => p.id === id));
+  }, [pageVisits, openGroup]);
   // Off-canvas drawer state (mobile only — the rail is always visible on desktop).
   const [navOpen, setNavOpen] = useState(false);
   // Desktop rail collapse. The flag lives on <html> so the CSS variable that
   // drives both the rail width and the main margin can key off it.
   const [railCollapsed, setRailCollapsed] = usePersistentState(STORAGE_KEYS.railCollapsed, false);
+  // Not persisted: the tray is a thing you open, use and forget, and a rail
+  // that comes back tomorrow already holding six icons is the thing this is
+  // meant to stop.
+  const [railToolsOpen, setRailToolsOpen] = useState(false);
   useEffect(() => {
     document.documentElement.classList.toggle("rail-collapsed", !!railCollapsed);
     return () => document.documentElement.classList.remove("rail-collapsed");
@@ -9530,10 +9746,17 @@ function Sidebar({
           onClick={() => go("home")}
           style={{ display: "flex", alignItems: "center", gap: "9px", border: "none", background: "transparent", cursor: "pointer", padding: "4px 2px", minWidth: 0 }}
         >
-          <span style={{ width: "28px", height: "28px", borderRadius: "9px", display: "flex", alignItems: "center", justifyContent: "center", background: theme.accentSoft, color: theme.accent, border: `1px solid ${theme.divider}`, flexShrink: 0 }}>
+          <span style={{ width: "28px", height: "28px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", background: theme.accentSoft, color: theme.accentOn, border: `1px solid ${theme.divider}`, flexShrink: 0 }}>
             <IconLogo />
           </span>
-          <span style={{ fontSize: "16px", fontWeight: theme.headerWeight, color: theme.text, letterSpacing: "-0.01em", whiteSpace: "nowrap" }}>BearVantageHub</span>
+          <span className="v-topbar__where" style={{ minWidth: 0, textAlign: "left" }}>
+            <span style={{ display: "block", fontSize: "16px", fontWeight: theme.headerWeight, color: theme.text, letterSpacing: "-0.01em", whiteSpace: "nowrap", lineHeight: 1.15 }}>
+              {page === "home" ? "BearVantageHub" : ((PAGE_META.find((m) => m.id === page) || {}).label || "BearVantageHub")}
+            </span>
+            {page !== "home" && (
+              <span style={{ display: "block", fontSize: "11px", color: theme.textFaint, whiteSpace: "nowrap", lineHeight: 1.2 }}>BearVantageHub</span>
+            )}
+          </span>
         </button>
         <button
           onClick={openPalette}
@@ -9564,12 +9787,12 @@ function Sidebar({
           style={{
             width: "30px",
             height: "30px",
-            borderRadius: "9px",
+            borderRadius: "10px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             background: theme.accentSoft,
-            color: theme.accent,
+            color: theme.accentOn,
             border: `1px solid ${theme.divider}`,
             flexShrink: 0,
           }}
@@ -9579,7 +9802,7 @@ function Sidebar({
         <span
           className="v-rail-brand__text"
           style={{
-            fontSize: "17px",
+            fontSize: "18px",
             fontWeight: theme.headerWeight,
             color: theme.text,
             letterSpacing: "-0.01em",
@@ -9593,7 +9816,7 @@ function Sidebar({
         <button onClick={openPalette} className="v-btn" title="Search (Cmd-K)" style={{ display: "flex", alignItems: "center", gap: "9px", width: "100%", padding: "9px 10px", marginBottom: "4px", borderRadius: "10px", border: `1px solid ${theme.cardBorder}`, background: theme.inputBg, color: theme.textMuted, cursor: "pointer" }}>
           <IconSearch size={14} />
           <span className="v-railonly" style={{ flex: 1, textAlign: "left", fontSize: "13px" }}>Search…</span>
-          <span className="v-railonly" style={{ fontSize: "10.5px", border: `1px solid ${theme.cardBorder}`, borderRadius: "5px", padding: "1px 5px" }}>⌘K</span>
+          <span className="v-railonly" style={{ fontSize: "11px", border: `1px solid ${theme.cardBorder}`, borderRadius: "4px", padding: "1px 5px" }}>⌘K</span>
         </button>
         <NavItem
           theme={theme}
@@ -9603,20 +9826,38 @@ function Sidebar({
           active={page === "home"}
           onClick={() => go("home")}
         />
+        {frequentPages.length >= 3 && (
+          <div style={{ marginTop: "2px" }}>
+            <div className="v-navgroup v-navgroup--static" style={{ padding: "4px 10px 3px", color: theme.textFaint, fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+              <span className="v-railonly">Frequent</span>
+            </div>
+            {frequentPages.map((item) => (
+              <NavItem
+                key={"freq-" + item.id}
+                theme={theme}
+                icon={item.icon}
+                label={item.label}
+                value={valueByPage[item.id]}
+                active={page === item.id}
+                onClick={() => go(item.id)}
+              />
+            ))}
+          </div>
+        )}
         {NAV_GROUPS.map((group) => {
           const items = group.ids
             .map((id) => PAGE_META.find((p) => p.id === id))
             .filter(Boolean);
           if (!items.length) return null;
-          const collapsed = !!navCollapsed[group.id];
+          const collapsed = openGroup !== group.id;
           return (
-            <div key={group.id} style={{ marginTop: "8px" }}>
+            <div key={group.id} style={{ marginTop: "2px" }}>
               <button
-                onClick={() => setNavCollapsed((s) => ({ ...s, [group.id]: !s[group.id] }))}
+                onClick={() => setNavOpenGroup(collapsed ? group.id : "")}
                 className="v-btn v-navgroup"
                 aria-expanded={!collapsed}
                 title={collapsed ? "Expand" : "Collapse"}
-                style={{ display: "flex", alignItems: "center", gap: "6px", width: "100%", padding: "4px 10px 3px", background: "transparent", border: "none", color: theme.textMuted, cursor: "pointer", fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}
+                style={{ display: "flex", alignItems: "center", gap: "6px", width: "100%", padding: "4px 10px 3px", background: "transparent", border: "none", color: theme.textMuted, cursor: "pointer", fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}
               >
                 <NavChevron collapsed={collapsed} />
                 <span style={{ flex: 1, textAlign: "left" }}>{group.label}</span>
@@ -9660,17 +9901,43 @@ function Sidebar({
       </div>
 
       <button
+        onClick={onOpenDirectory}
+        className="v-btn v-rail-all"
+        title="All pages and tools"
+        style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "8px 10px", marginTop: "6px", borderRadius: "10px", border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.textMuted, fontSize: "var(--fs-2)", fontWeight: 600 }}
+      >
+        <IconGrid size={14} />
+        <span className="v-railonly" style={{ flex: 1, textAlign: "left" }}>All pages</span>
+        <span className="v-railonly v-tabular" style={{ color: theme.textFaint }}>{PAGE_META.length + MO_TOOLS.length}</span>
+      </button>
+
+      <button
         onClick={() => setRailCollapsed((v) => !v)}
         className="v-btn v-rail-collapse"
         title={railCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         aria-label={railCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-        style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", padding: "7px 8px", borderRadius: "9px", border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.textMuted, fontSize: "11.5px", fontWeight: 700 }}
+        style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", padding: "7px 8px", borderRadius: "10px", border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.textMuted, fontSize: "12px", fontWeight: 700 }}
       >
         <span style={{ display: "inline-flex", transform: railCollapsed ? "rotate(180deg)" : "none", transition: "transform 0.2s ease" }}><IconCollapse size={14} /></span>
         <span className="v-railonly">Collapse</span>
       </button>
 
       <div className="v-rail-utilities">
+        <ThemePicker theme={theme} themeKey={themeKey} setThemeKey={setThemeKey} />
+        <RemindersMenu theme={theme} reminders={reminders} setReminders={setReminders} events={events} />
+        <button
+          onClick={() => setRailToolsOpen((v) => !v)}
+          className="v-btn v-iconbtn v-rail-tools"
+          aria-expanded={railToolsOpen}
+          title={railToolsOpen ? "Hide tools" : "Backups, digests, calendar, lock"}
+          aria-label={railToolsOpen ? "Hide tools" : "More tools"}
+          style={{ color: theme.textMuted }}
+        >
+          <IconSettings size={15} />
+        </button>
+      </div>
+
+      <div className={"v-rail-utilities v-rail-tools__tray" + (railToolsOpen ? " is-open" : "")} hidden={!railToolsOpen}>
         <InstallAppButton theme={theme} />
         <WeeklyDigestButton theme={theme} fitness={fitness} golf={golf} financial={financial} history={history} transactions={transactions} habits={habits} events={events} />
         <AnnualDigestButton theme={theme} fitness={fitness} golf={golf} financial={financial} history={history} transactions={transactions} habits={habits} workouts={workouts} reading={reading} />
@@ -9729,12 +9996,30 @@ function Sidebar({
           setFantasyYahoo={setFantasyYahoo}
           setRavenProducts={setRavenProducts}
         />
-        <RemindersMenu theme={theme} reminders={reminders} setReminders={setReminders} events={events} />
-        <ThemePicker theme={theme} themeKey={themeKey} setThemeKey={setThemeKey} />
         <LockMenu theme={theme} lock={lock} setLock={setLock} onLockNow={onLockNow} />
       </div>
     </nav>
     </React.Fragment>
+  );
+}
+
+function IconSettings({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
+
+function IconGrid({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3.5" y="3.5" width="7" height="7" rx="2" />
+      <rect x="13.5" y="3.5" width="7" height="7" rx="2" />
+      <rect x="3.5" y="13.5" width="7" height="7" rx="2" />
+      <rect x="13.5" y="13.5" width="7" height="7" rx="2" />
+    </svg>
   );
 }
 
@@ -13088,6 +13373,15 @@ function App() {
   // Per-page banner image overrides, so a photo that stops loading can be
   // swapped from the banner itself rather than by editing the file.
   const [pageImages, setPageImages] = usePersistentState(STORAGE_KEYS.pageImages, {});
+  // Which pages actually get opened. The rail uses this to keep the handful
+  // you really use above the fold.
+  const [pageVisits, setPageVisits] = usePersistentState(STORAGE_KEYS.pageVisits, {});
+  useEffect(() => {
+    if (!page || page === "home") return;
+    setPageVisits((prev) => ({ ...(prev || {}), [page]: ((prev || {})[page] || 0) + 1 }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
+  const [showDirectory, setShowDirectory] = useState(false);
   const [homeTileOrder, setHomeTileOrder] = usePersistentState(STORAGE_KEYS.homeTileOrder, []);
   const [games, setGames] = usePersistentState(STORAGE_KEYS.games, DEFAULT_GAMES);
   const [news, setNews] = usePersistentState(STORAGE_KEYS.news, { topics: DEFAULT_NEWS_TOPICS, cache: {}, fetchedAt: null });
@@ -13349,11 +13643,14 @@ function App() {
         habits={habits}
         workouts={workouts}
         reading={reading}
+        pageVisits={pageVisits}
+        onOpenDirectory={() => setShowDirectory(true)}
       />
 
       <main className="v-main" id="v-main">
         <div className={"v-container " + containerVariant(page)}>
           <PageBanner theme={theme} page={page} images={pageImages} setImages={setPageImages} />
+          <PageErrorBoundary theme={theme} page={page}>
           {page === "home" && (
             <HomeOverview
               theme={theme}
@@ -13501,6 +13798,7 @@ function App() {
             <LazyRavenSection theme={theme} products={ravenProducts} setProducts={setRavenProducts} />
           )}
           {page === "jobsearch" && <LazyJobSearchPage theme={theme} resume={resume} />}
+          </PageErrorBoundary>
         </div>
       </main>
 
@@ -13520,6 +13818,17 @@ function App() {
           onNavigate={navigate}
           onOpenMoTool={setMoTool}
           onClose={() => setPaletteOpen(false)}
+        />
+      )}
+
+      {showDirectory && !(lock.enabled && locked) && (
+        <AllPagesDirectory
+          theme={theme}
+          page={page}
+          pageVisits={pageVisits}
+          onNavigate={navigate}
+          onOpenMoTool={setMoTool}
+          onClose={() => setShowDirectory(false)}
         />
       )}
 
@@ -13839,21 +14148,7 @@ function MechanicalOrchardMenu({ theme, links, setLinks, onOpenTool }) {
   function pick(toolId) { setOpen(false); onOpenTool(toolId); }
   function updateLink(id, url) { setLinks((prev) => prev.map((l) => (l.id === id ? { ...l, url } : l))); }
 
-  const tools = [
-    { id: "vuln-s1", icon: <IconShield size={15} />, label: "Vulnerability Analyzer — S1", desc: "SentinelOne export" },
-    { id: "vuln-iru", icon: <IconShield size={15} />, label: "Vulnerability Analyzer — IRU", desc: "IRU export" },
-    { id: "pki", icon: <IconCertificate size={15} />, label: "PKI Report Generator", desc: "Build a PKI report" },
-    { id: "policy", icon: <IconClipboard size={15} />, label: "Policy & Procedure Writeup", desc: "Track & store policies" },
-    { id: "deck", icon: <IconDeck size={15} />, label: "Weekly Report Deck", desc: "Fill a PPTX template" },
-    { id: "appnotice", icon: <IconMegaphone size={15} />, label: "Outdated App Notice", desc: "Draft an update/remove message" },
-    { id: "dailylog", icon: <IconClipboard size={15} />, label: "Daily InfoSec Log", desc: "Compile a daily summary" },
-    { id: "kev", icon: <IconShield size={15} />, label: "CVE / KEV Lookup", desc: "Check CISA Known Exploited" },
-    { id: "vulntrend", icon: <IconTrendingUp size={15} />, label: "Vulnerability Trends", desc: "Chart S1/IRU over time" },
-    { id: "toolkit", icon: <IconWrench size={15} />, label: "Security Utility Belt", desc: "IOCs, defang, decode, hash" },
-    { id: "phish", icon: <IconEnvelope size={15} />, label: "Phishing Header Analyzer", desc: "SPF/DKIM/DMARC + hops" },
-    { id: "cve-watch", icon: <IconShield size={15} />, label: "CVE Watchlist", desc: "Watch vendors against live NVD data" },
-    { id: "pwned-pw", icon: <IconLock size={15} />, label: "Password Breach Check", desc: "k-anonymity Pwned Passwords lookup" },
-  ];
+  const tools = MO_TOOLS;
 
   return (
     <React.Fragment>

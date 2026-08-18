@@ -339,6 +339,47 @@
     .v-rail-brand { min-height: 44px; }
   }
 
+  .v-rail-utilities > .v-btn:not(.v-themebtn),
+  .v-rail-utilities > *:not(.v-themewrap) > .v-btn:not(.v-themebtn) {
+    width: var(--iconbtn) !important; height: var(--iconbtn) !important;
+    min-width: var(--iconbtn) !important; min-height: var(--iconbtn) !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: transparent !important;
+    border: 1px solid var(--v-edge) !important;
+  }
+  /* The theme picker is not an icon button — it names the active theme — so on
+     the desktop rail it takes the full width under the icon row rather than
+     being squeezed into a circle with its label thrown away. In the phone
+     drawer it shares the row: there, height is what is scarce, and a second
+     row of chrome costs the navigation more than the label is worth. */
+  @media (min-width: 901px) {
+    /* :root on each of these. A media query adds no specificity, and the base
+       .v-rail-utilities rule — flex-wrap: wrap — is declared earlier in this
+       file, so without it the base wins at every desktop width and the foot
+       of the rail breaks back onto three rows. Same trap as .v-main. */
+    :root .v-rail-utilities { justify-content: flex-start; flex-wrap: nowrap; flex-direction: row; }
+    :root .v-rail-utilities > .v-themewrap { flex: 1 1 auto; min-width: 0; }
+    :root .v-rail-utilities > .v-themewrap > .v-themebtn { width: 100%; justify-content: flex-start; }
+    /* The tray is a grid of equal icons, not a nowrap row — it has five of
+       them and the rail is 240px. */
+    :root .v-rail-tools__tray { flex-wrap: wrap; justify-content: flex-start; }
+  }
+  /* The tray of occasional tools. Hidden is hidden — [hidden] is a display
+     rule and flex containers override it, which is a classic way to ship an
+     invisible row that still takes up space. */
+  .v-rail-tools__tray[hidden] { display: none; }
+  .v-rail-tools__tray {
+    margin-top: 6px;
+    padding-top: 8px;
+    border-top: 1px solid var(--v-edge);
+  }
+  .v-rail-tools[aria-expanded="true"] {
+    background: var(--state-press) !important;
+    color: var(--v-text) !important;
+  }
+
   /* Feed thumbnails (Sports). Class-driven so the column can shrink on phones
      and so the real image and the alignment placeholder can never disagree. */
   .v-feedthumb {
@@ -568,6 +609,25 @@
     :root.rail-collapsed .v-navitem.is-active::before { width: 2.5px; }
     /* The theme pill loses its label, so it becomes a round swatch button. */
     :root.rail-collapsed .v-themebtn { padding: 6px; justify-content: center; }
+    /* Collapsed to icons the rail is 72px wide, and the utilities row has to
+       live inside that. The expanded-rail rules that give the theme picker a
+       full-width row (flex: 1 1 auto) and lay the row out horizontally both
+       have to be undone here or the picker spills out of the rail. */
+    :root.rail-collapsed .v-rail-utilities {
+      flex-direction: column;
+      flex-wrap: nowrap;
+      align-items: center;
+    }
+    :root.rail-collapsed .v-rail-utilities > .v-themewrap {
+      flex: 0 0 auto;
+      width: auto;
+    }
+    :root.rail-collapsed .v-rail-utilities > .v-themewrap > .v-themebtn {
+      width: var(--iconbtn); height: var(--iconbtn);
+      min-width: var(--iconbtn); min-height: var(--iconbtn);
+      padding: 0; border-radius: 50%;
+      justify-content: center;
+    }
   }
 
   /* ---- Page header ------------------------------------------------------
@@ -887,6 +947,37 @@
       padding: 20px 16px calc(20px + var(--sa-b)) !important;
       animation: vSheetUp var(--dur-3) var(--ease-out) both;
     }
+  }
+
+  /* ---- All-pages directory ---------------------------------------------
+     The map of the app: every page and every tool on one screen. Wider than a
+     normal modal because its whole value is showing everything at once. */
+  .v-dir { max-width: min(1040px, 94vw); }
+  .v-dir__head { display: flex; align-items: center; gap: 10px; }
+  .v-dir__head .v-input { min-height: 40px; }
+  .v-dir__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 12.5rem), 1fr));
+    gap: 8px;
+  }
+  .v-dir__item {
+    display: flex; align-items: center; gap: 9px;
+    min-height: 40px; padding: 0 11px;
+    border-radius: 10px;
+    font-size: var(--fs-3); font-weight: 500;
+    text-align: left;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .v-dir__item:hover { background: var(--state-hover) !important; border-color: var(--v-edge-strong) !important; }
+  }
+  /* A page never opened. Retires itself once everything has been seen once. */
+  .v-dir__dot {
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+    background: var(--v-accent);
+  }
+  @media (max-width: 640px) {
+    .v-dir { max-width: 100%; }
+    .v-dir__grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr)); }
   }
 
   /* ---- Focus ring: visible on every theme (accent + a contrasting halo) ---- */
