@@ -14229,7 +14229,7 @@ function LazyMoModals({
         <PolicyTrackerModal theme={theme} policies={moPolicies} setPolicies={setMoPolicies} onClose={() => openMoTool(null)} />
       )}
       {moTool === "deck" && (
-        <DeckBuilderModal theme={theme} deck={deck} setDeck={setDeck} onClose={() => openMoTool(null)} />
+        <DeckBuilderModal theme={theme} deck={deck} setDeck={setDeck} snapshots={moSnapshots} onClose={() => openMoTool(null)} />
       )}
       {moTool === "appnotice" && (
         <AppNoticeModal theme={theme} state={moAppNotice} setState={setMoAppNotice} onClose={() => openMoTool(null)} />

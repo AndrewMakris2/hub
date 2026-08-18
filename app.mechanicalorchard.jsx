@@ -160,6 +160,71 @@ function moRowsToRecords(rows) {
   return { headers, records };
 }
 
+// Rows are stored trimmed — severity, asset, name — because the raw record can
+// carry fifty columns per row and this goes into localStorage. Rows are kept
+// for the most recent MO_SNAP_ROW_HISTORY snapshots per source; older
+// snapshots keep their counts so the trend chart is unaffected, and lose their
+// rows. Without a cap, a year of weekly scans would eventually fail to save.
+const MO_SNAP_ROW_HISTORY = 10;
+function moTrimFindings(rows) {
+  return (rows || []).map((r) => ({
+    s: r.severity,
+    a: (r.asset || "").trim().slice(0, 120),
+    n: (r.name || "").trim().slice(0, 180),
+  }));
+}
+
+// How long each current finding has been present, by walking the history for
+// the earliest snapshot that contains it. Only snapshots that kept their rows
+// can answer this, so the age is a floor, not a guess: a finding older than
+// the retained history reports as at least that old.
+function moFindingAges(current, history) {
+  if (!current || !current.findings) return [];
+  const older = (history || [])
+    .filter((s) => s.source === current.source && s.findings && s.ts < current.ts)
+    .sort((a, b) => (a.ts < b.ts ? -1 : 1));
+  const firstSeen = new Map();
+  older.forEach((snap) => {
+    snap.findings.forEach((f) => {
+      const k = moFindingKeyOf(f);
+      if (!firstSeen.has(k)) firstSeen.set(k, snap.ts);
+    });
+  });
+  const now = new Date(current.ts).getTime();
+  const bounded = older.length ? older[0].ts : current.ts;
+  return current.findings.map((f) => {
+    const k = moFindingKeyOf(f);
+    const seen = firstSeen.get(k) || current.ts;
+    return {
+      ...f,
+      firstSeen: seen,
+      days: Math.max(0, Math.round((now - new Date(seen).getTime()) / 86400000)),
+      atLeast: !firstSeen.has(k) ? false : seen === bounded,
+    };
+  });
+}
+
+// Assets carrying the most weight, so remediation can be aimed at machines
+// rather than at a list of findings. Weighted, because ten lows on one box is
+// not the same problem as two criticals on another.
+function moRankAssets(findings, limit = 5) {
+  // Keys must match MO_SEVERITY_ORDER exactly — these values are capitalised
+  // ("Critical", not "critical"), and a lowercase map silently weights every
+  // severity the same.
+  const W = { Critical: 40, High: 10, Medium: 3, Low: 1, Info: 0, Unrated: 1 };
+  const by = new Map();
+  (findings || []).forEach((f) => {
+    const a = (f.a || "").trim();
+    if (!a) return;
+    const cur = by.get(a) || { asset: a, total: 0, weight: 0, counts: {} };
+    cur.total += 1;
+    cur.weight += W[f.s] != null ? W[f.s] : 1;
+    cur.counts[f.s] = (cur.counts[f.s] || 0) + 1;
+    by.set(a, cur);
+  });
+  return [...by.values()].sort((x, y) => y.weight - x.weight || y.total - x.total).slice(0, limit);
+}
+
 // Best-guess column match: first header whose lowercased name contains any
 // of the candidate substrings.
 function moDetectColumn(headers, candidates, taken) {
@@ -835,6 +900,28 @@ function VulnerabilityAnalyzerModal({ theme, initialSource, snapshots, setSnapsh
     return [...rows].sort((a, b) => rank(a.severity) - rank(b.severity));
   }, [analysis, activeFilter]);
 
+  // Compare what is on screen now against the most recent saved snapshot of
+  // this source. Built from the live upload rather than from two saved
+  // snapshots, so the movement is visible before you commit anything.
+  const movement = useMemo(() => {
+    if (!analysis) return null;
+    const prior = (snapshots || [])
+      .filter((s) => s.source === source && s.findings)
+      .sort((a, b) => (a.ts < b.ts ? 1 : -1))[0];
+    if (!prior) return { noBaseline: true };
+    const asSnap = { source, ts: new Date().toISOString(), findings: moTrimFindings(analysis.rows) };
+    const diff = moDiffFindings(asSnap, prior);
+    const ages = moFindingAges(asSnap, [...(snapshots || []), asSnap]);
+    return {
+      diff,
+      assets: moRankAssets(asSnap.findings),
+      oldest: ages
+        .filter((f) => f.s === "Critical" || f.s === "High")
+        .sort((a, b) => b.days - a.days)
+        .slice(0, 5),
+    };
+  }, [analysis, snapshots, source]);
+
   // Snapshots (daily log) for the currently-active source, newest first.
   const sourceSnapshots = useMemo(
     () => (snapshots || []).filter((s) => s.source === source),
@@ -872,6 +959,7 @@ function VulnerabilityAnalyzerModal({ theme, initialSource, snapshots, setSnapsh
       total: analysis.total,
       uniqueAssets: analysis.uniqueAssets,
       counts: { ...analysis.counts },
+      findings: moTrimFindings(analysis.rows),
     };
     // One snapshot per source per day: saving again replaces the day's entry
     // rather than stacking a duplicate, which used to put several points on
@@ -881,7 +969,23 @@ function VulnerabilityAnalyzerModal({ theme, initialSource, snapshots, setSnapsh
       const rest = (prev || []).filter(
         (s) => !(s.source === source && String(s.ts).slice(0, 10) === dayKey)
       );
-      return [snap, ...rest];
+      const next = [snap, ...rest];
+      // Rows are what make the diff and the ageing possible, but they are also
+      // the only part of a snapshot with unbounded size. Keep them for the most
+      // recent MO_SNAP_ROW_HISTORY per source and drop them from older ones;
+      // those keep their counts, so the trend chart is unaffected.
+      const kept = {};
+      return next
+        .slice()
+        .sort((a, b) => (a.ts < b.ts ? 1 : -1))
+        .map((s) => {
+          kept[s.source] = (kept[s.source] || 0) + 1;
+          if (kept[s.source] > MO_SNAP_ROW_HISTORY && s.findings) {
+            const { findings, ...rest2 } = s;
+            return { ...rest2, findingsDropped: true };
+          }
+          return s;
+        });
     });
     setSavedNote(true);
     setTimeout(() => setSavedNote(false), 1600);
@@ -1031,6 +1135,78 @@ function VulnerabilityAnalyzerModal({ theme, initialSource, snapshots, setSnapsh
               );
             })}
           </div>
+
+          {analysis && movement && (
+            <div style={{ border: `1px solid ${theme.cardBorder}`, borderRadius: "14px", padding: "14px 16px", marginBottom: "16px" }}>
+              {movement.noBaseline ? (
+                <div style={{ fontSize: "13px", color: theme.textMuted, lineHeight: 1.5 }}>
+                  <strong style={{ color: theme.text }}>No baseline yet.</strong> Save a snapshot and the next upload will
+                  show what is new, what has been remediated, and how long the rest has been open.
+                </div>
+              ) : (
+                <React.Fragment>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: "8px", flexWrap: "wrap", marginBottom: "10px" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 800, letterSpacing: "0.07em", textTransform: "uppercase", color: theme.textMuted }}>
+                      Since {moFormatTs(movement.diff.since)}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", gap: "18px", flexWrap: "wrap", marginBottom: movement.assets.length ? "14px" : 0 }}>
+                    <span style={{ fontSize: "13px", color: theme.text }}>
+                      <strong style={{ fontSize: "18px", color: theme.danger }}>{movement.diff.added.length}</strong> new
+                    </span>
+                    <span style={{ fontSize: "13px", color: theme.text }}>
+                      <strong style={{ fontSize: "18px", color: theme.positive }}>{movement.diff.removed.length}</strong> remediated
+                    </span>
+                    <span style={{ fontSize: "13px", color: theme.textMuted }}>
+                      <strong style={{ fontSize: "18px", color: theme.textMuted }}>{movement.diff.unchanged}</strong> carried over
+                    </span>
+                    {movement.diff.worsened.length > 0 && (
+                      <span style={{ fontSize: "13px", color: theme.text }}>
+                        <strong style={{ fontSize: "18px", color: theme.danger }}>{movement.diff.worsened.length}</strong> re-scored higher
+                      </span>
+                    )}
+                  </div>
+
+                  {movement.assets.length > 0 && (
+                    <div style={{ marginBottom: "12px" }}>
+                      <div style={{ fontSize: "11px", fontWeight: 800, letterSpacing: "0.07em", textTransform: "uppercase", color: theme.textMuted, marginBottom: "6px" }}>
+                        Assets carrying the most
+                      </div>
+                      {movement.assets.map((a) => (
+                        <div key={a.asset} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "4px 0", fontSize: "13px" }}>
+                          <span style={{ flex: 1, minWidth: 0, color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.asset}</span>
+                          <span className="v-tabular" style={{ color: theme.textMuted, flexShrink: 0 }}>
+                            {MO_SEVERITY_ORDER.filter((s) => a.counts[s]).map((s) => `${a.counts[s]} ${s}`).join(" · ")}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {movement.oldest.length > 0 && movement.oldest[0].days > 0 && (
+                    <div>
+                      <div style={{ fontSize: "11px", fontWeight: 800, letterSpacing: "0.07em", textTransform: "uppercase", color: theme.textMuted, marginBottom: "6px" }}>
+                        Open the longest
+                      </div>
+                      {movement.oldest.map((f, i) => (
+                        <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "4px 0", fontSize: "13px" }}>
+                          <span style={{ flexShrink: 0, fontWeight: 700, color: f.s === "Critical" ? theme.danger : theme.text, width: "62px" }}>{f.s}</span>
+                          <span style={{ flex: 1, minWidth: 0, color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.n || "(unnamed)"}</span>
+                          <span className="v-tabular" style={{ color: theme.textMuted, flexShrink: 0 }}>
+                            {f.atLeast ? "≥" : ""}{f.days}d
+                          </span>
+                        </div>
+                      ))}
+                      <div style={{ fontSize: "11px", color: theme.textFaint, marginTop: "6px", lineHeight: 1.45 }}>
+                        Age is measured from the earliest snapshot that still holds its rows, so "≥" means the finding is at
+                        least that old and may predate the retained history.
+                      </div>
+                    </div>
+                  )}
+                </React.Fragment>
+              )}
+            </div>
+          )}
 
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px", flexWrap: "wrap" }}>
             <span style={{ fontSize: "12px", color: theme.textMuted }}>
@@ -3011,13 +3187,118 @@ function PolicyTrackerModal({ theme, policies, setPolicies, onClose }) {
 }
 
 /* ---- Weekly PowerPoint deck builder (template filler) ---- */
-function DeckBuilderModal({ theme, deck, setDeck, onClose }) {
+// Latest snapshot per source, plus the movement against the one before it.
+function deckFigures(snapshots) {
+  const bySource = {};
+  (snapshots || []).forEach((s) => {
+    const cur = bySource[s.source];
+    if (!cur || s.ts > cur.ts) bySource[s.source] = s;
+  });
+  const prior = {};
+  Object.keys(bySource).forEach((src) => {
+    prior[src] = (snapshots || [])
+      .filter((s) => s.source === src && s.ts < bySource[src].ts && s.findings)
+      .sort((a, b) => (a.ts < b.ts ? 1 : -1))[0] || null;
+  });
+  return { bySource, prior };
+}
+
+// "{{ s1_crit }}" -> "s1crit". Separators and case carry no meaning here.
+function deckNormalizeToken(t) {
+  return String(t).toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function deckResolveToken(token, figures) {
+  const k = deckNormalizeToken(token);
+  const { bySource, prior } = figures;
+  const sources = Object.keys(bySource);
+  if (!sources.length) return null;
+
+  // Which source is this token about? Naming neither means "across both".
+  const wantsS1 = /s1|sentinel/.test(k);
+  const wantsIru = /iru/.test(k);
+  const picked = wantsS1 ? ["s1"] : wantsIru ? ["iru"] : sources;
+  const snaps = picked.map((s) => bySource[s]).filter(Boolean);
+  if (!snaps.length) return null;
+  const sum = (fn) => snaps.reduce((n, s) => n + (fn(s) || 0), 0);
+
+  // Date tokens: the week the figures describe.
+  if (/^(weekof|week|reportdate|date|asof|period)$/.test(k) || /weekof|reportdate|asof/.test(k)) {
+    const newest = snaps.map((s) => s.ts).sort().pop();
+    return new Date(newest).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  }
+
+  // Movement. Only answerable where the previous snapshot kept its rows.
+  const diffable = picked.map((s) => (prior[s] && bySource[s] ? moDiffFindings(bySource[s], prior[s]) : null)).filter(Boolean);
+  if (/(new|added)/.test(k) && diffable.length) return String(diffable.reduce((n, d) => n + d.added.length, 0));
+  if (/(remediated|fixed|closed|resolved)/.test(k) && diffable.length) return String(diffable.reduce((n, d) => n + d.removed.length, 0));
+
+  // Counts by severity.
+  if (/crit/.test(k)) return String(sum((s) => s.counts && s.counts.Critical));
+  if (/high/.test(k)) return String(sum((s) => s.counts && s.counts.High));
+  if (/med|moderate/.test(k)) return String(sum((s) => s.counts && s.counts.Medium));
+  if (/low|low$/.test(k) || /^low/.test(k)) return String(sum((s) => s.counts && s.counts.Low));
+  if (/asset|endpoint|device|host|machine/.test(k)) {
+    // Union the actual asset names where the rows survive, so a machine that
+    // appears in both the S1 and IRU exports is counted once. Falls back to
+    // summing each snapshot's own tally when the rows have aged out.
+    if (snaps.every((s) => s.findings)) {
+      const set = new Set();
+      snaps.forEach((s) => s.findings.forEach((f) => { const a = (f.a || "").trim(); if (a) set.add(a.toLowerCase()); }));
+      return String(set.size);
+    }
+    return String(sum((s) => s.uniqueAssets));
+  }
+  if (/total|findings|vulns|vulnerabilit|count/.test(k)) return String(sum((s) => s.total));
+
+  // A ready-made sentence, for a template with a summary line.
+  if (/summary|movement|change|delta/.test(k) && diffable.length) {
+    const added = diffable.reduce((n, d) => n + d.added.length, 0);
+    const removed = diffable.reduce((n, d) => n + d.removed.length, 0);
+    return `${added} new, ${removed} remediated since the previous scan`;
+  }
+  return null;
+}
+
+function DeckBuilderModal({ theme, deck, setDeck, snapshots, onClose }) {
   const [status, setStatus] = useState(null);
   const [busy, setBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef(null);
 
   const hasTemplate = !!(deck && deck.name && deck.tokens);
+
+  // What the latest snapshots can answer for this template's placeholders.
+  const fillable = useMemo(() => {
+    if (!hasTemplate || !(snapshots || []).length) return {};
+    const figures = deckFigures(snapshots);
+    const out = {};
+    deck.tokens.forEach((t) => {
+      const v = deckResolveToken(t, figures);
+      if (v != null && v !== "") out[t] = v;
+    });
+    return out;
+  }, [hasTemplate, deck, snapshots]);
+
+  function fillFromSnapshots() {
+    const keys = Object.keys(fillable);
+    if (!keys.length) return;
+    let filled = 0;
+    setDeck((prev) => {
+      const values = { ...((prev && prev.values) || {}) };
+      keys.forEach((t) => {
+        // Never overwrite something already typed — the button is a shortcut,
+        // not an authority.
+        if (!values[t]) { values[t] = fillable[t]; filled += 1; }
+      });
+      return { ...prev, values };
+    });
+    const skipped = keys.length - filled;
+    toast.success(
+      `Filled ${filled} field${filled === 1 ? "" : "s"} from the latest snapshot` +
+      (skipped ? `; left ${skipped} you had already filled in` : "") + "."
+    );
+  }
 
   async function ingestTemplate(file) {
     if (!file) return;
@@ -3139,6 +3420,11 @@ function DeckBuilderModal({ theme, deck, setDeck, onClose }) {
               <IconDeck size={14} /> {deck.name}
             </span>
             <span style={{ fontSize: "12px", color: theme.textFaint }}>{deck.tokens.length} field{deck.tokens.length === 1 ? "" : "s"}</span>
+            {Object.keys(fillable).length > 0 && (
+              <MoButton theme={theme} onClick={fillFromSnapshots} style={{ marginLeft: "auto", padding: "6px 12px", fontSize: "12px" }}>
+                Fill {Object.keys(fillable).length} from latest snapshot
+              </MoButton>
+            )}
           </div>
 
           {deck.tokens.length === 0 ? (
