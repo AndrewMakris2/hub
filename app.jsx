@@ -9595,7 +9595,7 @@ function Sidebar({
             letterSpacing: "-0.01em",
           }}
         >
-          Vantage
+          BearVantageHub
         </span>
       </button>
 
