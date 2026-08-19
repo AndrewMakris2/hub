@@ -323,6 +323,13 @@
   /* Icon-only buttons: grow the *hit* area on touch without moving anything.
      A layout-affecting min-width would reflow the dense rows these sit in. */
   .v-iconbtn { position: relative; }
+  /* The lane an end-of-row action occupies. See .v-rowact below. */
+  :root { --act-rail: 38px; }
+  @media (pointer: coarse) { :root { --act-rail: 52px; } }
+  /* A row (or tile) whose trailing action floats over it. The padding is the
+     whole mechanism: without it the label runs under the button. */
+  .v-rowact { position: relative; padding-right: var(--act-rail) !important; }
+  .v-rowact > .v-rowact__btn { position: absolute; top: 8px; right: 8px; }
   @media (pointer: coarse) {
     .v-iconbtn::after {
       content: "";
@@ -948,6 +955,62 @@
       animation: vSheetUp var(--dur-3) var(--ease-out) both;
     }
   }
+
+  /* ---- Segmented control ------------------------------------------------
+     One track, one thumb: exactly one of these is true at a time. Deliberately
+     unlike .v-btn — a choice and an action should not be the same picture.
+
+     The track scrolls sideways rather than wrapping. Five decode modes on a
+     390px phone wrapped to three rows of chrome above a text area that had
+     260px left; as a strip it is one row and the overflow is a swipe. */
+  .v-segmented {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 999px;
+    border: 1px solid var(--v-edge);
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    /* Shrink to content, but never past it. */
+    width: fit-content;
+  }
+  .v-segmented::-webkit-scrollbar { display: none; }
+  .v-segmented__seg {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    padding: 0 14px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: var(--fs-2);
+    font-weight: 600;
+    letter-spacing: 0;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .v-segmented--sm .v-segmented__seg { min-height: 26px; padding: 0 11px; font-size: var(--fs-1); }
+  .v-segmented--sm { padding: 2px; }
+  /* On touch the segments take the 44px target like every other control, so
+     the track loses its inset instead of adding to it. */
+  @media (pointer: coarse) {
+    .v-segmented, .v-segmented--sm { padding: 2px; }
+  }
+  /* The thumb. A shadow rather than a border, so the track's rhythm is not
+     broken by a line appearing and disappearing as the selection moves. */
+  .v-segmented__seg.is-on {
+    box-shadow: 0 1px 2px rgba(0,0,0,0.10), 0 1px 1px rgba(0,0,0,0.06);
+    font-weight: 700;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .v-segmented__seg:not(.is-on):hover { background: var(--state-hover) !important; color: var(--v-text) !important; }
+  }
+  .v-segmented__seg:focus-visible { outline: 2px solid var(--v-accent); outline-offset: -2px; }
 
   /* ---- All-pages directory ---------------------------------------------
      The map of the app: every page and every tool on one screen. Wider than a

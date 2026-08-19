@@ -1943,7 +1943,7 @@ function TravelPage({ theme, trips, setTrips }) {
   const [showForm, setShowForm] = useState(false);
 
   function addTrip() {
-    if (!form.name.trim()) return;
+    if (!form.name.trim()) { toast.info("Give the trip a name first."); focusField("trip-name"); return; }
     const trip = {
       id: "trip" + Date.now(),
       name: form.name.trim(),
@@ -1960,8 +1960,14 @@ function TravelPage({ theme, trips, setTrips }) {
     setSelectedId(trip.id);
   }
   function removeTrip(id) {
+    const removed = trips.find((t) => t.id === id);
+    const wasSelected = selectedId === id;
     setTrips(trips.filter((t) => t.id !== id));
-    if (selectedId === id) setSelectedId(null);
+    if (wasSelected) setSelectedId(null);
+    if (removed) toastUndo(`"${removed.name || "trip"}"`, () => {
+      setTrips((cur) => [...(cur || []), removed]);
+      if (wasSelected) setSelectedId(removed.id);
+    });
   }
   function updateTrip(id, patch) {
     setTrips(trips.map((t) => (t.id === id ? { ...t, ...patch } : t)));
@@ -2009,7 +2015,7 @@ function TravelPage({ theme, trips, setTrips }) {
       </div>
       {showForm && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "18px" }}>
-          <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Trip name (e.g. Telluride)" className="v-input" style={inputStyle} />
+          <input id="v-field-trip-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Trip name (e.g. Telluride)" className="v-input" style={inputStyle} />
           <input value={form.destination} onChange={(e) => setForm((f) => ({ ...f, destination: e.target.value }))} placeholder="Destination" className="v-input" style={inputStyle} />
           <input type="date" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} className="v-input" style={inputStyle} />
           <input type="date" value={form.endDate} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} className="v-input" style={inputStyle} />
@@ -2912,6 +2918,15 @@ function applyThemeVars(theme) {
   if (theme.fontDisplay) ensureAuroraFont();
 }
 
+// Put the cursor on the field the user has to fix. Paired with a message,
+// never instead of one: focus alone is easy to miss, a message alone leaves
+// them hunting for which box was wrong.
+function focusField(id) {
+  if (typeof document === "undefined") return;
+  const el = document.getElementById("v-field-" + id);
+  if (el && typeof el.focus === "function") el.focus({ preventScroll: false });
+}
+
 function cardBackgroundStyle(theme) {
   const style = {
     border: "1px solid var(--v-edge)",
@@ -3052,6 +3067,16 @@ function showToast(opts) {
   if (item.duration > 0) setTimeout(() => dismissToast(id), item.duration);
   return id;
 }
+// A delete you can take back. The label names the thing in the sentence
+// "Deleted X." — quote it if it is a user-supplied name.
+function toastUndo(label, restore) {
+  toast.show({
+    message: "Deleted " + label + ".",
+    duration: 8000,
+    action: { label: "Undo", onClick: restore },
+  });
+}
+
 const toast = {
   show: showToast,
   info: (m, o) => showToast({ ...(o || {}), message: m, kind: "info" }),
@@ -3129,7 +3154,50 @@ function ToastHost({ theme }) {
   );
 }
 
+// Which card label each page repeats in its own header. Keyed by page so the
+// same component keeps its label on Home, where nothing else names the card.
+const REDUNDANT_SECTION_LABELS = {
+  fitness: ["Fitness"],
+  golf: ["Golf"],
+  financial: ["Financial"],
+  transactions: ["Transactions"],
+  upcoming: ["Upcoming"],
+  weather: ["Weather"],
+  agenda: ["7-Day Agenda"],
+  youtube: ["YouTube Updates"],
+  profile: ["About Me"],
+  resume: ["Resume"],
+  watchlist: ["Watch List"],
+  trackers: ["Custom Trackers"],
+  goals: ["Life Goals"],
+  videos: ["Fitness Videos"],
+  journal: ["Journal"],
+  habits: ["Habits"],
+  birthdays: ["Birthdays & Gifts"],
+  reading: ["Reading"],
+  games: ["Games"],
+  subscriptions: ["Subscriptions"],
+  movies: ["Movies & TV"],
+  gaming: ["Gaming"],
+};
+
+const PageIdContext = createContext("");
+
+// Only plain text can be compared; a label built out of elements or counts is
+// left alone rather than guessed at.
+function sectionLabelText(children) {
+  if (typeof children === "string") return children.trim();
+  if (Array.isArray(children) && children.every((c) => typeof c === "string" || typeof c === "number")) {
+    return children.join("").trim();
+  }
+  return null;
+}
+
 function SectionLabel({ theme, icon, children, style, className }) {
+  const pageId = useContext(PageIdContext);
+  const flat = sectionLabelText(children);
+  const redundant = REDUNDANT_SECTION_LABELS[pageId];
+  if (flat && redundant && redundant.indexOf(flat) !== -1) return null;
   return (
     <div
       className={"v-sectionlabel" + (className ? " " + className : "")}
@@ -3148,6 +3216,39 @@ function SectionLabel({ theme, icon, children, style, className }) {
     >
       {icon && <span style={{ display: "inline-flex" }}>{icon}</span>}
       <span>{children}</span>
+    </div>
+  );
+}
+
+// options: [{ id, label }] or [[id, label], ...] — both shapes exist in the
+// call sites this replaced, so both are accepted rather than rewritten.
+function Segmented({ theme, value, onChange, options, ariaLabel, size, style }) {
+  const items = (options || []).map((o) => (Array.isArray(o) ? { id: o[0], label: o[1] } : o));
+  return (
+    <div
+      className={"v-segmented" + (size === "sm" ? " v-segmented--sm" : "")}
+      role="tablist"
+      aria-label={ariaLabel}
+      style={{ background: theme.chip, borderColor: "var(--v-edge)", ...style }}
+    >
+      {items.map((o) => {
+        const on = o.id === value;
+        return (
+          <button
+            key={o.id}
+            type="button"
+            role="tab"
+            aria-selected={on}
+            onClick={() => onChange(o.id)}
+            className={"v-btn v-segmented__seg" + (on ? " is-on" : "")}
+            style={on
+              ? { background: theme.cardBg, color: theme.text }
+              : { background: "transparent", color: theme.textMuted }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -3993,7 +4094,9 @@ function WorkoutLogSection({ theme, workouts, setWorkouts }) {
 
   function addEntry() {
     const ex = exercise.trim();
-    if (!ex || !sets || !reps) return;
+    if (!ex) { toast.info("Name the exercise first."); focusField("lift-name"); return; }
+    if (!sets) { toast.info("How many sets?"); focusField("lift-sets"); return; }
+    if (!reps) { toast.info("How many reps?"); focusField("lift-reps"); return; }
     const entry = {
       id: "wo" + Date.now() + Math.random().toString(36).slice(2, 6),
       date: date || new Date().toISOString().slice(0, 10),
@@ -4036,9 +4139,9 @@ function WorkoutLogSection({ theme, workouts, setWorkouts }) {
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: "8px", marginBottom: "16px" }}>
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="v-input" style={inputStyle} />
-        <input value={exercise} onChange={(e) => setExercise(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addEntry()} placeholder="Exercise" className="v-input" style={{ ...inputStyle, gridColumn: "span 2" }} />
-        <input value={sets} onChange={(e) => setSets(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addEntry()} placeholder="Sets" inputMode="numeric" className="v-input" style={inputStyle} />
-        <input value={reps} onChange={(e) => setReps(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addEntry()} placeholder="Reps" inputMode="numeric" className="v-input" style={inputStyle} />
+        <input id="v-field-lift-name" value={exercise} onChange={(e) => setExercise(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addEntry()} placeholder="Exercise" className="v-input" style={{ ...inputStyle, gridColumn: "span 2" }} />
+        <input id="v-field-lift-sets" value={sets} onChange={(e) => setSets(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addEntry()} placeholder="Sets" inputMode="numeric" className="v-input" style={inputStyle} />
+        <input id="v-field-lift-reps" value={reps} onChange={(e) => setReps(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addEntry()} placeholder="Reps" inputMode="numeric" className="v-input" style={inputStyle} />
         <input value={weight} onChange={(e) => setWeight(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addEntry()} placeholder="lbs (optional)" inputMode="decimal" className="v-input" style={inputStyle} />
         <button onClick={addEntry} className="v-btn" style={{ padding: "9px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText }}>Log it</button>
       </div>
@@ -4154,7 +4257,8 @@ function UpcomingSection({ theme, events, setEvents, connectedEvents }) {
 
   function addEvent() {
     const trimmedTitle = title.trim();
-    if (!trimmedTitle || !date) return;
+    if (!trimmedTitle) { toast.info("Give the event a title first."); focusField("event-title"); return; }
+    if (!date) { toast.info("Pick a date for the event."); focusField("event-date"); return; }
     const id = "pe" + Date.now() + Math.random().toString(36).slice(2, 6);
     const autoDetail = new Date(date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
     setEvents([...events, { id, title: trimmedTitle, date, detail: detail.trim() || autoDetail }]);
@@ -4164,10 +4268,22 @@ function UpcomingSection({ theme, events, setEvents, connectedEvents }) {
   }
 
   function removeEvent(id) {
+    const removed = events.find((e) => e.id === id);
     setEvents(events.filter((e) => e.id !== id));
+    if (removed) toastUndo(`"${removed.title || "event"}"`, () => setEvents((cur) => [...(cur || []), removed]));
   }
 
-  const merged = [...events, ...connectedEvents].sort((a, b) => a.date.localeCompare(b.date));
+  const merged = (() => {
+    const all = [...events, ...connectedEvents];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    // Today counts as upcoming: a thing happening in four hours belongs above
+    // the fold, not under a heading called Earlier.
+    const past = (e) => new Date(e.date + "T00:00:00") < today;
+    const ahead = all.filter((e) => !past(e)).sort((x, y) => x.date.localeCompare(y.date));
+    const behind = all.filter(past).sort((x, y) => y.date.localeCompare(x.date));
+    return { ahead, behind, all: [...ahead, ...behind] };
+  })();
 
   const inputStyle = {
     background: theme.inputBg,
@@ -4185,12 +4301,18 @@ function UpcomingSection({ theme, events, setEvents, connectedEvents }) {
     <Card theme={theme} delay={120}>
       <SectionLabel theme={theme} icon={<IconCalendar />}>Upcoming</SectionLabel>
       <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginBottom: "16px" }}>
-        {merged.length === 0 && (
+        {merged.all.length === 0 && (
           <div style={{ fontSize: "13px", color: theme.textFaint }}>No upcoming events — add one below.</div>
         )}
-        {merged.map((ev) => (
+        {merged.ahead.length === 0 && merged.behind.length > 0 && (
+          <div style={{ fontSize: "13px", color: theme.textFaint }}>Nothing ahead — everything below has already happened.</div>
+        )}
+        {merged.all.map((ev, i) => (
+          <React.Fragment key={"g" + ev.id}>
+          {i === merged.ahead.length && merged.ahead.length > 0 && (
+            <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: theme.textFaint, marginTop: "4px" }}>Earlier</div>
+          )}
           <div
-            key={ev.id}
             style={{
               display: "flex",
               alignItems: "center",
@@ -4256,11 +4378,13 @@ function UpcomingSection({ theme, events, setEvents, connectedEvents }) {
               )}
             </span>
           </div>
+          </React.Fragment>
         ))}
       </div>
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
         <input
           placeholder="Event title"
+          id="v-field-event-title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addEvent()}
@@ -4268,6 +4392,7 @@ function UpcomingSection({ theme, events, setEvents, connectedEvents }) {
           style={{ ...inputStyle, flex: "2 1 130px" }}
         />
         <input
+          id="v-field-event-date"
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
@@ -4335,7 +4460,7 @@ function FinancialAccountsSection({ theme, data, setData, accountHistory, onReco
   }
   function addAccount() {
     const n = name.trim();
-    if (!n) return;
+    if (!n) { toast.info("Name the account first."); focusField("account-name"); return; }
     const id = "acct" + Date.now();
     setData({ ...data, accounts: [...accounts, { id, name: n, balance: 0 }] });
     setName("");
@@ -4401,29 +4526,30 @@ function FinancialAccountsSection({ theme, data, setData, accountHistory, onReco
         {accounts.map((a) => {
           const series = (accountHistory && accountHistory[a.id]) || [];
           return (
-            <div key={a.id} style={{ position: "relative", background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "12px", padding: "14px 16px" }}>
+            <div key={a.id} className="v-rowact" style={{ background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "14px", padding: "14px 16px" }}>
               <button
                 onClick={() => removeAccount(a.id)}
-                title="Remove account"
-                className="v-btn"
-                style={{ position: "absolute", top: "8px", right: "8px", width: "20px", height: "20px", borderRadius: "50%", border: "none", background: theme.dangerSoft, color: theme.danger, fontSize: "12px", lineHeight: "20px", textAlign: "center", padding: 0 }}
+                title={"Remove " + (a.name || "account")}
+                aria-label={"Remove " + (a.name || "account")}
+                className="v-btn v-btn--tight v-iconbtn v-rowact__btn"
+                style={{ width: "20px", height: "20px", borderRadius: "50%", border: "none", background: theme.dangerSoft, color: theme.danger, fontSize: "12px", lineHeight: "20px", textAlign: "center", padding: 0 }}
               >
                 ×
               </button>
               <input
                 value={a.name}
                 onChange={(e) => renameAccount(a.id, e.target.value)}
-                className="v-input"
-                style={{ width: "100%", fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: theme.textMuted, background: "transparent", border: "none", padding: 0, marginBottom: "6px", paddingRight: "18px", "--focus-ring": theme.accentSoft, "--focus-border": "transparent" }}
+                className="v-input v-input--bare"
+                style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: theme.textMuted, border: "none", marginBottom: "6px", "--focus-ring": theme.accentSoft, "--focus-border": "transparent" }}
               />
-              <div style={{ display: "flex", alignItems: "center", gap: "2px" }}>
-                <span className="v-tabular" style={{ fontSize: "16px", fontWeight: 700, color: theme.textFaint }}>$</span>
+              <div className="v-fieldpair" style={{ display: "flex", alignItems: "baseline", gap: "2px" }}>
+                <span className="v-tabular" style={{ fontSize: "16px", fontWeight: 700, color: theme.textFaint, flexShrink: 0 }}>$</span>
                 <input
                   value={a.balance}
                   onChange={(e) => updateBalance(a.id, e.target.value)}
                   inputMode="decimal"
-                  className="v-input v-tabular"
-                  style={{ width: "100%", fontSize: "20px", fontWeight: 700, color: theme.text, background: "transparent", border: "none", borderRadius: "6px", padding: 0, "--focus-ring": theme.accentSoft, "--focus-border": "transparent" }}
+                  className="v-input v-input--bare v-tabular"
+                  style={{ fontSize: "20px", fontWeight: 700, color: theme.text, border: "none", "--focus-ring": theme.accentSoft, "--focus-border": "transparent" }}
                 />
               </div>
               {series.length >= 2 && (
@@ -4439,6 +4565,7 @@ function FinancialAccountsSection({ theme, data, setData, accountHistory, onReco
       <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
         <input
           placeholder="Add another account (e.g. HSA)"
+          id="v-field-account-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addAccount()}
@@ -4597,7 +4724,8 @@ function CustomTrackersSection({ theme, trackers, setTrackers, trackerHistory, o
   function addTracker() {
     const trimmedLabel = label.trim();
     const trimmedValue = value.trim();
-    if (!trimmedLabel || !trimmedValue) return;
+    if (!trimmedLabel) { toast.info("Name the tracker first."); focusField("tracker-label"); return; }
+    if (!trimmedValue) { toast.info("Give the tracker a starting value."); focusField("tracker-value"); return; }
     const id = "t" + Date.now() + Math.random().toString(36).slice(2, 6);
     setTrackers([...trackers, { id, label: trimmedLabel, value: trimmedValue, target: target.trim() }]);
     setLabel("");
@@ -4655,22 +4783,20 @@ function CustomTrackersSection({ theme, trackers, setTrackers, trackerHistory, o
             return (
               <div
                 key={t.id}
+                className="v-rowact"
                 style={{
-                  position: "relative",
                   background: theme.accentSoft,
                   border: `1px solid ${theme.divider}`,
-                  borderRadius: "12px",
+                  borderRadius: "14px",
                   padding: "14px 16px",
                 }}
               >
                 <button
                   onClick={() => removeTracker(t.id)}
-                  title="Remove tracker"
-                  className="v-btn"
+                  title={"Remove " + (t.label || "tracker")}
+                  aria-label={"Remove " + (t.label || "tracker")}
+                  className="v-btn v-btn--tight v-iconbtn v-rowact__btn"
                   style={{
-                    position: "absolute",
-                    top: "8px",
-                    right: "8px",
                     width: "20px",
                     height: "20px",
                     borderRadius: "50%",
@@ -4792,6 +4918,7 @@ function CustomTrackersSection({ theme, trackers, setTrackers, trackerHistory, o
       <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
         <input
           placeholder="Label (e.g. Pages Read)"
+          id="v-field-tracker-label"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addTracker()}
@@ -4800,6 +4927,7 @@ function CustomTrackersSection({ theme, trackers, setTrackers, trackerHistory, o
         />
         <input
           placeholder="Value (e.g. 42)"
+          id="v-field-tracker-value"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addTracker()}
@@ -5058,14 +5186,19 @@ function WatchQueueSection({ theme, watchlist, setWatchlist, genres, delay }) {
 
   function addTitle(t, ty) {
     const trimmed = t.trim();
-    if (!trimmed) return;
-    if (watchlist.some((w) => w.title.toLowerCase() === trimmed.toLowerCase())) return;
+    if (!trimmed) { toast.info("Give the title a name first."); focusField("watch-title"); return; }
+    if (watchlist.some((w) => w.title.toLowerCase() === trimmed.toLowerCase())) {
+      toast.info("“" + trimmed + "” is already on the watch list.");
+      return;
+    }
     const id = "w" + Date.now() + Math.random().toString(36).slice(2, 6);
     setWatchlist([...watchlist, { id, title: trimmed, type: ty, status: "queued" }]);
   }
 
   function removeTitle(id) {
+    const removed = watchlist.find((w) => w.id === id);
     setWatchlist(watchlist.filter((w) => w.id !== id));
+    if (removed) toastUndo(`"${removed.title || "title"}"`, () => setWatchlist((cur) => [...(cur || []), removed]));
   }
 
   function cycleStatus(id) {
@@ -5167,15 +5300,15 @@ function WatchQueueSection({ theme, watchlist, setWatchlist, genres, delay }) {
                 style={{
                   fontSize: "11px",
                   fontWeight: 700,
-                  color: statusMeta[w.status].color,
-                  background: statusMeta[w.status].bg,
+                  color: (statusMeta[w.status] || statusMeta.queued).color,
+                  background: (statusMeta[w.status] || statusMeta.queued).bg,
                   border: "none",
                   borderRadius: "999px",
                   padding: "5px 10px",
                   flexShrink: 0,
                 }}
               >
-                {statusMeta[w.status].label}
+                {(statusMeta[w.status] || statusMeta.queued).label}
               </button>
               <button
                 onClick={() => removeTitle(w.id)}
@@ -5209,6 +5342,7 @@ function WatchQueueSection({ theme, watchlist, setWatchlist, genres, delay }) {
       <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
         <input
           placeholder="Title"
+          id="v-field-watch-title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => {
@@ -5351,9 +5485,11 @@ function BudgetEnvelopesSection({ theme, transactions, budgets, setBudgets }) {
     setCategory(""); setLimit("");
   }
   function removeBudget(c) {
+    const removed = (budgets || {})[c];
     const next = { ...(budgets || {}) };
     delete next[c];
     setBudgets(next);
+    if (removed !== undefined) toastUndo(`the "${c}" budget`, () => setBudgets((cur) => ({ ...(cur || {}), [c]: removed })));
   }
 
   const inputStyle = {
@@ -5463,7 +5599,8 @@ function TransactionsSection({ theme, transactions, setTransactions, categoryOpt
 
   function addTransaction() {
     const trimmedMerchant = merchant.trim();
-    if (!trimmedMerchant || !amount) return;
+    if (!trimmedMerchant) { toast.info("Who was it paid to?"); focusField("tx-merchant"); return; }
+    if (!amount) { toast.info("Enter an amount."); focusField("tx-amount"); return; }
     const tx = {
       id: "tx" + Date.now() + Math.random().toString(36).slice(2, 8),
       date: date || new Date().toISOString().slice(0, 10),
@@ -5720,7 +5857,7 @@ function TransactionsSection({ theme, transactions, setTransactions, categoryOpt
       )}
 
       {sorted.length > 0 ? (
-        <div className="v-scroll" style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "220px", overflowY: "auto", marginBottom: "18px" }}>
+        <div className="v-scroll" style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "min(62vh, 900px)", overflowY: "auto", marginBottom: "18px" }}>
           {sorted.map((t) => (
             <div
               key={t.id}
@@ -5774,6 +5911,7 @@ function TransactionsSection({ theme, transactions, setTransactions, categoryOpt
           style={{ ...inputStyle, flex: "1 1 130px" }}
         />
         <input
+          id="v-field-tx-merchant"
           ref={merchantRef}
           placeholder="Merchant"
           value={merchant}
@@ -5783,6 +5921,7 @@ function TransactionsSection({ theme, transactions, setTransactions, categoryOpt
           style={{ ...inputStyle, flex: "2 1 140px" }}
         />
         <input
+          id="v-field-tx-amount"
           placeholder="Amount $"
           type="number"
           value={amount}
@@ -5866,7 +6005,7 @@ function JournalSection({ theme, data, setData, delay }) {
       />
 
       {past.length > 0 ? (
-        <div className="v-scroll" style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "220px", overflowY: "auto" }}>
+        <div className="v-scroll" style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "min(62vh, 900px)", overflowY: "auto" }}>
           {past.map((e) => (
             <div key={e.date} style={{ background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "10px", padding: "10px 12px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
@@ -5898,7 +6037,7 @@ function GoalsBoardSection({ theme, data, setData, delay }) {
 
   function addGoal() {
     const trimmed = label.trim();
-    if (!trimmed) return;
+    if (!trimmed) { toast.info("Name the goal first."); focusField("goal-label"); return; }
     const id = "g" + Date.now() + Math.random().toString(36).slice(2, 6);
     setData([...data, { id, label: trimmed, status: "not-started" }]);
     setLabel("");
@@ -5966,6 +6105,7 @@ function GoalsBoardSection({ theme, data, setData, delay }) {
       <div style={{ display: "flex", gap: "10px" }}>
         <input
           placeholder="New goal"
+          id="v-field-goal-label"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addGoal()}
@@ -6614,8 +6754,10 @@ function ProfileSection({ theme, profile, setProfile }) {
 
   function addInterest() {
     const trimmed = tag.trim();
-    if (!trimmed) return;
+    if (!trimmed) { toast.info("Type an interest first."); focusField("interest"); return; }
     if (profile.interests.some((i) => i.toLowerCase() === trimmed.toLowerCase())) {
+      // Clearing the box silently read as success; it was a duplicate.
+      toast.info("“" + trimmed + "” is already listed.");
       setTag("");
       return;
     }
@@ -6674,6 +6816,7 @@ function ProfileSection({ theme, profile, setProfile }) {
       </div>
       <div style={{ display: "flex", gap: "10px" }}>
         <input
+          id="v-field-interest"
           placeholder="Add an interest (e.g. Cooking)"
           value={tag}
           onChange={(e) => setTag(e.target.value)}
@@ -11011,11 +11154,8 @@ function SportsSection({ theme, state, setState }) {
         <div style={{ fontSize: "12px", color: theme.textMuted, marginTop: "10px", lineHeight: 1.4 }}>
           Celtics, Red Sox, Bruins, and Colts — plus the latest around the NBA, MLB, and NFL. Headlines from ESPN.
         </div>
-        <div style={{ display: "flex", gap: "6px", marginTop: "12px" }}>
-          {[["news", "Headlines"], ["schedule", "Schedule & Scores"]].map(([id, lbl]) => (
-            <button key={id} onClick={() => setView(id)} className="v-btn" style={{ padding: "7px 14px", borderRadius: "9px", fontSize: "12.5px", fontWeight: 700, cursor: "pointer", border: `1px solid ${view === id ? theme.accent : theme.cardBorder}`, background: view === id ? theme.accentSoft : "transparent", color: view === id ? theme.accent : theme.textMuted }}>{lbl}</button>
-          ))}
-        </div>
+        <Segmented theme={theme} value={view} onChange={setView} ariaLabel="Sports view" style={{ marginTop: "12px" }}
+          options={[["news", "Headlines"], ["schedule", "Schedule & Scores"]]} />
         {error && (
           <div style={{ marginTop: "12px", fontSize: "12.5px", fontWeight: 600, padding: "10px 13px", borderRadius: "9px", color: theme.textMuted, background: theme.accentSoft, lineHeight: 1.45 }}>{error}</div>
         )}
@@ -11200,8 +11340,13 @@ function HabitsSection({ theme, state, setState }) {
 
   function addHabit(label) {
     const n = (label != null ? label : name).trim();
-    if (!n) return;
-    if ((s.items || []).some((h) => h.name.toLowerCase() === n.toLowerCase())) { setName(""); return; }
+    if (!n) { toast.info("Name the habit first."); focusField("habit-name"); return; }
+    if ((s.items || []).some((h) => h.name.toLowerCase() === n.toLowerCase())) {
+      // Silently clearing the box read as "it worked" — it did not.
+      toast.info("“" + n + "” is already on the list.");
+      setName("");
+      return;
+    }
     setState((prev) => {
       const p = prev && prev.items ? prev : DEFAULT_HABITS;
       return { ...p, items: [...p.items, { id: "hab" + Date.now() + Math.round(performance.now()), name: n }] };
@@ -11256,6 +11401,7 @@ function HabitsSection({ theme, state, setState }) {
 
         <div style={{ display: "flex", gap: "8px", marginTop: "12px", flexWrap: "wrap" }}>
           <input
+            id="v-field-habit-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") addHabit(); }}
@@ -11453,11 +11599,14 @@ function ReadingSection({ theme, state, setState }) {
     updateBook(id, { status, finishedAt: status === "finished" ? (books.find((b) => b.id === id) || {}).finishedAt || new Date().toISOString() : null });
   }
   function removeBook(id) {
+    const removed = (books || []).find((b) => b.id === id);
     setState((prev) => { const p = prev && prev.books ? prev : DEFAULT_READING; return { ...p, books: p.books.filter((b) => b.id !== id) }; });
+    if (removed) toastUndo(`"${removed.title || "book"}"`, () =>
+      setState((prev) => { const p = prev && prev.books ? prev : DEFAULT_READING; return { ...p, books: [...p.books, removed] }; }));
   }
   function addManual() {
     const t = manualTitle.trim();
-    if (!t) return;
+    if (!t) { toast.info("Give the book a title first."); focusField("book-title"); return; }
     addBook({ title: t, author: manualAuthor.trim() }, "want");
     setManualTitle(""); setManualAuthor("");
   }
@@ -11524,18 +11673,15 @@ function ReadingSection({ theme, state, setState }) {
 
         {/* Manual add */}
         <div style={{ display: "flex", gap: "8px", marginTop: "12px", flexWrap: "wrap" }}>
-          <input value={manualTitle} onChange={(e) => setManualTitle(e.target.value)} placeholder="…or add manually — title" className="v-input" style={{ ...inputStyle, flex: 1, minWidth: "140px" }} />
+          <input id="v-field-book-title" value={manualTitle} onChange={(e) => setManualTitle(e.target.value)} placeholder="…or add manually — title" className="v-input" style={{ ...inputStyle, flex: 1, minWidth: "140px" }} />
           <input value={manualAuthor} onChange={(e) => setManualAuthor(e.target.value)} placeholder="author (optional)" className="v-input" style={{ ...inputStyle, flex: 1, minWidth: "120px" }} />
           <button onClick={addManual} className="v-btn" style={{ padding: "9px 14px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.text }}>Add</button>
         </div>
       </Card>
 
       <Card theme={theme} delay={80}>
-        <div style={{ display: "flex", gap: "6px", marginBottom: "12px", flexWrap: "wrap" }}>
-          {[{ id: "all", label: "All" }, ...READING_SHELVES].map((f) => (
-            <button key={f.id} onClick={() => setFilter(f.id)} className="v-btn" style={{ padding: "6px 12px", borderRadius: "999px", fontSize: "12px", fontWeight: 700, border: `1px solid ${filter === f.id ? theme.accent : theme.cardBorder}`, background: filter === f.id ? theme.accentSoft : "transparent", color: filter === f.id ? theme.accent : theme.textMuted }}>{f.label}</button>
-          ))}
-        </div>
+        <Segmented theme={theme} value={filter} onChange={setFilter} ariaLabel="Shelf"
+          options={[{ id: "all", label: "All" }, ...READING_SHELVES]} style={{ marginBottom: "12px" }} />
         {shown.length === 0 ? (
           <EmptyState
             theme={theme}
@@ -11628,7 +11774,7 @@ function GamesSection({ theme, state, setState }) {
 
   function addGame() {
     const t = title.trim();
-    if (!t) return;
+    if (!t) { toast.info("Give the game a title first."); focusField("game-title"); return; }
     const entry = { id: "gm" + Date.now() + Math.round(performance.now()), title: t, platform, status, rating: 0, hours: "", addedAt: new Date().toISOString() };
     setState((prev) => ({ ...(prev && prev.games ? prev : DEFAULT_GAMES), games: [entry, ...(prev && prev.games ? prev.games : [])] }));
     setTitle("");
@@ -11637,7 +11783,10 @@ function GamesSection({ theme, state, setState }) {
     setState((prev) => { const p = prev && prev.games ? prev : DEFAULT_GAMES; return { ...p, games: p.games.map((g) => (g.id === id ? { ...g, ...patch } : g)) }; });
   }
   function removeGame(id) {
+    const removed = (games || []).find((g) => g.id === id);
     setState((prev) => { const p = prev && prev.games ? prev : DEFAULT_GAMES; return { ...p, games: p.games.filter((g) => g.id !== id) }; });
+    if (removed) toastUndo(`"${removed.title || "game"}"`, () =>
+      setState((prev) => { const p = prev && prev.games ? prev : DEFAULT_GAMES; return { ...p, games: [...p.games, removed] }; }));
   }
 
   const inputStyle = { padding: "9px 11px", borderRadius: "9px", fontSize: "13px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent };
@@ -11655,7 +11804,7 @@ function GamesSection({ theme, state, setState }) {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "8px", marginTop: "12px" }}>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addGame(); }} placeholder="Game title" className="v-input" style={{ ...inputStyle, gridColumn: "span 2" }} />
+          <input id="v-field-game-title" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addGame(); }} placeholder="Game title" className="v-input" style={{ ...inputStyle, gridColumn: "span 2" }} />
           <select value={platform} onChange={(e) => setPlatform(e.target.value)} className="v-input" style={inputStyle}>
             {GAME_PLATFORMS.map((pf) => <option key={pf} value={pf}>{pf}</option>)}
           </select>
@@ -11667,11 +11816,8 @@ function GamesSection({ theme, state, setState }) {
       </Card>
 
       <Card theme={theme} delay={80}>
-        <div style={{ display: "flex", gap: "6px", marginBottom: "12px", flexWrap: "wrap" }}>
-          {[{ id: "all", label: "All" }, ...GAME_STATUSES].map((f) => (
-            <button key={f.id} onClick={() => setFilter(f.id)} className="v-btn" style={{ padding: "6px 12px", borderRadius: "999px", fontSize: "12px", fontWeight: 700, border: `1px solid ${filter === f.id ? theme.accent : theme.cardBorder}`, background: filter === f.id ? theme.accentSoft : "transparent", color: filter === f.id ? theme.accent : theme.textMuted }}>{f.label}</button>
-          ))}
-        </div>
+        <Segmented theme={theme} value={filter} onChange={setFilter} ariaLabel="Status"
+          options={[{ id: "all", label: "All" }, ...GAME_STATUSES]} style={{ marginBottom: "12px" }} />
         {shown.length === 0 ? (
           <EmptyState
             theme={theme}
@@ -11756,7 +11902,12 @@ function BirthdaysSection({ theme, state, setState }) {
     setState((prev) => ({ ...(prev && prev.people ? prev : DEFAULT_BIRTHDAYS), people: [...(prev && prev.people ? prev.people : []), { id: "bd" + Date.now(), name: n, date, relationship: relationship.trim(), gifts: [] }] }));
     setName(""); setDate(""); setRelationship("");
   }
-  function removePerson(id) { setState((prev) => { const p = prev && prev.people ? prev : DEFAULT_BIRTHDAYS; return { ...p, people: p.people.filter((x) => x.id !== id) }; }); }
+  function removePerson(id) {
+    const removed = (people || []).find((x) => x.id === id);
+    setState((prev) => { const p = prev && prev.people ? prev : DEFAULT_BIRTHDAYS; return { ...p, people: p.people.filter((x) => x.id !== id) }; });
+    if (removed) toastUndo(`"${removed.name || "person"}" and their gift list`, () =>
+      setState((prev) => { const p = prev && prev.people ? prev : DEFAULT_BIRTHDAYS; return { ...p, people: [...p.people, removed] }; }));
+  }
   function updatePerson(id, patch) { setState((prev) => { const p = prev && prev.people ? prev : DEFAULT_BIRTHDAYS; return { ...p, people: p.people.map((x) => (x.id === id ? { ...x, ...patch } : x)) }; }); }
   function addGift(id) {
     const text = (giftDraft[id] || "").trim();
@@ -12165,19 +12316,8 @@ function FeedSection({ theme, state, setState, categories, title, icon, intro })
           </button>
         </div>
         {intro && <div style={{ fontSize: "12.5px", color: theme.textMuted, marginTop: "10px", lineHeight: 1.45 }}>{intro}</div>}
-        <div style={{ display: "flex", gap: "6px", marginTop: "12px", flexWrap: "wrap" }}>
-          {cats.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => setActive(c.id)}
-              className="v-btn"
-              aria-pressed={active === c.id}
-              style={{ padding: "7px 13px", borderRadius: "999px", fontSize: "12.5px", fontWeight: 700, border: `1px solid ${active === c.id ? theme.accent : theme.cardBorder}`, background: active === c.id ? theme.accentSoft : "transparent", color: active === c.id ? theme.accent : theme.textMuted }}
-            >
-              {c.label}
-            </button>
-          ))}
-        </div>
+        <Segmented theme={theme} value={active} onChange={setActive} options={cats}
+          ariaLabel="Category" style={{ marginTop: "12px" }} />
         {error && (
           <div style={{ marginTop: "12px", fontSize: "12.5px", fontWeight: 600, padding: "10px 13px", borderRadius: "9px", color: theme.textMuted, background: theme.accentSoft, lineHeight: 1.45 }}>{error}</div>
         )}
@@ -12613,7 +12753,11 @@ function SubscriptionsSection({ theme, subs, setSubs }) {
     setSubs([...(subs || []), { id: "sub" + Date.now(), name: n, cost: c, cycle, renewal, category: category.trim() }]);
     setName(""); setCost(""); setCycle("monthly"); setRenewal(""); setCategory("");
   }
-  function removeSub(id) { setSubs((subs || []).filter((s) => s.id !== id)); }
+  function removeSub(id) {
+    const removed = (subs || []).find((s) => s.id === id);
+    setSubs((subs || []).filter((s) => s.id !== id));
+    if (removed) toastUndo(`"${removed.name || "subscription"}"`, () => setSubs((cur) => [...(cur || []), removed]));
+  }
 
   const monthly = useMemo(() => (subs || []).reduce((sum, s) => sum + subPerMonth(s), 0), [subs]);
   const sorted = useMemo(() => {
@@ -13273,7 +13417,10 @@ function RemindersMenu({ theme, reminders, setReminders, events }) {
     toast.success(repeat === "none" ? "Reminder set." : `Reminder set — ${reminderRepeatLabel(repeat).toLowerCase()}.`);
   }
   function removeReminder(id) {
+    const removed = ((reminders && reminders.items) || []).find((r) => r.id === id);
     setReminders((s) => ({ ...s, items: (s.items || []).filter((r) => r.id !== id) }));
+    if (removed) toastUndo(`the reminder "${removed.title || removed.text || "reminder"}"`, () =>
+      setReminders((s) => ({ ...s, items: [...(s.items || []), removed] })));
   }
 
   const sorted = useMemo(
@@ -13893,6 +14040,7 @@ function App() {
       />
 
       <main className="v-main" id="v-main">
+        <PageIdContext.Provider value={page}>
         <div className={"v-container " + containerVariant(page)}>
           <PageBanner theme={theme} page={page} images={pageImages} setImages={setPageImages} />
           <PageErrorBoundary theme={theme} page={page}>
@@ -14082,6 +14230,7 @@ function App() {
           {page === "jobsearch" && <LazyJobSearchPage theme={theme} resume={resume} />}
           </PageErrorBoundary>
         </div>
+        </PageIdContext.Provider>
       </main>
 
       <ToastHost theme={theme} />
