@@ -113,7 +113,16 @@ async function main() {
   // A literal </script> anywhere in the compiled output (inside a string, say)
   // would end the tag early and corrupt the document.
   const safe = out.replace(/<\/script>/gi, "<\\/script>");
-  const block = '<script>(function(){"use strict";\n' + safe + "\n})();</script>";
+  // Wrapped in a DOMContentLoaded listener, not run immediately: the shell's
+  // React/ReactDOM <script> tags are `defer`red so they don't block HTML
+  // parsing, which means they haven't run yet when the parser reaches this
+  // inline block. An inline script can't itself carry `defer` (the attribute
+  // is a no-op without `src`), so waiting for the event is what actually
+  // guarantees React exists before this code touches it. Deferred scripts
+  // are guaranteed to finish before DOMContentLoaded fires, in document
+  // order, so this still runs after React and before ReactDOM would ever be
+  // out of order.
+  const block = '<script>document.addEventListener("DOMContentLoaded",function(){"use strict";\n' + safe + "\n});</script>";
 
   const html = shell.replace(MARKER, () => block);
   fs.writeFileSync(OUT, html);
