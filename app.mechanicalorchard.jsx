@@ -12,6 +12,7 @@ const {
   MoButton, STORAGE_KEYS, cardBackgroundStyle, formatBytes, saveJSON, timeAgo, truncate, usePersistentState,
   toast, IconBookOpen, IconBulb, IconChecklist, IconLock, IconShare, IconTrendingUp, IconUpload,
   MO_SEVERITY_ORDER, MO_SOURCE_HINTS, moFindingKeyOf, moDiffFindings,
+  focusField, toastUndo, Segmented,
 } = window.__v;
 
 /* ----------------------------------------------------------------------
@@ -992,7 +993,9 @@ function VulnerabilityAnalyzerModal({ theme, initialSource, snapshots, setSnapsh
   }
 
   function deleteSnapshot(id) {
+    const removed = (snapshots || []).find((s) => s.id === id);
     setSnapshots((prev) => (prev || []).filter((s) => s.id !== id));
+    if (removed) toastUndo("that saved scan", () => setSnapshots((cur) => [...(cur || []), removed]));
   }
 
   function exportLog() {
@@ -2027,8 +2030,13 @@ function CveWatchlistModal({ theme, watchlist, setWatchlist, onClose }) {
 
   function addKeyword() {
     const k = keyword.trim();
-    if (!k) return;
-    if ((watchlist || []).some((w) => w.keyword.toLowerCase() === k.toLowerCase())) { setKeyword(""); return; }
+    if (!k) { toast.info("Type a vendor or product to watch."); return; }
+    if ((watchlist || []).some((w) => w.keyword.toLowerCase() === k.toLowerCase())) {
+      // Clearing the box silently read as "added".
+      toast.info("“" + k + "” is already on the watchlist.");
+      setKeyword("");
+      return;
+    }
     setWatchlist([...(watchlist || []), { id: "cve" + Date.now(), keyword: k, results: null, fetchedAt: null }]);
     setKeyword("");
   }
@@ -2440,11 +2448,8 @@ function VulnTrendModal({ theme, snapshots, onClose }) {
       subtitle="Charts the S1 and IRU snapshots you've saved from the Vulnerability Analyzer, so you can show remediation progress over time."
       onClose={onClose}
     >
-      <div style={{ display: "flex", gap: "6px", marginBottom: "16px" }}>
-        {[["s1", "SentinelOne (S1)"], ["iru", "IRU"]].map(([id, lbl]) => (
-          <button key={id} onClick={() => setSource(id)} className="v-btn" style={{ padding: "8px 14px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, cursor: "pointer", border: `1px solid ${source === id ? theme.accent : theme.cardBorder}`, background: source === id ? theme.accentSoft : "transparent", color: source === id ? theme.accent : theme.textMuted }}>{lbl}</button>
-        ))}
-      </div>
+      <Segmented theme={theme} value={source} onChange={setSource} ariaLabel="Source"
+        options={[["s1", "SentinelOne (S1)"], ["iru", "IRU"]]} style={{ marginBottom: "16px" }} />
 
       {bySource.length < 2 ? (
         <div style={{ textAlign: "center", padding: "28px 16px", color: theme.textFaint, fontSize: "13.5px", lineHeight: 1.5, background: theme.inputBg, borderRadius: "12px", border: `1px solid ${theme.inputBorder}` }}>
@@ -2640,18 +2645,13 @@ function SecurityToolkitModal({ theme, onClose }) {
       subtitle="Analyst tools that run entirely in your browser — nothing you paste is uploaded anywhere."
       onClose={onClose}
     >
-      <div style={{ display: "flex", gap: "6px", marginBottom: "16px", flexWrap: "wrap" }}>
-        {tabs.map(([id, lbl]) => (
-          <button key={id} onClick={() => { setTab(id); setFileHash(null); }} className="v-btn" style={{ padding: "8px 14px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, cursor: "pointer", border: `1px solid ${tab === id ? theme.accent : theme.cardBorder}`, background: tab === id ? theme.accentSoft : "transparent", color: tab === id ? theme.accent : theme.textMuted }}>{lbl}</button>
-        ))}
-      </div>
+      <Segmented theme={theme} value={tab} onChange={(id) => { setTab(id); setFileHash(null); }}
+        ariaLabel="Tool" options={tabs} style={{ marginBottom: "16px" }} />
 
       {tab === "decode" && (
-        <div style={{ display: "flex", gap: "6px", marginBottom: "12px", flexWrap: "wrap" }}>
-          {[["base64", "Base64 decode"], ["b64encode", "Base64 encode"], ["url", "URL decode"], ["urlencode", "URL encode"], ["jwt", "JWT decode"]].map(([id, lbl]) => (
-            <button key={id} onClick={() => setDecodeMode(id)} className="v-btn" style={{ padding: "6px 11px", borderRadius: "999px", fontSize: "12px", fontWeight: 700, border: `1px solid ${decodeMode === id ? theme.accent : theme.cardBorder}`, background: decodeMode === id ? theme.accentSoft : "transparent", color: decodeMode === id ? theme.accent : theme.textMuted }}>{lbl}</button>
-          ))}
-        </div>
+        <Segmented theme={theme} value={decodeMode} onChange={setDecodeMode} size="sm" ariaLabel="Mode"
+          options={[["base64", "Base64 decode"], ["b64encode", "Base64 encode"], ["url", "URL decode"], ["urlencode", "URL encode"], ["jwt", "JWT decode"]]}
+          style={{ marginBottom: "12px" }} />
       )}
 
       <textarea
@@ -2970,7 +2970,7 @@ function PolicyTrackerModal({ theme, policies, setPolicies, onClose }) {
 
   function addPolicy() {
     const name = newName.trim();
-    if (!name) return;
+    if (!name) { toast.info("Name the policy or procedure first."); return; }
     setPolicies((prev) => [
       ...prev,
       { id: "pol-custom-" + Date.now(), name, category: "Custom", status: "todo", owner: "", notes: "", hasFile: false, fileName: "", fileType: "", fileSize: 0, updatedAt: Date.now() },

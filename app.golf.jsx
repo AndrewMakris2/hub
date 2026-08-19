@@ -6,6 +6,7 @@ const { useRef, useState } = React;
 const {
   Card, EmptyState, SectionLabel, IconClose, IconGolf,
   convertHeicIfNeeded, dbDeletePhoto, dbGetPhotosByIds, dbPutPhoto,
+  focusField, toastUndo, Segmented, toast,
 } = window.__v;
 
 const GOLF_PAR72 = [4, 5, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 3, 4, 4, 5, 3, 4];
@@ -206,7 +207,11 @@ function GolfRoundLog({ theme, title, rounds, setRounds, delay }) {
   }
 
   async function addRound() {
-    if (!form.course.trim() || form.front9 === "" || form.back9 === "") return;
+    // Three required fields and none of them marked as such, so an empty save
+    // just did nothing. Name the one that is missing.
+    if (!form.course.trim()) { toast.info("Which course was it?"); focusField("round-course"); return; }
+    if (form.front9 === "") { toast.info("Enter the front nine score."); focusField("round-front9"); return; }
+    if (form.back9 === "") { toast.info("Enter the back nine score."); focusField("round-back9"); return; }
     setSaving(true);
     try {
       const id = "gr" + Date.now() + Math.random().toString(36).slice(2, 6);
@@ -336,7 +341,7 @@ function GolfRoundLog({ theme, title, rounds, setRounds, delay }) {
         <div style={{ background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "12px", padding: "14px", marginBottom: "18px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "10px", marginBottom: "10px" }}>
             <Field label="Course">
-              <input value={form.course} onChange={(e) => updateForm("course", e.target.value)} className="v-input" style={inputStyle} placeholder="Ballyhack Golf Club" />
+              <input id="v-field-round-course" value={form.course} onChange={(e) => updateForm("course", e.target.value)} className="v-input" style={inputStyle} placeholder="Ballyhack Golf Club" />
             </Field>
             <Field label="Date">
               <input type="date" value={form.date} onChange={(e) => updateForm("date", e.target.value)} className="v-input" style={inputStyle} />
@@ -347,10 +352,10 @@ function GolfRoundLog({ theme, title, rounds, setRounds, delay }) {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "10px", marginBottom: "10px" }}>
             <Field label="Front 9">
-              <input type="number" value={form.front9} onChange={(e) => updateForm("front9", e.target.value)} className="v-input v-tabular" style={inputStyle} placeholder="42" />
+              <input id="v-field-round-front9" type="number" value={form.front9} onChange={(e) => updateForm("front9", e.target.value)} className="v-input v-tabular" style={inputStyle} placeholder="42" />
             </Field>
             <Field label="Back 9">
-              <input type="number" value={form.back9} onChange={(e) => updateForm("back9", e.target.value)} className="v-input v-tabular" style={inputStyle} placeholder="42" />
+              <input id="v-field-round-back9" type="number" value={form.back9} onChange={(e) => updateForm("back9", e.target.value)} className="v-input v-tabular" style={inputStyle} placeholder="42" />
             </Field>
             <Field label="Total putts">
               <input type="number" value={form.totalPutts} onChange={(e) => updateForm("totalPutts", e.target.value)} className="v-input v-tabular" style={inputStyle} placeholder="30" />
