@@ -2756,6 +2756,11 @@ async function ffGetYahooLeagueDetail(leagueKey) {
   if (!res.ok) throw new Error(`yahoo-league error ${res.status}`);
   return res.json();
 }
+async function ffDisconnectYahoo() {
+  const res = await fetch(`${FF_BACKEND_URL}/.netlify/functions/yahoo-disconnect`, { method: "POST" });
+  if (!res.ok) throw new Error(`yahoo-disconnect error ${res.status}`);
+  return res.json();
+}
 const FF_YAHOO_CONNECT_URL = `https://bearvantagehub.netlify.app/.netlify/functions/yahoo-auth-start`;
 
 // Dispatches to the right platform's league-detail fetcher — the one place
@@ -5381,6 +5386,8 @@ function FFOnboardingPage({ sleeper, setSleeper, yahoo, setYahoo }) {
   const [selectedYahooKeys, setSelectedYahooKeys] = useState(new Set());
   const [linkError, setLinkError] = useState(null);
   const [justAdded, setJustAdded] = useState(false);
+  const [yahooDisconnected, setYahooDisconnected] = useState(false);
+  const [yahooDisconnecting, setYahooDisconnecting] = useState(false);
 
   const sleeperPreviewQuery = ffUseQuery(
     lookupUsername ? `ff-sleeper-preview-${lookupUsername}` : "ff-sleeper-preview-none",
@@ -5389,12 +5396,27 @@ function FFOnboardingPage({ sleeper, setSleeper, yahoo, setYahoo }) {
   );
 
   const yahooStatusQuery = ffUseQuery("ff-yahoo-status", ffGetYahooStatus);
-  const yahooConnected = Boolean(yahooStatusQuery.data && yahooStatusQuery.data.connected);
+  const yahooConnected = Boolean(yahooStatusQuery.data && yahooStatusQuery.data.connected) && !yahooDisconnected;
   const yahooPreviewQuery = ffUseQuery(
     yahooConnected ? "ff-yahoo-preview" : "ff-yahoo-preview-none",
     () => (yahooConnected ? ffGetYahooPreview() : Promise.resolve(null)),
     [yahooConnected]
   );
+
+  async function disconnectYahoo() {
+    setYahooDisconnecting(true);
+    try {
+      await ffDisconnectYahoo();
+      ffQueryCache.delete("ff-yahoo-status");
+      ffQueryCache.delete("ff-yahoo-preview");
+      setYahoo({ linkedLeagueKeys: [] });
+      setYahooDisconnected(true);
+    } catch (err) {
+      setLinkError(err.message);
+    } finally {
+      setYahooDisconnecting(false);
+    }
+  }
 
   function toggle(set, setSet, id) {
     const next = new Set(set);
@@ -5472,8 +5494,13 @@ function FFOnboardingPage({ sleeper, setSleeper, yahoo, setYahoo }) {
             Connect Yahoo
           </a>
         )}
-        {yahooConnected && (yahoo.linkedLeagueKeys || []).length > 0 && (
-          <p className="data-source-note">{yahoo.linkedLeagueKeys.length} league(s) linked already.</p>
+        {yahooConnected && (
+          <p className="data-source-note">
+            {(yahoo.linkedLeagueKeys || []).length > 0 ? `${yahoo.linkedLeagueKeys.length} league(s) linked already. ` : ""}
+            <button type="button" onClick={disconnectYahoo} disabled={yahooDisconnecting}>
+              {yahooDisconnecting ? "Disconnecting…" : "Disconnect Yahoo"}
+            </button>
+          </p>
         )}
         {yahooConnected && yahooPreviewQuery.data && (
           <ul className="checklist">

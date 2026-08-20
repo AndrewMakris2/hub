@@ -1015,11 +1015,20 @@ function loadJSON(key, fallback) {
   }
 }
 
+// A failed write used to be silently swallowed — the UI looked saved, but
+// nothing was there on reload. Surfaced now via a rate-limited toast (quota
+// exceeded or a private-browsing mode that blocks storage would otherwise
+// fail on nearly every keystroke, and a toast per keystroke is its own bug).
+let __lastStorageFailureToast = 0;
 function saveJSON(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (e) {
-    /* localStorage unavailable or full — silently ignore */
+    const now = Date.now();
+    if (now - __lastStorageFailureToast > 15000) {
+      __lastStorageFailureToast = now;
+      toast.error("Couldn't save your last change — storage is full or unavailable. Back up your data soon.");
+    }
   }
 }
 
@@ -5038,21 +5047,12 @@ function TikTokConnect({ theme, integrations, setIntegrations }) {
       setShowConfig(true);
       return;
     }
-    const redirectUri = `${backendUrl}/.netlify/functions/tiktok-callback`;
-    const state = Math.random().toString(36).slice(2);
-    try {
-      sessionStorage.setItem("tiktok_oauth_state", state);
-    } catch (e) {
-      /* ignore — low-stakes for a single-user personal app */
-    }
-    const authUrl =
-      "https://www.tiktok.com/v2/auth/authorize/" +
-      `?client_key=${encodeURIComponent(integrations.tiktokClientKey.trim())}` +
-      "&scope=video.publish" +
-      "&response_type=code" +
-      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-      `&state=${state}`;
-    window.location.href = authUrl;
+    // tiktok-auth-start.js builds the actual TikTok authorize URL with a
+    // server-signed state param (same HMAC pattern Yahoo's connect flow
+    // uses) — the redirect back to tiktok-callback.js verifies it before
+    // exchanging the code, so a forged/replayed callback is rejected.
+    const startUrl = `${backendUrl}/.netlify/functions/tiktok-auth-start?client_key=${encodeURIComponent(integrations.tiktokClientKey.trim())}`;
+    window.location.href = startUrl;
   }
 
   async function disconnect() {

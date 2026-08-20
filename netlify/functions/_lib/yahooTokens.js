@@ -47,4 +47,9 @@ async function setYahooTokens(tokens) {
   await store.set(KEY, encrypted);
 }
 
-module.exports = { getYahooTokens, setYahooTokens };
+async function deleteYahooTokens() {
+  const store = getStore(STORE_NAME);
+  await store.delete(KEY);
+}
+
+module.exports = { getYahooTokens, setYahooTokens, deleteYahooTokens };
