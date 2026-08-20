@@ -340,6 +340,24 @@
     }
   }
 
+  /* Hover/focus tooltip for icon-only buttons. Driven by [data-tip] rather
+     than [title] directly — a small JS delegate (app.jsx) swaps the two on
+     hover-in so the browser's own slow, unstyled title tooltip never shows
+     up alongside this one. */
+  [data-tip] { position: relative; }
+  [data-tip]::after {
+    content: attr(data-tip);
+    position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+    background: rgba(20,20,24,0.96); color: #fff; font-size: 12px; font-weight: 600;
+    padding: 5px 9px; border-radius: 6px; white-space: normal; max-width: 220px;
+    text-align: center; pointer-events: none; opacity: 0; z-index: 1200;
+    transition: opacity 0.12s ease 0.35s;
+  }
+  [data-tip]:hover::after, [data-tip]:focus-visible::after { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) {
+    [data-tip]::after { transition-delay: 0s; }
+  }
+
   /* Touch sizing for the deliberately small controls */
   @media (pointer: coarse) {
     .v-star { font-size: 22px !important; padding: 2px 4px !important; }

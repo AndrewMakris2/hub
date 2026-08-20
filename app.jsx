@@ -1925,7 +1925,7 @@ function TripDetail({ theme, trip, onUpdate, onBack, onRemove, inputStyle }) {
                 <span className="v-tabular" style={{ fontSize: "13.5px", fontWeight: 700, color: theme.text }}>
                   ${b.amount.toLocaleString()}
                 </span>
-                <button onClick={() => removeBudgetItem(b.id)} className="v-btn" style={removeBtnStyle}>
+                <button onClick={() => removeBudgetItem(b.id)} className="v-btn" title="Remove item" style={removeBtnStyle}>
                   ×
                 </button>
               </div>
@@ -4156,7 +4156,7 @@ function WorkoutLogSection({ theme, workouts, setWorkouts }) {
               <span className="v-tabular" style={{ fontSize: "12.5px", color: theme.textMuted, flexShrink: 0 }}>
                 {w.sets}×{w.reps}{w.weight != null ? ` @ ${w.weight}lbs` : ""}
               </span>
-              <button onClick={() => removeEntry(w.id)} className="v-btn" style={{ fontSize: "16px", color: theme.textFaint, background: "transparent", border: "none", padding: "0 4px", cursor: "pointer", flexShrink: 0 }}>×</button>
+              <button onClick={() => removeEntry(w.id)} className="v-btn" title="Remove lift" style={{ fontSize: "16px", color: theme.textFaint, background: "transparent", border: "none", padding: "0 4px", cursor: "pointer", flexShrink: 0 }}>×</button>
             </div>
           ))}
         </div>
@@ -4638,7 +4638,7 @@ function InvestmentHoldingsSection({ theme, data, setData }) {
                     <span style={{ fontSize: "13.5px", fontWeight: 700, color: theme.text, width: "60px", flexShrink: 0 }}>{h.ticker}</span>
                     <span className="v-tabular" style={{ fontSize: "12.5px", color: theme.textMuted, flex: 1 }}>{h.shares} sh{h.price != null ? ` @ ${fmtMoney(h.price)}` : ""}</span>
                     {h.price != null && <span className="v-tabular" style={{ fontSize: "13px", fontWeight: 700, color: theme.text }}>{fmtMoney(h.shares * h.price)}</span>}
-                    <button onClick={() => removeHolding(h.id)} className="v-btn" style={{ fontSize: "16px", color: theme.textFaint, background: "transparent", border: "none", padding: "0 4px", cursor: "pointer" }}>×</button>
+                    <button onClick={() => removeHolding(h.id)} className="v-btn" title="Remove holding" style={{ fontSize: "16px", color: theme.textFaint, background: "transparent", border: "none", padding: "0 4px", cursor: "pointer" }}>×</button>
                   </div>
                 ))}
               </div>
@@ -5514,7 +5514,7 @@ function BudgetEnvelopesSection({ theme, transactions, budgets, setBudgets }) {
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "4px", gap: "8px" }}>
                   <span style={{ fontSize: "13px", fontWeight: 700, color: theme.text }}>{c}</span>
                   <span className="v-tabular" style={{ fontSize: "12px", color: over ? theme.danger : theme.textMuted, flexShrink: 0 }}>{fmtMoney(spent)} / {fmtMoney(l)}</span>
-                  <button onClick={() => removeBudget(c)} className="v-btn" style={{ fontSize: "14px", color: theme.textFaint, background: "transparent", border: "none", padding: "0 2px", cursor: "pointer" }}>×</button>
+                  <button onClick={() => removeBudget(c)} className="v-btn" title="Remove budget" style={{ fontSize: "14px", color: theme.textFaint, background: "transparent", border: "none", padding: "0 2px", cursor: "pointer" }}>×</button>
                 </div>
                 <div style={{ height: "6px", borderRadius: "999px", background: theme.progressTrack, overflow: "hidden" }}>
                   <div style={{ height: "100%", width: `${pct}%`, borderRadius: "999px", background: over ? theme.danger : theme.accent, transition: "width 0.3s ease" }} />
@@ -9349,7 +9349,8 @@ const PAGE_SUBTITLES = {
 // banner itself (stored under STORAGE_KEYS.pageImages).
 const PAGE_BANNER_IMG = {
   fitness: "https://preview.redd.it/how-have-the-rocky-movies-motivated-or-changed-you-as-a-v0-j50gf5mwfcoc1.jpeg?auto=webp&s=8429321f7f6f36d7f7f4d0d131a6c5b68544e701",
-  sports: "https://wallpapers.com/images/featured/fenway-park-4k-67jgl65roa2g6tk8.jpg",
+  sports: "https://wallpapers.com/images/high/stephen-curry-smiling-nba-desktop-y5mhgblt4npckmx5.webp",
+  fantasy: "https://wallpapers.com/images/high/fun-celebration-mark-andrews-65qahzlgomwetyjw.webp",
   movies: "https://c4.wallpaperflare.com/wallpaper/513/626/511/the-dark-knight-heath-ledger-movies-quote-wallpaper-preview.jpg",
   watchlist: "https://images.wallpapersden.com/image/download/4k-superman-poster_bmhnZmuUmZqaraWkpJRnbGhmrWllbms.jpg",
   gaming: "https://images.hdqwalls.com/wallpapers/batman-in-red-city-4k-2a.jpg",
@@ -10122,6 +10123,7 @@ function Sidebar({
         <button
           onClick={() => setNavOpen((o) => !o)}
           className="v-btn"
+          title={navOpen ? "Close navigation" : "Open navigation"}
           aria-label={navOpen ? "Close navigation" : "Open navigation"}
           aria-expanded={navOpen}
           aria-controls="v-rail"
@@ -10148,6 +10150,7 @@ function Sidebar({
         <button
           onClick={openPalette}
           className="v-btn"
+          title="Search"
           aria-label="Search"
           style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", justifyContent: "center", width: "40px", height: "40px", flexShrink: 0, borderRadius: "10px", border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.textMuted }}
         >
@@ -10425,6 +10428,12 @@ function homeTodayISO() {
 
 function HomeGreeting({ theme, name, weather, weatherStatus, onEnableWeather, big }) {
   const today = new Date();
+  // weather only ever carries a `days` array (see fetchWeatherDays) — there
+  // is no top-level temp/label field, so today's reading has to be picked
+  // out of that array. Same lookup the briefing modal already does.
+  const todayIso = today.toISOString().slice(0, 10);
+  const todayWeather = weather && weather.days ? weather.days.find((d) => d.date === todayIso) : null;
+  const todayInfo = todayWeather ? weatherInfo(todayWeather.code) : null;
   return (
     <Card theme={theme} style={{ height: "auto" }} delay={0}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: "14px", flexWrap: "wrap" }}>
@@ -10436,10 +10445,10 @@ function HomeGreeting({ theme, name, weather, weatherStatus, onEnableWeather, bi
             {today.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
           </div>
         </div>
-        {weather && weather.temp != null ? (
+        {todayWeather ? (
           <div style={{ textAlign: "right" }}>
-            <div className="v-tabular" style={{ fontSize: big ? "30px" : "24px", fontWeight: 800, color: theme.text }}>{Math.round(weather.temp)}°</div>
-            {weather.label && <div style={{ fontSize: "12px", color: theme.textFaint }}>{weather.label}</div>}
+            <div className="v-tabular" style={{ fontSize: big ? "30px" : "24px", fontWeight: 800, color: theme.text }}>{todayWeather.tempMax}°</div>
+            {todayInfo && <div style={{ fontSize: "12px", color: theme.textFaint }}>{todayInfo.icon} {todayInfo.label}</div>}
           </div>
         ) : (
           onEnableWeather && (
@@ -10451,6 +10460,76 @@ function HomeGreeting({ theme, name, weather, weatherStatus, onEnableWeather, bi
       </div>
       {weatherStatus && weatherStatus.type === "error" && (
         <div style={{ fontSize: "12px", color: theme.danger, marginTop: "8px" }}>{weatherStatus.message}</div>
+      )}
+    </Card>
+  );
+}
+
+// A compact slice of the same data WeatherPage already renders in full —
+// pure presentation, reuses weatherInfo/WEATHER_DAY_NAMES rather than
+// duplicating any forecast logic.
+function HomeWeatherStrip({ theme, weather, weatherStatus, onEnableWeather, onNavigate }) {
+  const enabled = weather && weather.lat != null;
+
+  if (!enabled) {
+    return (
+      <Card theme={theme} delay={20}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+          <div style={{ minWidth: 0 }}>
+            <SectionLabel theme={theme} icon={<IconCloud size={14} />} style={{ margin: 0 }}>Weather</SectionLabel>
+            <div style={{ fontSize: "13px", color: theme.textMuted, marginTop: "4px" }}>Add your location to see the week's forecast here.</div>
+          </div>
+          <button onClick={onEnableWeather} className="v-btn" style={{ fontSize: "12.5px", fontWeight: 700, color: theme.accentText, background: theme.accent, border: "none", borderRadius: "999px", padding: "8px 16px", flexShrink: 0 }}>
+            {weatherStatus && weatherStatus.type === "loading" ? weatherStatus.message : "Add local weather"}
+          </button>
+        </div>
+        {weatherStatus && weatherStatus.type === "error" && (
+          <div style={{ fontSize: "12px", color: theme.danger, marginTop: "10px" }}>{weatherStatus.message}</div>
+        )}
+      </Card>
+    );
+  }
+
+  const days = (weather.days || []).slice(0, 5);
+  const todayIso = new Date().toISOString().slice(0, 10);
+
+  return (
+    <Card theme={theme} delay={20}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px", gap: "8px", flexWrap: "wrap" }}>
+        <SectionLabel theme={theme} icon={<IconCloud size={14} />} style={{ margin: 0 }}>Weather</SectionLabel>
+        <button onClick={() => onNavigate("weather")} className="v-btn" style={{ fontSize: "12px", fontWeight: 700, color: theme.accentOn, background: "transparent", border: "none", padding: 0 }}>
+          Full forecast →
+        </button>
+      </div>
+      {days.length === 0 ? (
+        <div style={{ fontSize: "13px", color: theme.textFaint }}>No forecast yet.</div>
+      ) : (
+        <div style={{ display: "flex", gap: "8px", overflowX: "auto" }}>
+          {days.map((d) => {
+            const info = weatherInfo(d.code);
+            const isToday = d.date === todayIso;
+            const dow = WEATHER_DAY_NAMES[new Date(d.date + "T00:00:00").getDay()];
+            return (
+              <div
+                key={d.date}
+                style={{
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: "4px",
+                  padding: "10px 8px", borderRadius: "10px", flex: "1 1 0", minWidth: "56px",
+                  border: `1px solid ${isToday ? theme.accent : theme.divider}`,
+                  background: isToday ? theme.accentSoft : "transparent",
+                }}
+              >
+                <div style={{ fontSize: "11px", fontWeight: 700, color: theme.textMuted, textTransform: "uppercase" }}>{isToday ? "Today" : dow}</div>
+                <div style={{ fontSize: "20px" }}>{info.icon}</div>
+                <div className="v-tabular" style={{ fontSize: "13px", fontWeight: 700, color: theme.text }}>{d.tempMax}°</div>
+                <div className="v-tabular" style={{ fontSize: "11px", color: theme.textFaint }}>{d.tempMin}°</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {weatherStatus && weatherStatus.type === "error" && (
+        <div style={{ fontSize: "12px", color: theme.danger, marginTop: "10px" }}>{weatherStatus.message}</div>
       )}
     </Card>
   );
@@ -10840,6 +10919,7 @@ function HomeOverview({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       <HomeGreeting theme={theme} name={name} weather={weather} weatherStatus={weatherStatus} onEnableWeather={onEnableWeather} />
+      <HomeWeatherStrip theme={theme} weather={weather} weatherStatus={weatherStatus} onEnableWeather={onEnableWeather} onNavigate={onNavigate} />
       <div className="v-home-brief">
         <div className="v-home-col">
           <HomeHeadlines theme={theme} feeds={feeds} setFeeds={setFeeds} onNavigate={onNavigate} limit={7} lead />
@@ -11230,7 +11310,11 @@ function subDaysUntil(dateStr) {
    HABITS — daily check-off grid with streaks (fully local)
 ---------------------------------------------------------------------- */
 const DEFAULT_HABITS = { items: [], done: {} };
-const HABIT_SUGGESTIONS = ["Gym", "Read", "Meditate", "Water", "Walk", "No sugar"];
+const HABIT_SUGGESTIONS = [
+  "Drink more water", "10-minute walk", "Stretch before bed", "Read 10 pages",
+  "Meditate 5 minutes", "No phone after 10pm", "Cook one meal at home", "Floss",
+  "Gym", "Journal",
+];
 
 function IconFlame({ size = 14 }) {
   return (
@@ -11411,13 +11495,16 @@ function HabitsSection({ theme, state, setState }) {
           />
           <button onClick={() => addHabit()} className="v-btn" style={{ padding: "8px 16px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText }}>Add</button>
         </div>
-        {items.length === 0 && (
-          <div style={{ display: "flex", gap: "6px", marginTop: "10px", flexWrap: "wrap" }}>
-            {HABIT_SUGGESTIONS.map((sug) => (
-              <button key={sug} onClick={() => addHabit(sug)} className="v-btn" style={{ padding: "5px 11px", borderRadius: "999px", fontSize: "12px", fontWeight: 600, border: `1px solid ${theme.cardBorder}`, background: theme.chip, color: theme.chipText }}>+ {sug}</button>
-            ))}
-          </div>
-        )}
+        {(() => {
+          const remaining = HABIT_SUGGESTIONS.filter((sug) => !items.some((h) => h.name.toLowerCase() === sug.toLowerCase()));
+          return remaining.length > 0 && (
+            <div style={{ display: "flex", gap: "6px", marginTop: "10px", flexWrap: "wrap" }}>
+              {remaining.map((sug) => (
+                <button key={sug} onClick={() => addHabit(sug)} className="v-btn" style={{ padding: "5px 11px", borderRadius: "999px", fontSize: "12px", fontWeight: 600, border: `1px solid ${theme.cardBorder}`, background: theme.chip, color: theme.chipText }}>+ {sug}</button>
+              ))}
+            </div>
+          );
+        })()}
       </Card>
 
       <HabitHeatmap theme={theme} items={items} done={s.done} />
@@ -11558,6 +11645,17 @@ function BookCover({ theme, url, w = 44, title = "", full = false }) {
   return <img src={url} alt="" loading="lazy" onError={() => setBroke(true)} style={{ ...box, objectFit: "cover", display: "block" }} />;
 }
 
+const READING_SUGGESTIONS = [
+  { title: "Project Hail Mary", author: "Andy Weir" },
+  { title: "Atomic Habits", author: "James Clear" },
+  { title: "The Song of Achilles", author: "Madeline Miller" },
+  { title: "Educated", author: "Tara Westover" },
+  { title: "Dune", author: "Frank Herbert" },
+  { title: "Sapiens", author: "Yuval Noah Harari" },
+  { title: "The Martian", author: "Andy Weir" },
+  { title: "Where the Crawdads Sing", author: "Delia Owens" },
+];
+
 function ReadingSection({ theme, state, setState }) {
   const s = state && state.books ? state : DEFAULT_READING;
   const [query, setQuery] = useState("");
@@ -11677,6 +11775,32 @@ function ReadingSection({ theme, state, setState }) {
           <input value={manualAuthor} onChange={(e) => setManualAuthor(e.target.value)} placeholder="author (optional)" className="v-input" style={{ ...inputStyle, flex: 1, minWidth: "120px" }} />
           <button onClick={addManual} className="v-btn" style={{ padding: "9px 14px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.text }}>Add</button>
         </div>
+
+        {(() => {
+          const remaining = READING_SUGGESTIONS.filter((sug) => !books.some((b) => b.title.toLowerCase() === sug.title.toLowerCase()));
+          return remaining.length > 0 && (
+            <div style={{ marginTop: "12px" }}>
+              <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: theme.textMuted, marginBottom: "8px" }}>
+                Suggested for you
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                {remaining.slice(0, 8).map((sug) => (
+                  <button
+                    key={sug.title}
+                    onClick={() => addBook(sug, "want")}
+                    className="v-btn"
+                    title={`Add "${sug.title}" to Want to read`}
+                    style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12.5px", fontWeight: 600, color: theme.text, background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "999px", padding: "6px 12px 6px 10px" }}
+                  >
+                    <span style={{ color: theme.accent }}>+</span>
+                    {sug.title}
+                    <span style={{ color: theme.textFaint, fontWeight: 500 }}>{sug.author}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </Card>
 
       <Card theme={theme} delay={80}>
@@ -11760,6 +11884,17 @@ function GameTile({ theme, title, platform }) {
   );
 }
 
+const GAME_SUGGESTIONS = [
+  { title: "The Legend of Zelda: Tears of the Kingdom", platform: "Switch" },
+  { title: "Baldur's Gate 3", platform: "PC" },
+  { title: "Elden Ring", platform: "PS5" },
+  { title: "God of War Ragnarök", platform: "PS5" },
+  { title: "Hades", platform: "Switch" },
+  { title: "Red Dead Redemption 2", platform: "PC" },
+  { title: "Hollow Knight", platform: "PC" },
+  { title: "Stardew Valley", platform: "PC" },
+];
+
 function GamesSection({ theme, state, setState }) {
   const s = state && state.games ? state : DEFAULT_GAMES;
   const [title, setTitle] = useState("");
@@ -11778,6 +11913,10 @@ function GamesSection({ theme, state, setState }) {
     const entry = { id: "gm" + Date.now() + Math.round(performance.now()), title: t, platform, status, rating: 0, hours: "", addedAt: new Date().toISOString() };
     setState((prev) => ({ ...(prev && prev.games ? prev : DEFAULT_GAMES), games: [entry, ...(prev && prev.games ? prev.games : [])] }));
     setTitle("");
+  }
+  function addGameQuick(t, pf) {
+    const entry = { id: "gm" + Date.now() + Math.round(performance.now()), title: t, platform: pf || "PC", status: "backlog", rating: 0, hours: "", addedAt: new Date().toISOString() };
+    setState((prev) => ({ ...(prev && prev.games ? prev : DEFAULT_GAMES), games: [entry, ...(prev && prev.games ? prev.games : [])] }));
   }
   function updateGame(id, patch) {
     setState((prev) => { const p = prev && prev.games ? prev : DEFAULT_GAMES; return { ...p, games: p.games.map((g) => (g.id === id ? { ...g, ...patch } : g)) }; });
@@ -11813,6 +11952,32 @@ function GamesSection({ theme, state, setState }) {
           </select>
           <button onClick={addGame} className="v-btn" style={{ padding: "9px 14px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText }}>Add</button>
         </div>
+
+        {(() => {
+          const remaining = GAME_SUGGESTIONS.filter((sug) => !games.some((g) => g.title.toLowerCase() === sug.title.toLowerCase()));
+          return remaining.length > 0 && (
+            <div style={{ marginTop: "12px" }}>
+              <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: theme.textMuted, marginBottom: "8px" }}>
+                Suggested for you
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                {remaining.slice(0, 8).map((sug) => (
+                  <button
+                    key={sug.title}
+                    onClick={() => addGameQuick(sug.title, sug.platform)}
+                    className="v-btn"
+                    title={`Add "${sug.title}" to your backlog`}
+                    style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12.5px", fontWeight: 600, color: theme.text, background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "999px", padding: "6px 12px 6px 10px" }}
+                  >
+                    <span style={{ color: theme.accent }}>+</span>
+                    {sug.title}
+                    <span style={{ color: theme.textFaint, fontWeight: 500 }}>{sug.platform}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </Card>
 
       <Card theme={theme} delay={80}>
@@ -12257,6 +12422,53 @@ function FeedSkeleton({ theme, n = 6 }) {
         </div>
       ))}
     </div>
+  );
+}
+
+/* Same suggestion engine as WatchQueueSection's own row, surfaced again on the
+   Movies & TV news page so a suggestion is visible without a trip to the Watch List. */
+function MovieWatchSuggestions({ theme, profile, watchlist, setWatchlist }) {
+  const suggestions = suggestTitles(profile.genres, watchlist, 4);
+  if (!suggestions.length) return null;
+
+  function addTitle(t, ty) {
+    const trimmed = t.trim();
+    if (!trimmed || watchlist.some((w) => w.title.toLowerCase() === trimmed.toLowerCase())) return;
+    const id = "w" + Date.now() + Math.random().toString(36).slice(2, 6);
+    setWatchlist([...watchlist, { id, title: trimmed, type: ty, status: "queued" }]);
+    toast.success(`Added "${trimmed}" to your watch list.`);
+  }
+
+  return (
+    <Card theme={theme} delay={0}>
+      <SectionLabel theme={theme} icon={<IconFilm />}>Suggested for you</SectionLabel>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+        {suggestions.map((s) => (
+          <button
+            key={s.title}
+            onClick={() => addTitle(s.title, s.type)}
+            className="v-btn"
+            title={`Add "${s.title}" to your watch list`}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "12.5px",
+              fontWeight: 600,
+              color: theme.text,
+              background: theme.accentSoft,
+              border: `1px solid ${theme.divider}`,
+              borderRadius: "999px",
+              padding: "6px 12px 6px 10px",
+            }}
+          >
+            <span style={{ color: theme.accent }}>+</span>
+            {s.title}
+            <span style={{ color: theme.textFaint, fontWeight: 500 }}>{s.type === "show" ? "show" : "movie"}</span>
+          </button>
+        ))}
+      </div>
+    </Card>
   );
 }
 
@@ -14151,15 +14363,18 @@ function App() {
           {page === "birthdays" && <BirthdaysSection theme={theme} state={birthdays} setState={setBirthdays} />}
           {page === "reading" && <ReadingSection theme={theme} state={reading} setState={setReading} />}
           {page === "movies" && (
-            <FeedSection
-              theme={theme}
-              state={feeds}
-              setState={setFeeds}
-              categories={FEED_CATEGORIES.filter((c) => c.group === "screen")}
-              title="Movies & TV"
-              icon={<IconClapper />}
-              intro="Release dates, casting, box office, premieres, renewals and cancellations."
-            />
+            <>
+              <MovieWatchSuggestions theme={theme} profile={profile} watchlist={watchlist} setWatchlist={setWatchlist} />
+              <FeedSection
+                theme={theme}
+                state={feeds}
+                setState={setFeeds}
+                categories={FEED_CATEGORIES.filter((c) => c.group === "screen")}
+                title="Movies & TV"
+                icon={<IconClapper />}
+                intro="Release dates, casting, box office, premieres, renewals and cancellations."
+              />
+            </>
           )}
           {page === "gaming" && (
             <FeedSection
@@ -14692,6 +14907,35 @@ function loadChunk(name, src) {
   });
   return window.__vChunkPromises[name];
 }
+
+// Custom hover tooltips for icon-only buttons. Swaps `title` for `data-tip`
+// on hover/focus-in so the CSS pill (index.shell.html) can render it via
+// content: attr(data-tip) — and so the browser's own slow, unstyled title
+// tooltip never gets a chance to show up alongside it. composedPath()[0]
+// rather than e.target: mouseover/mouseout/focusin/focusout are composed
+// events, so this one document-level listener also catches elements inside
+// Fantasy's and Raven's Eye's shadow roots (each of which layers its own
+// copy of the tooltip CSS on top, since shadow DOM doesn't inherit this
+// document's <style>).
+function initTooltipDelegation() {
+  function show(e) {
+    const el = e.composedPath()[0].closest && e.composedPath()[0].closest("[title]");
+    if (!el) return;
+    el.setAttribute("data-tip", el.getAttribute("title"));
+    el.removeAttribute("title");
+  }
+  function hide(e) {
+    const el = e.composedPath()[0].closest && e.composedPath()[0].closest("[data-tip]");
+    if (!el) return;
+    el.setAttribute("title", el.getAttribute("data-tip"));
+    el.removeAttribute("data-tip");
+  }
+  document.addEventListener("mouseover", show);
+  document.addEventListener("mouseout", hide);
+  document.addEventListener("focusin", show);
+  document.addEventListener("focusout", hide);
+}
+initTooltipDelegation();
 
 runMigrations();
 const root = ReactDOM.createRoot(document.getElementById("root"));

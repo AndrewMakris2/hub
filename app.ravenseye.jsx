@@ -1138,6 +1138,21 @@ dd {
     flex: 1;
   }
 }
+
+/* Hover/focus tooltip for icon-only buttons — mirrors the same rule in
+   index.shell.html. Shadow DOM doesn't inherit that document-level <style>,
+   so this chunk carries its own copy; the JS delegate that swaps title ->
+   data-tip lives once in core app.jsx and reaches in here via composedPath(). */
+[data-tip] { position: relative; }
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  background: rgba(20,20,24,0.96); color: #fff; font-size: 12px; font-weight: 600;
+  padding: 5px 9px; border-radius: 6px; white-space: normal; max-width: 220px;
+  text-align: center; pointer-events: none; opacity: 0; z-index: 1200;
+  transition: opacity 0.12s ease 0.35s;
+}
+[data-tip]:hover::after, [data-tip]:focus-visible::after { opacity: 1; }
 `;
 
 
