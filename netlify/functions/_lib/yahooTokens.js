@@ -3,7 +3,7 @@
 // FantasyFootballTool's db.ts.
 //
 // Reads degrade to "not connected" on any failure (corrupted blob, rotated
-// SESSION_SECRET, or — observed on this site — Netlify Blobs' automatic
+// SESSION, or — observed on this site — Netlify Blobs' automatic
 // environment config not reliably kicking in for newly-added store names,
 // even though the pre-existing tiktok-tokens store works fine). A read
 // failure isn't distinguishable from "never connected" to the user anyway,
@@ -14,15 +14,15 @@
 // connection (status will keep reporting disconnected). That's a real
 // platform-level risk this environment surfaced that a code-level fix can't
 // fully rule out; it needs verifying against a real Yahoo login once
-// SESSION_SECRET is set.
+// SESSION is set.
 const { getStore } = require("@netlify/blobs");
 
 const STORE_NAME = "yahoo-tokens";
 const KEY = "primary";
 
 function requireSecret() {
-  const secret = process.env.SESSION_SECRET;
-  if (!secret) throw new Error("SESSION_SECRET is not set — required to store Yahoo tokens securely.");
+  const secret = process.env.SESSION;
+  if (!secret) throw new Error("SESSION is not set — required to store Yahoo tokens securely.");
   return secret;
 }
 

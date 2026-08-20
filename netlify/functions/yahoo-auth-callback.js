@@ -17,7 +17,7 @@ exports.handler = async (event) => {
     return redirect(`${vantageUrl}#fantasy/onboarding?yahoo=error`);
   }
 
-  const secret = process.env.SESSION_SECRET;
+  const secret = process.env.SESSION;
   if (!code || !secret || !verifyState(state, secret)) {
     return redirect(`${vantageUrl}#fantasy/onboarding?yahoo=error`);
   }

@@ -10,7 +10,7 @@
 //   TIKTOK_CLIENT_SECRET  — secret, only ever lives here
 //   TIKTOK_REDIRECT_URI   — this function's own URL, must exactly match
 //                           what's registered in TikTok's Login Kit settings
-//   SESSION_SECRET        — HMAC-signs the OAuth state param (same secret
+//   SESSION                — HMAC-signs the OAuth state param (same secret
 //                           Yahoo uses; also required by tiktok-auth-start.js)
 //   VANTAGE_URL           — https://andrewmakris2.github.io/hub/
 
@@ -29,7 +29,7 @@ exports.handler = async (event) => {
   if (!code) {
     return redirect(`${vantageUrl}?tiktok=error&reason=missing_code`);
   }
-  const secret = process.env.SESSION_SECRET;
+  const secret = process.env.SESSION;
   if (!secret || !verifyState(state, secret)) {
     return redirect(`${vantageUrl}?tiktok=error&reason=invalid_state`);
   }

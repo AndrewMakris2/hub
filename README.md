@@ -93,7 +93,7 @@ All set in Netlify's site settings (Site configuration → Environment variables
 
 | Variable | Used by | Required for |
 |---|---|---|
-| `SESSION_SECRET` | `yahoo-auth-start.js`, `yahoo-auth-callback.js`, `tiktok-auth-start.js`, `tiktok-callback.js`, `_lib/yahooTokens.js` | HMAC-signs OAuth state (Yahoo + TikTok) and derives the Yahoo token encryption key. Without it, both integrations refuse to connect. |
+| `SESSION` | `yahoo-auth-start.js`, `yahoo-auth-callback.js`, `tiktok-auth-start.js`, `tiktok-callback.js`, `_lib/yahooTokens.js` | HMAC-signs OAuth state (Yahoo + TikTok) and derives the Yahoo token encryption key. Without it, both integrations refuse to connect. |
 | `TIKTOK_CLIENT_KEY` | `tiktok-callback.js` | TikTok token exchange (public value — the same one entered in the app's Settings). |
 | `TIKTOK_CLIENT_SECRET` | `tiktok-callback.js` | TikTok token exchange. Secret — never sent to the browser. |
 | `TIKTOK_REDIRECT_URI` | `tiktok-callback.js` | Must exactly match what's registered in TikTok's Login Kit settings. |
@@ -125,7 +125,7 @@ this writing:
   never sent to or stored by any BearVantageHub server.
 - Yahoo Fantasy tokens **are** stored server-side (Netlify Blobs, `yahoo-tokens` store, key
   `"primary"` — single-tenant by design, one set of tokens for the one person who uses this),
-  encrypted with AES-256-GCM (`_lib/yahooCrypto.js`) using a key derived from `SESSION_SECRET`.
+  encrypted with AES-256-GCM (`_lib/yahooCrypto.js`) using a key derived from `SESSION`.
   The OAuth `state` param is HMAC-signed and expires after 10 minutes
   (`_lib/oauthState.js`). Disconnecting (Fantasy → Connect your leagues → "Disconnect Yahoo")
   deletes the stored tokens via `yahoo-disconnect.js`.

@@ -7,7 +7,7 @@
 // real HMAC-signed, time-limited state, checked server-side in the callback.
 //
 // Required environment variables (set in Netlify site settings, not here):
-//   SESSION_SECRET — HMAC-signs the OAuth state param (same secret Yahoo uses)
+//   SESSION — HMAC-signs the OAuth state param (same secret Yahoo uses)
 //
 // client_key is TikTok's public app identifier (not a secret — see
 // tiktok-callback.js's own comment), passed through from the frontend the
@@ -16,9 +16,9 @@
 const { createState } = require("./_lib/oauthState");
 
 exports.handler = async (event) => {
-  const secret = process.env.SESSION_SECRET;
+  const secret = process.env.SESSION;
   if (!secret) {
-    return { statusCode: 500, body: "SESSION_SECRET is not configured." };
+    return { statusCode: 500, body: "SESSION is not configured." };
   }
 
   const clientKey = event.queryStringParameters && event.queryStringParameters.client_key;

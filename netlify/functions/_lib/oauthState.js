@@ -1,5 +1,5 @@
 // Ported from FantasyFootballTool's server/src/store/oauthState.ts — signs
-// the OAuth "state" param with SESSION_SECRET so the callback can verify the
+// the OAuth "state" param with SESSION so the callback can verify the
 // request actually originated from a /auth/start redirect within the last
 // 10 minutes, rather than trusting whatever "state" a caller sends back.
 const crypto = require("crypto");
