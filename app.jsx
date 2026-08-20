@@ -4250,9 +4250,17 @@ function LazyGolfExtras({ theme, golfScorecards, setGolfScorecards, golfSimRound
     </>
   );
 }
+function formatEventTime(hhmm) {
+  if (!hhmm) return "";
+  const [h, m] = hhmm.split(":").map(Number);
+  if (Number.isNaN(h)) return "";
+  return new Date(2000, 0, 1, h, m || 0).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
 function UpcomingSection({ theme, events, setEvents, connectedEvents }) {
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
   const [detail, setDetail] = useState("");
 
   function addEvent() {
@@ -4261,9 +4269,10 @@ function UpcomingSection({ theme, events, setEvents, connectedEvents }) {
     if (!date) { toast.info("Pick a date for the event."); focusField("event-date"); return; }
     const id = "pe" + Date.now() + Math.random().toString(36).slice(2, 6);
     const autoDetail = new Date(date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
-    setEvents([...events, { id, title: trimmedTitle, date, detail: detail.trim() || autoDetail }]);
+    setEvents([...events, { id, title: trimmedTitle, date, time: time || null, detail: detail.trim() || autoDetail }]);
     setTitle("");
     setDate("");
+    setTime("");
     setDetail("");
   }
 
@@ -4322,23 +4331,30 @@ function UpcomingSection({ theme, events, setEvents, connectedEvents }) {
               borderBottom: `1px solid ${theme.divider}`,
             }}
           >
-            <span
-              style={{
-                fontSize: "15px",
-                fontWeight: 600,
-                color: theme.text,
-                minWidth: 0,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {ev.title}
-              {ev.source && (
-                <span style={{ fontSize: "10px", fontWeight: 700, color: theme.textFaint, marginLeft: "6px" }}>
-                  {ev.source}
+            <span style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0, flex: 1 }}>
+              {ev.time && (
+                <span className="v-tabular" style={{ fontSize: "11.5px", fontWeight: 700, color: theme.accent, flexShrink: 0 }}>
+                  {formatEventTime(ev.time)}
                 </span>
               )}
+              <span
+                style={{
+                  fontSize: "15px",
+                  fontWeight: 600,
+                  color: theme.text,
+                  minWidth: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {ev.title}
+                {ev.source && (
+                  <span style={{ fontSize: "10px", fontWeight: 700, color: theme.textFaint, marginLeft: "6px" }}>
+                    {ev.source}
+                  </span>
+                )}
+              </span>
             </span>
             <span style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
               <span
@@ -4398,6 +4414,14 @@ function UpcomingSection({ theme, events, setEvents, connectedEvents }) {
           onChange={(e) => setDate(e.target.value)}
           className="v-input"
           style={{ ...inputStyle, flex: "1 1 135px" }}
+        />
+        <input
+          type="time"
+          value={time}
+          onChange={(e) => setTime(e.target.value)}
+          title="Time (optional)"
+          className="v-input"
+          style={{ ...inputStyle, flex: "1 1 110px" }}
         />
         <input
           placeholder="Detail (optional)"
@@ -5387,77 +5411,233 @@ function WatchQueueSection({ theme, watchlist, setWatchlist, genres, delay }) {
   );
 }
 
-function AgendaStripSection({ theme, events, delay }) {
-  const days = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
-    const iso = d.toISOString().slice(0, 10);
-    days.push({
-      iso,
-      isToday: i === 0,
-      label: d.toLocaleDateString(undefined, { weekday: "short" }),
-      dateLabel: d.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-      items: events.filter((e) => e.date === iso),
+function isoDate(d) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+// Sunday-first 6-row grid, padded with the trailing days of the prior/next
+// month so every week is a full row of 7 — same convention as the habit
+// heatmap's own getDay() padding.
+function monthMatrix(viewDate) {
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+  const startPad = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const totalCells = Math.ceil((startPad + daysInMonth) / 7) * 7;
+  const cells = [];
+  for (let i = 0; i < totalCells; i++) cells.push(new Date(year, month, i - startPad + 1));
+  return cells;
+}
+
+const CALENDAR_WEEKDAY_LETTERS = ["S", "M", "T", "W", "T", "F", "S"];
+
+function CalendarSection({ theme, events, setEvents, connectedEvents, delay }) {
+  const todayIso = isoDate(new Date());
+  const [viewDate, setViewDate] = useState(() => { const d = new Date(); d.setDate(1); return d; });
+  const [selected, setSelected] = useState(todayIso);
+  const [addTitle, setAddTitle] = useState("");
+  const [addTime, setAddTime] = useState("");
+
+  const byDate = useMemo(() => {
+    const map = {};
+    [...events, ...(connectedEvents || [])].forEach((e) => {
+      if (!e.date) return;
+      (map[e.date] = map[e.date] || []).push(e);
     });
+    Object.values(map).forEach((list) => list.sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99")));
+    return map;
+  }, [events, connectedEvents]);
+
+  const cells = useMemo(() => monthMatrix(viewDate), [viewDate]);
+  const curMonth = viewDate.getMonth();
+  const monthLabel = viewDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
+  function gotoMonth(delta) {
+    setViewDate((d) => { const n = new Date(d); n.setMonth(n.getMonth() + delta); n.setDate(1); return n; });
+  }
+  function gotoToday() {
+    const d = new Date(); d.setDate(1);
+    setViewDate(d);
+    setSelected(todayIso);
   }
 
+  function addToSelected() {
+    const t = addTitle.trim();
+    if (!t) { toast.info("Give the event a title first."); return; }
+    const id = "pe" + Date.now() + Math.random().toString(36).slice(2, 6);
+    const autoDetail = new Date(selected + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    setEvents([...events, { id, title: t, date: selected, time: addTime || null, detail: autoDetail }]);
+    setAddTitle("");
+    setAddTime("");
+  }
+  function removeEvent(id) {
+    const removed = events.find((e) => e.id === id);
+    setEvents(events.filter((e) => e.id !== id));
+    if (removed) toastUndo(`"${removed.title || "event"}"`, () => setEvents((cur) => [...(cur || []), removed]));
+  }
+
+  const selectedItems = byDate[selected] || [];
+  const selectedDateObj = new Date(selected + "T00:00:00");
+
+  const inputStyle = {
+    background: theme.inputBg,
+    border: `1px solid ${theme.inputBorder}`,
+    borderRadius: "8px",
+    color: theme.inputText,
+    padding: "8px 10px",
+    fontSize: "12.5px",
+    minWidth: 0,
+    "--focus-ring": theme.accentSoft,
+    "--focus-border": theme.accent,
+  };
+
   return (
-    <Card theme={theme} delay={delay}>
-      <SectionLabel theme={theme} icon={<IconCalendar />}>7-Day Agenda</SectionLabel>
-      {/* Seven fixed 100px columns forced a 760px row, so a phone hid four
-          days behind a silent clip. Below 640px it becomes a 2-up grid that
-          fits; wider it keeps the single row, with a fade marking the cut. */}
-      <div
-        className="v-scroll v-agenda-days"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(7, minmax(100px, 1fr))",
-          gap: "10px",
-          overflowX: "auto",
-          paddingBottom: "4px",
-          "--scroll-thumb": theme.divider,
-        }}
-      >
-        {days.map((d) => (
-          <div
-            key={d.iso}
-            style={{
-              background: d.isToday ? theme.accentSoft : "transparent",
-              border: `1px solid ${d.isToday ? theme.accent : theme.divider}`,
-              borderRadius: "10px",
-              padding: "10px 10px",
-              minHeight: "90px",
-              display: "flex",
-              flexDirection: "column",
-              gap: "6px",
-            }}
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <Card theme={theme} delay={delay}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
+          <SectionLabel theme={theme} icon={<IconCalendar />} style={{ margin: 0, flex: 1 }}>{monthLabel}</SectionLabel>
+          <button
+            onClick={gotoToday}
+            className="v-btn v-btn--tight"
+            title="Jump to today"
+            style={{ fontSize: "11.5px", fontWeight: 700, color: theme.accent, background: "transparent", border: `1px solid ${theme.cardBorder}`, borderRadius: "7px", padding: "6px 10px" }}
           >
-            <div>
-              <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: d.isToday ? theme.accent : theme.textMuted }}>
-                {d.label}
-              </div>
-              <div style={{ fontSize: "12px", color: theme.textFaint }}>{d.dateLabel}</div>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
-              {d.items.length > 0 ? (
-                d.items.map((it, i) => (
-                  <div
-                    key={i}
-                    title={it.title}
-                    style={{ fontSize: "11.5px", color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+            Today
+          </button>
+          <button
+            onClick={() => gotoMonth(-1)}
+            className="v-btn v-btn--tight v-iconbtn"
+            title="Previous month"
+            style={{ border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.text, borderRadius: "7px", width: "28px", height: "28px", fontSize: "14px" }}
+          >
+            ‹
+          </button>
+          <button
+            onClick={() => gotoMonth(1)}
+            className="v-btn v-btn--tight v-iconbtn"
+            title="Next month"
+            style={{ border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.text, borderRadius: "7px", width: "28px", height: "28px", fontSize: "14px" }}
+          >
+            ›
+          </button>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "4px", marginBottom: "6px" }}>
+          {CALENDAR_WEEKDAY_LETTERS.map((w, i) => (
+            <div key={i} style={{ textAlign: "center", fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.05em", color: theme.textFaint, padding: "2px 0" }}>{w}</div>
+          ))}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "4px" }}>
+          {cells.map((d, i) => {
+            const iso = isoDate(d);
+            const inMonth = d.getMonth() === curMonth;
+            const isToday = iso === todayIso;
+            const isSelected = iso === selected;
+            const items = byDate[iso] || [];
+            return (
+              <button
+                key={i}
+                onClick={() => setSelected(iso)}
+                className="v-btn v-btn--tight"
+                title={d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }) + (items.length ? ` — ${items.length} event${items.length > 1 ? "s" : ""}` : "")}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "flex-start",
+                  gap: "3px",
+                  padding: "6px 2px 8px",
+                  borderRadius: "9px",
+                  minHeight: "50px",
+                  border: `1px solid ${isSelected ? theme.accent : "transparent"}`,
+                  background: isSelected ? theme.accentSoft : isToday ? theme.chip : "transparent",
+                  opacity: inMonth ? 1 : 0.35,
+                }}
+              >
+                <span className="v-tabular" style={{ fontSize: "12.5px", fontWeight: isToday ? 800 : 600, color: isToday ? theme.accent : theme.text }}>{d.getDate()}</span>
+                <span style={{ display: "flex", gap: "2px", minHeight: "5px" }}>
+                  {items.slice(0, 3).map((_, k) => (
+                    <span key={k} style={{ width: "4px", height: "4px", borderRadius: "50%", background: theme.accent }} />
+                  ))}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </Card>
+
+      <Card theme={theme} delay={delay + 40}>
+        <SectionLabel theme={theme} icon={<IconCalendar />}>
+          {selectedDateObj.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
+        </SectionLabel>
+
+        {selectedItems.length === 0 ? (
+          <div style={{ fontSize: "13px", color: theme.textFaint, marginBottom: "16px" }}>Nothing scheduled — add something below.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px" }}>
+            {selectedItems.map((ev) => (
+              <div
+                key={ev.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "10px 12px",
+                  background: theme.accentSoft,
+                  border: `1px solid ${theme.divider}`,
+                  borderRadius: "10px",
+                }}
+              >
+                <span className="v-tabular" style={{ fontSize: "12px", fontWeight: 700, color: theme.accent, width: "76px", flexShrink: 0 }}>
+                  {ev.time ? formatEventTime(ev.time) : "All day"}
+                </span>
+                <span style={{ flex: 1, minWidth: 0, fontSize: "14px", color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {ev.title}
+                </span>
+                {ev.source && <span style={{ fontSize: "10px", fontWeight: 700, color: theme.textFaint, flexShrink: 0 }}>{ev.source}</span>}
+                {!ev.source && (
+                  <button
+                    onClick={() => removeEvent(ev.id)}
+                    title="Remove"
+                    className="v-btn v-btn--tight"
+                    style={{ width: "20px", height: "20px", borderRadius: "50%", border: "none", background: theme.dangerSoft, color: theme.danger, fontSize: "12px", lineHeight: "20px", textAlign: "center", padding: 0, flexShrink: 0 }}
                   >
-                    {it.title}
-                  </div>
-                ))
-              ) : (
-                <div style={{ fontSize: "11.5px", color: theme.textFaint }}>—</div>
-              )}
-            </div>
+                    ×
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-    </Card>
+        )}
+
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <input
+            placeholder="Add an event for this day"
+            value={addTitle}
+            onChange={(e) => setAddTitle(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addToSelected()}
+            className="v-input"
+            style={{ ...inputStyle, flex: "2 1 160px" }}
+          />
+          <input
+            type="time"
+            value={addTime}
+            onChange={(e) => setAddTime(e.target.value)}
+            title="Time (optional)"
+            className="v-input"
+            style={{ ...inputStyle, flex: "1 1 110px" }}
+          />
+          <button
+            onClick={addToSelected}
+            className="v-btn"
+            style={{ background: theme.accent, color: theme.accentText, border: "none", borderRadius: "8px", padding: "8px 14px", fontSize: "12.5px", fontWeight: 700, flexShrink: 0 }}
+          >
+            Add
+          </button>
+        </div>
+      </Card>
+    </div>
   );
 }
 
@@ -8377,12 +8557,15 @@ function BackupMenu({
 
 function normalizeGoogleEvents(items) {
   return (items || []).map((it) => {
-    const start = (it.start && (it.start.dateTime || it.start.date)) || new Date().toISOString();
+    const timed = it.start && it.start.dateTime;
+    const start = timed || (it.start && it.start.date) || new Date().toISOString();
     return {
       id: `g-${it.id}`,
       title: it.summary || "(untitled event)",
       detail: new Date(start).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
       date: start.slice(0, 10),
+      time: timed ? start.slice(11, 16) : null,
+      allDay: !timed,
       source: "Google",
     };
   });
@@ -8396,6 +8579,8 @@ function normalizeMicrosoftEvents(items) {
       title: it.subject || "(untitled event)",
       detail: new Date(start).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
       date: start.slice(0, 10),
+      time: it.isAllDay ? null : start.slice(11, 16),
+      allDay: !!it.isAllDay,
       source: "Outlook",
     };
   });
@@ -9270,7 +9455,7 @@ const PAGE_META = [
   { id: "upcoming", label: "Upcoming", icon: <IconCalendar /> },
   { id: "weather", label: "Weather", icon: <IconCloud size={14} /> },
   { id: "travel", label: "Travel", icon: <IconPlane size={14} /> },
-  { id: "agenda", label: "Agenda", icon: <IconCalendar /> },
+  { id: "agenda", label: "Calendar", icon: <IconCalendar /> },
   { id: "youtube", label: "YouTube", icon: <IconYoutube size={14} /> },
   { id: "music", label: "Music", icon: <IconMusic size={14} /> },
   { id: "profile", label: "About Me", icon: <IconUser /> },
@@ -9330,7 +9515,7 @@ const PAGE_SUBTITLES = {
   fantasy: "Your fantasy football war room", sports: "Your teams — news and scores",
   financial: "Savings goals and net worth", transactions: "Where your money goes",
   subscriptions: "Recurring costs at a glance", upcoming: "What's on the horizon",
-  agenda: "Your week ahead", youtube: "Channels and watch queue",
+  agenda: "Click a day to see what's on it", youtube: "Channels and watch queue",
   weather: "Ten-day forecast", travel: "Trips, packing, and itineraries",
   music: "Now playing, via Last.fm", mealplanning: "Recipes from what you like",
   news: "Headlines on your topics", movies: "Releases, casting, and box office",
@@ -10539,7 +10724,7 @@ function HomeAgenda({ theme, events, onNavigate, limit = 5 }) {
   const today = homeTodayISO();
   const upcoming = (events || [])
     .filter((e) => e.date && e.date >= today)
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+    .sort((a, b) => (a.date !== b.date ? (a.date < b.date ? -1 : 1) : (a.time || "99:99").localeCompare(b.time || "99:99")))
     .slice(0, limit);
   return (
     <Card theme={theme} style={{ height: "auto" }} delay={40}>
@@ -10560,6 +10745,9 @@ function HomeAgenda({ theme, events, onNavigate, limit = 5 }) {
                   {days === 0 ? "TODAY" : days === 1 ? "TMRW" : d.toLocaleDateString(undefined, { month: "short", day: "numeric" }).toUpperCase()}
                 </span>
                 <span style={{ fontSize: "13px", color: theme.text, flex: 1, minWidth: 0 }}>{e.title}</span>
+                {e.time && (
+                  <span className="v-tabular" style={{ fontSize: "11px", color: theme.textFaint, flexShrink: 0 }}>{formatEventTime(e.time)}</span>
+                )}
               </div>
             );
           })
@@ -14327,7 +14515,9 @@ function App() {
             <WeatherPage theme={theme} weather={weather} weatherStatus={weatherStatus} onEnableWeather={enableWeather} />
           )}
           {page === "travel" && <TravelPage theme={theme} trips={trips} setTrips={setTrips} />}
-          {page === "agenda" && <AgendaStripSection theme={theme} events={allEvents} delay={0} />}
+          {page === "agenda" && (
+            <CalendarSection theme={theme} events={events} setEvents={setEvents} connectedEvents={allConnectedEvents} delay={0} />
+          )}
           {page === "youtube" && (
             <YouTubeSection
               theme={theme}
