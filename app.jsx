@@ -956,6 +956,7 @@ const STORAGE_KEYS = {
   movies: "dash.movies",
   feeds: "dash.feeds",
   resume: "dash.resume",
+  terraformProgress: "dash.terraformProgress",
   moHelp: "dash.moHelp",
   railCollapsed: "dash.railCollapsed",
   pageImages: "dash.pageImages",
@@ -3608,6 +3609,16 @@ function IconBriefcase({ size = 14 }) {
       <rect x="2" y="7" width="20" height="14" rx="2" />
       <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
       <path d="M2 13h20" />
+    </svg>
+  );
+}
+
+function IconTerminal({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="M6 9l4 3-4 3" />
+      <line x1="12" y1="15" x2="18" y2="15" />
     </svg>
   );
 }
@@ -9479,6 +9490,7 @@ const PAGE_META = [
   { id: "securityx", label: "SecurityX", icon: <IconAcademic size={14} /> },
   { id: "ravenseye", label: "Raven's Eye", icon: <IconRavenEye size={14} /> },
   { id: "jobsearch", label: "Job Search", icon: <IconBriefcase size={14} /> },
+  { id: "terraform", label: "Terraform", icon: <IconTerminal size={14} /> },
 ];
 
 // Sidebar navigation grouped into collapsible sections. Any PAGE_META id not
@@ -9496,7 +9508,7 @@ const NAV_GROUPS = [
   { id: "play", label: "Read & Play", ids: ["reading", "games", "music", "news"] },
   { id: "life", label: "Life", ids: ["profile", "resume", "goals", "trackers", "birthdays"] },
   { id: "plan", label: "Plan", ids: ["weather", "travel", "mealplanning"] },
-  { id: "work", label: "Security & Work", ids: ["mo", "securityx", "ravenseye", "jobsearch"] },
+  { id: "work", label: "Security & Work", ids: ["mo", "securityx", "ravenseye", "jobsearch", "terraform"] },
 ];
 
 function NavChevron({ collapsed }) {
@@ -9525,6 +9537,7 @@ const PAGE_SUBTITLES = {
   goals: "Your life goals", journal: "Daily notes and reflections",
   habits: "Daily streaks", birthdays: "Never miss an occasion",
   jobsearch: "Cybersecurity roles matched to your resume",
+  terraform: "5-phase infrastructure-as-code course",
   gaming: "Releases, reveals, and esports",
   mo: "Security tooling and this week's numbers",
 };
@@ -9558,7 +9571,7 @@ const PAGE_BANNER_VARIANT = {
 // than the full width of a monitor. Everything else is a list, a grid or a
 // form and gets the room.
 const CONTAINER_READER = ["journal", "resume", "profile", "goals"];
-const CONTAINER_XWIDE = ["fantasy", "ravenseye", "transactions", "videos", "golf", "reading", "games", "movies", "news", "sports", "mo", "home", "jobsearch"];
+const CONTAINER_XWIDE = ["fantasy", "ravenseye", "transactions", "videos", "golf", "reading", "games", "movies", "news", "sports", "mo", "home", "jobsearch", "terraform"];
 function containerVariant(page) {
   if (page === "securityx") return "v-container--full";
   if (CONTAINER_READER.includes(page)) return "v-container--reader";
@@ -12747,6 +12760,13 @@ function FeedSection({ theme, state, setState, categories, title, icon, intro })
    leaf would mean dozens of controls to maintain for a page edited a few
    times a year. Print rules render it as a clean two-page CV.
 ---------------------------------------------------------------------- */
+// Seeded to match the real starting point already logged in the
+// Terraform-Study repo's terraform-labs/PROGRESS.md at the time this page
+// was built (Phase 1, Module 1.1, nothing completed yet) — a one-time
+// starting value, not a live sync. This becomes the source of truth for
+// progress going forward.
+const DEFAULT_TERRAFORM_PROGRESS = { phase: 1, module: "1.1", completedAssignments: [], quizzes: {}, capstones: {}, lastUpdated: null };
+
 const DEFAULT_RESUME = {
   name: "Andrew Makris",
   title: "Information Security Analyst",
@@ -14165,6 +14185,7 @@ function App() {
   const [movies, setMovies] = usePersistentState(STORAGE_KEYS.movies, { cache: {}, fetchedAt: {} });
   const [feeds, setFeeds] = usePersistentState(STORAGE_KEYS.feeds, { cache: {}, fetchedAt: {} });
   const [resume, setResume] = usePersistentState(STORAGE_KEYS.resume, DEFAULT_RESUME);
+  const [terraformProgress, setTerraformProgress] = usePersistentState(STORAGE_KEYS.terraformProgress, DEFAULT_TERRAFORM_PROGRESS);
   // Per-page banner image overrides, so a photo that stops loading can be
   // swapped from the banner itself rather than by editing the file.
   const [pageImages, setPageImages] = usePersistentState(STORAGE_KEYS.pageImages, {});
@@ -14633,6 +14654,7 @@ function App() {
             <LazyRavenSection theme={theme} products={ravenProducts} setProducts={setRavenProducts} />
           )}
           {page === "jobsearch" && <LazyJobSearchPage theme={theme} resume={resume} />}
+          {page === "terraform" && <LazyTerraformPage theme={theme} progress={terraformProgress} setProgress={setTerraformProgress} />}
           </PageErrorBoundary>
         </div>
         </PageIdContext.Provider>
@@ -14899,6 +14921,50 @@ function LazyJobSearchPage({ theme, resume }) {
   }
   const { JobSearchPage } = mod;
   return <JobSearchPage theme={theme} resume={resume} />;
+}
+
+function LazyTerraformPage({ theme, progress, setProgress }) {
+  const [mod, setMod] = useState(() => (window.__vChunks && window.__vChunks.terraform) ? window.__vChunks.terraform : null);
+  const [error, setError] = useState(null);
+
+  function attemptLoad() {
+    setError(null);
+    loadChunk("terraform", "chunk-terraform.js").then(setMod).catch((err) => setError(err.message || "Couldn't load Terraform."));
+  }
+
+  useEffect(() => {
+    if (mod) return;
+    let cancelled = false;
+    loadChunk("terraform", "chunk-terraform.js")
+      .then((m) => { if (!cancelled) setMod(m); })
+      .catch((err) => { if (!cancelled) setError(err.message || "Couldn't load Terraform."); });
+    return () => { cancelled = true; };
+  }, [mod]);
+
+  if (error) {
+    return (
+      <EmptyState
+        theme={theme}
+        art="search"
+        title="Couldn't load Terraform"
+        message={error}
+        action={
+          <button
+            className="v-btn"
+            style={{ color: theme.accent, background: "transparent", border: `1px solid ${theme.cardBorder}`, fontWeight: 700 }}
+            onClick={attemptLoad}
+          >
+            Try again
+          </button>
+        }
+      />
+    );
+  }
+  if (!mod) {
+    return <EmptyState theme={theme} art="search" title="Loading Terraform…" />;
+  }
+  const { TerraformPage } = mod;
+  return <TerraformPage theme={theme} progress={progress} setProgress={setProgress} />;
 }
 
 // Raven's Eye now ships as its own chunk (see loadChunk()/window.__v near

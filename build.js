@@ -39,6 +39,7 @@ const CHUNKS = [
   { name: "mechanicalorchard", src: path.join(ROOT, "app.mechanicalorchard.jsx"), out: path.join(ROOT, "chunk-mechanicalorchard.js") },
   { name: "jobsearch", src: path.join(ROOT, "app.jobsearch.jsx"), out: path.join(ROOT, "chunk-jobsearch.js") },
   { name: "fantasy", src: path.join(ROOT, "app.fantasy.jsx"), out: path.join(ROOT, "chunk-fantasy.js") },
+  { name: "terraform", src: path.join(ROOT, "app.terraform.jsx"), out: path.join(ROOT, "chunk-terraform.js") },
 ];
 
 function loadBabel() {
