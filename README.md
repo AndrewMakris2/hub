@@ -33,9 +33,8 @@ output actually matches the source).
 
 There is currently no automated check that a commit's compiled output matches its source, and no
 test suite — changes are verified by hand, in a real browser, against the live app. If you add
-tests, the highest-value first targets are the pure helpers with no DOM dependency: the OAuth
-state signing/verification in `netlify/functions/_lib/oauthState.js`, and `app.jsx`'s schema
-migrations (`runMigrations`) and PIN/vault crypto (`derivePinHash`, `deriveVaultKey`).
+tests, the highest-value first targets are the pure helpers with no DOM dependency: `app.jsx`'s
+schema migrations (`runMigrations`) and PIN/vault crypto (`derivePinHash`, `deriveVaultKey`).
 
 ## File map
 
@@ -69,18 +68,16 @@ npm install          # once, installs @babel/standalone, terser, @netlify/blobs
 node build.js         # recompiles index.html and every chunk-*.js from app.jsx
 ```
 
-Then open `index.html` directly, or serve the directory with any static file server. The
-Netlify Functions (OAuth callbacks, player-stat lookups) won't run from a plain static server —
-use `netlify dev` (Netlify CLI) if you need to exercise those locally, with the environment
-variables below set in a local `.env`.
+Then open `index.html` directly, or serve the directory with any static file server. The Netlify
+Function (the nflverse stats proxy) won't run from a plain static server — use `netlify dev`
+(Netlify CLI) if you need to exercise it locally.
 
 ## Deployment
 
 Static hosting in two places, from the same build output:
 
 - **Netlify** (canonical — the only one that can run `netlify/functions/` and serve the custom
-  security headers in `netlify.toml`). Build command and headers are defined there; Netlify Blobs
-  is used for server-side token storage (see below).
+  security headers in `netlify.toml`). Build command and headers are defined there.
 - **GitHub Pages** (`https://andrewmakris2.github.io/hub/`) — serves the same static files as a
   fallback, but with no server-side functions and no custom headers. `index.html`'s own
   `<meta http-equiv="Content-Security-Policy">` tag is that copy's only CSP; it can't carry
@@ -89,20 +86,13 @@ Static hosting in two places, from the same build output:
 
 ## Environment variables
 
-All set in Netlify's site settings (Site configuration → Environment variables), never committed.
-
-| Variable | Used by | Required for |
-|---|---|---|
-| `SESSION` | `tiktok-auth-start.js`, `tiktok-callback.js` | HMAC-signs the OAuth state param. Without it, TikTok connect refuses to start. |
-| `TIKTOK_CLIENT_KEY` | `tiktok-callback.js` | TikTok token exchange (public value — the same one entered in the app's Settings). |
-| `TIKTOK_CLIENT_SECRET` | `tiktok-callback.js` | TikTok token exchange. Secret — never sent to the browser. |
-| `TIKTOK_REDIRECT_URI` | `tiktok-callback.js` | Must exactly match what's registered in TikTok's Login Kit settings. |
-| `VANTAGE_URL` | `tiktok-callback.js`, `tiktok-auth-start.js` | Where to redirect the browser back to after a connect/error. Defaults to the GitHub Pages URL if unset. |
-| `VANTAGE_ORIGIN` | `tiktok-status.js`, `tiktok-disconnect.js` | CORS allow-origin for those two endpoints. `_lib/cors.js`'s `corsHeaders()` (used elsewhere) instead allowlists both known origins directly and doesn't need this variable. |
-
-Nothing here is required for the dashboard itself to work — every one of these only gates the
-optional TikTok connection. Sleeper (Fantasy) needs no credentials at all — it's read directly
-from the browser.
+None required. `netlify/functions/` is down to a single public, credential-free surface (see
+below) after removing the Yahoo and TikTok OAuth integrations — both needed app-review approval
+from their respective platforms that was never realistic for a single-user personal tool, so
+they're gone rather than left half-working. If you previously set `SESSION`,
+`TIKTOK_CLIENT_KEY`/`SECRET`, `YAHOO_CLIENT_ID`/`SECRET`, `VANTAGE_URL`, or `VANTAGE_ORIGIN` in
+Netlify's site settings, none of them are read by anything anymore — safe to remove, though
+harmless to leave.
 
 ## Data & privacy — what actually happens, not just what's promised
 
@@ -124,11 +114,13 @@ this writing:
   never sent to or stored by any BearVantageHub server.
 - Sleeper (Fantasy) needs no OAuth at all — its public API is read directly from the browser with
   just a username. Nothing is stored server-side.
-- TikTok tokens **are** stored server-side (Netlify Blobs, `tiktok-tokens` store, key `"primary"`)
-  — access token, refresh token, and both expiry timestamps, kept until you disconnect. The
-  connect flow's OAuth `state` is HMAC-signed and expires after 10 minutes
-  (`tiktok-auth-start.js` / `tiktok-callback.js` / `_lib/oauthState.js`). Disconnecting
-  (Settings → TikTok → "Disconnect") deletes the stored token via `tiktok-disconnect.js`.
+- "Share to TikTok" (`shareVideoFile` in `app.jsx`) uses the device's own share sheet
+  (`navigator.share`), or a plain file download when that's unavailable, to hand a video off to
+  the TikTok app directly. No backend, no token, no server involved at all.
+- There is no server-side token storage left in this project — no Netlify Blobs usage, nothing
+  requiring an environment variable. Yahoo Fantasy and TikTok auto-post both used to store OAuth
+  tokens server-side; both were removed (see git history) once it was clear neither integration's
+  OAuth app review was realistically going to clear for a single-user personal tool.
 - The exported JSON backup (Settings → Backup) is **plaintext** and can contain financial,
   journal, and profile data along with integration configuration — treat it like any other
   sensitive personal file.
@@ -158,5 +150,7 @@ those integrations actually call.
   workable for one person who knows them well, harder to safely change piecemeal as they grow.
   Splitting `app.jsx` into domain modules behind stable interfaces is a real, but multi-week,
   undertaking — not attempted here.
-- Many form inputs use `placeholder` text without a persistent, associated `<label>`. Functional,
-  but a real accessibility gap worth a dedicated pass rather than a scattered one.
+- Every form input has an `aria-label` (added after an accessibility audit flagged 65 that only
+  had `placeholder` text), but almost none has a persistent *visible* `<label>` — the accessible
+  name exists, the on-screen affordance mostly doesn't. Fine for a screen reader, not ideal for
+  someone who just prefers seeing labels.

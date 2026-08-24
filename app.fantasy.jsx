@@ -2740,9 +2740,7 @@ async function ffGetLeagueDetailByPlatform(platform, leagueId, sleeperUserId) {
 // Backend origin for the Netlify Function that must stay server-side
 // (nflverse stats proxy) — hardcoded since Vantage only has one Netlify
 // deploy; GitHub Pages visitors still reach it fine since fetch() is
-// cross-origin here (same pattern the TikTok integration already uses via
-// integrations.tiktokBackendUrl, just fixed instead of user-configurable
-// since there's only ever one target).
+// cross-origin here.
 const FF_BACKEND_URL = "https://bearvantagehub.netlify.app";
 
 async function ffGetSeasonStats() {
