@@ -6120,6 +6120,161 @@ function GoalsBoardSection({ theme, data, setData, delay }) {
   );
 }
 
+// Real YouTube upload, not the OS share-sheet hand-off — a dedicated
+// youtube.upload-scoped access token is requested fresh right here (same
+// initTokenClient shape as YouTubeSection's read-only connect, just a
+// different scope), used once, and never stored, matching how every other
+// Google token in this app stays memory-only.
+function PostToYouTubeModal({ theme, video, integrations, onClose }) {
+  const [title, setTitle] = useState(video.title || "");
+  const [description, setDescription] = useState("");
+  const [privacy, setPrivacy] = useState("private");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const clientId = integrations.googleClientId.trim();
+
+  function post() {
+    if (!window.google || !window.google.accounts || !window.google.accounts.oauth2) {
+      setResult({ type: "error", message: "Google's sign-in script hasn't loaded yet — try again in a moment." });
+      return;
+    }
+    setBusy(true);
+    setResult(null);
+    try {
+      const tokenClient = window.google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: "https://www.googleapis.com/auth/youtube.upload",
+        callback: async (resp) => {
+          if (resp.error) {
+            setBusy(false);
+            setResult({ type: "error", message: `Google sign-in failed: ${resp.error}` });
+            return;
+          }
+          try {
+            const data = await uploadVideoToYouTube(video, { title, description, privacyStatus: privacy }, resp.access_token);
+            setResult({ type: "success", videoId: data.id });
+          } catch (err) {
+            setResult({ type: "error", message: err.message || "Upload failed." });
+          } finally {
+            setBusy(false);
+          }
+        },
+      });
+      tokenClient.requestAccessToken();
+    } catch (err) {
+      setBusy(false);
+      setResult({ type: "error", message: err.message || "Couldn't start Google sign-in." });
+    }
+  }
+
+  const inputStyle = {
+    width: "100%",
+    background: theme.inputBg,
+    border: `1px solid ${theme.inputBorder}`,
+    borderRadius: "8px",
+    color: theme.inputText,
+    padding: "9px 12px",
+    fontSize: "13.5px",
+    "--focus-ring": theme.accentSoft,
+    "--focus-border": theme.accent,
+  };
+
+  return ReactDOM.createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Post to YouTube"
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", background: "rgba(0,0,0,0.5)" }}
+    >
+      <div style={{ ...cardBackgroundStyle(theme), padding: "24px", width: "100%", maxWidth: "440px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <IconYoutube size={18} />
+            <div style={{ fontSize: "16px", fontWeight: 800, color: theme.text }}>Post to YouTube</div>
+          </div>
+          <button onClick={onClose} title="Close" className="v-btn v-iconbtn" style={{ border: "none", background: "transparent", color: theme.textMuted, padding: "4px" }}>
+            <IconClose size={16} />
+          </button>
+        </div>
+
+        {!clientId ? (
+          <div style={{ fontSize: "13px", color: theme.textMuted, lineHeight: 1.6 }}>
+            <div style={{ marginBottom: "10px" }}>
+              Needs a one-time setup in the Google Cloud project already used for Calendar / YouTube:
+            </div>
+            <ol style={{ margin: "0 0 4px", paddingLeft: "20px" }}>
+              <li>Enable <strong>YouTube Data API v3</strong> (may already be on).</li>
+              <li>OAuth consent screen → Data Access → add scope <code>youtube.upload</code>.</li>
+              <li>OAuth consent screen → Audience → Test users → add your Google account.</li>
+              <li>Add your Google Client ID in Settings (same one Calendar uses).</li>
+            </ol>
+          </div>
+        ) : result && result.type === "success" ? (
+          <div style={{ textAlign: "center", padding: "10px 0" }}>
+            <div style={{ color: theme.positive, fontSize: "14px", fontWeight: 700, marginBottom: "12px" }}>
+              Uploaded — set to {privacy}.
+            </div>
+            <a
+              href={`https://youtube.com/watch?v=${result.videoId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="v-btn"
+              style={{ display: "inline-block", background: theme.accent, color: theme.accentText, border: "none", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", fontWeight: 700, textDecoration: "none" }}
+            >
+              Watch on YouTube →
+            </a>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div>
+              <div style={{ fontSize: "11.5px", fontWeight: 700, color: theme.textMuted, marginBottom: "4px" }}>Title</div>
+              <input value={title} onChange={(e) => setTitle(e.target.value)} className="v-input" style={inputStyle} />
+            </div>
+            <div>
+              <div style={{ fontSize: "11.5px", fontWeight: 700, color: theme.textMuted, marginBottom: "4px" }}>Description</div>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={4}
+                placeholder="What's this video about?"
+                aria-label="Description"
+                className="v-input"
+                style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }}
+              />
+            </div>
+            <div>
+              <div style={{ fontSize: "11.5px", fontWeight: 700, color: theme.textMuted, marginBottom: "6px" }}>Privacy</div>
+              <Segmented
+                theme={theme}
+                value={privacy}
+                onChange={setPrivacy}
+                options={[{ id: "private", label: "Private" }, { id: "unlisted", label: "Unlisted" }, { id: "public", label: "Public" }]}
+                ariaLabel="Privacy"
+              />
+            </div>
+            {result && result.type === "error" && (
+              <div style={{ fontSize: "12.5px", color: theme.danger, background: theme.dangerSoft, borderRadius: "8px", padding: "9px 12px" }}>
+                {result.message}
+              </div>
+            )}
+            <button
+              onClick={post}
+              disabled={busy || !title.trim()}
+              className="v-btn"
+              style={{ background: theme.accent, color: theme.accentText, border: "none", borderRadius: "8px", padding: "10px 14px", fontSize: "13.5px", fontWeight: 700, opacity: busy || !title.trim() ? 0.6 : 1 }}
+            >
+              {busy ? "Uploading…" : "Post to YouTube"}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function VideoLibrarySection({ theme, integrations, setIntegrations }) {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -6128,6 +6283,7 @@ function VideoLibrarySection({ theme, integrations, setIntegrations }) {
   const [statusById, setStatusById] = useState({});
   const [storageEstimate, setStorageEstimate] = useState(null);
   const [storageSupported, setStorageSupported] = useState(true);
+  const [postingVideo, setPostingVideo] = useState(null);
   const fileInputRef = useRef(null);
 
   function refreshStorageEstimate() {
@@ -6342,9 +6498,9 @@ function VideoLibrarySection({ theme, integrations, setIntegrations }) {
                     TikTok
                   </button>
                   <button
-                    onClick={() => shareVideoFile(v, (s) => setStatus(v.id, s), "YouTube")}
+                    onClick={() => setPostingVideo(v)}
                     className="v-btn"
-                    title="Share to YouTube"
+                    title="Post to YouTube"
                     style={{
                       flex: 1,
                       display: "flex",
@@ -6419,6 +6575,15 @@ function VideoLibrarySection({ theme, integrations, setIntegrations }) {
         {uploading ? "Saving…" : "Upload Video"}
       </button>
       <input ref={fileInputRef} type="file" accept="video/*" onChange={handleFileChange} style={{ display: "none" }} />
+
+      {postingVideo && (
+        <PostToYouTubeModal
+          theme={theme}
+          video={postingVideo}
+          integrations={integrations}
+          onClose={() => setPostingVideo(null)}
+        />
+      )}
     </Card>
   );
 }
@@ -8474,6 +8639,41 @@ async function fetchYoutubeUploads(accessToken) {
 
   videos.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
   return videos.slice(0, 40);
+}
+
+// Uploads a locally-stored video straight to YouTube — a hand-built
+// multipart/related body (metadata JSON part + the raw video blob part),
+// same "simple/multipart upload" method YouTube's own API docs describe.
+// No resumable-upload chunking: these are short clips, not the multi-hour
+// footage that protocol exists for.
+async function uploadVideoToYouTube(video, meta, accessToken) {
+  const boundary = "vantage" + Date.now().toString(36);
+  const metadata = {
+    snippet: { title: meta.title || "Untitled", description: meta.description || "" },
+    status: { privacyStatus: meta.privacyStatus || "private" },
+  };
+  const head =
+    `--${boundary}\r\n` +
+    "Content-Type: application/json; charset=UTF-8\r\n\r\n" +
+    JSON.stringify(metadata) +
+    `\r\n--${boundary}\r\n` +
+    `Content-Type: ${video.type || "video/mp4"}\r\n\r\n`;
+  const tail = `\r\n--${boundary}--`;
+  const body = new Blob([head, video.blob, tail]);
+
+  const res = await fetch(
+    "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=multipart&part=snippet,status",
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": `multipart/related; boundary=${boundary}` },
+      body,
+    }
+  );
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new Error((data && data.error && data.error.message) || `YouTube upload failed (${res.status}).`);
+  }
+  return data;
 }
 
 // Lazily pull msal-browser from its CDN only when the user actually clicks
