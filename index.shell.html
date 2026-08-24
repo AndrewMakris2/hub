@@ -104,6 +104,12 @@
     --sa-b: env(safe-area-inset-bottom, 0px);
     --sa-l: env(safe-area-inset-left, 0px);
     --sa-r: env(safe-area-inset-right, 0px);
+
+    /* Display face for headline-scale moments (page titles, the brand
+       wordmark, the home greeting) — everything else stays on the system
+       stack below. One face used sparingly reads as a considered choice;
+       a theme may still set its own --v-font-display to opt out. */
+    --v-font-display: "Bricolage Grotesque", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
   :root[data-scheme="dark"] {
     color-scheme: dark;

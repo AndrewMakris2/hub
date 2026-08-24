@@ -2899,14 +2899,15 @@ const THEME_VAR_MAP = {
   "--v-rail-radius": "railRadius",
   "--v-rail-shadow": "railShadow",
 };
-// Bricolage Grotesque is only used by the Aurora Glass theme's --v-font-display.
-// Loading it as a real file (fetched on demand) instead of embedding it as a
-// base64 @font-face in the static shell CSS keeps the other 27 themes from
-// paying ~30KB of critical-path payload for a font they never render.
-let __auroraFontInjected = false;
-function ensureAuroraFont() {
-  if (__auroraFontInjected || typeof document === "undefined") return;
-  __auroraFontInjected = true;
+// Bricolage Grotesque is the site-wide --v-font-display (headline-scale
+// moments only — see index.shell.html). Loading it as a real file (fetched
+// on first paint) instead of embedding it as a base64 @font-face in the
+// static shell CSS keeps it off the critical-path payload; font-display:
+// swap means the system font shows first and swaps in once it lands.
+let __displayFontInjected = false;
+function ensureDisplayFont() {
+  if (__displayFontInjected || typeof document === "undefined") return;
+  __displayFontInjected = true;
   const style = document.createElement("style");
   style.textContent = '@font-face{font-family:"Bricolage Grotesque";font-weight:700;font-style:normal;font-display:swap;src:url("bricolage-grotesque-700.woff2") format("woff2");}';
   document.head.appendChild(style);
@@ -2920,7 +2921,7 @@ function applyThemeVars(theme) {
     if (val != null) root.style.setProperty(cssVar, String(val));
   });
   root.setAttribute("data-scheme", isDarkTheme(theme) ? "dark" : "light");
-  if (theme.fontDisplay) ensureAuroraFont();
+  ensureDisplayFont();
 }
 
 // Put the cursor on the field the user has to fix. Paired with a message,
@@ -10396,6 +10397,7 @@ function Sidebar({
             fontWeight: theme.headerWeight,
             color: theme.text,
             letterSpacing: "-0.01em",
+            fontFamily: "var(--v-font-display, inherit)",
           }}
         >
           BearVantageHub
