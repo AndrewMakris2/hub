@@ -943,7 +943,6 @@ const STORAGE_KEYS = {
   fantasyCustomRankings: "dash.fantasyCustomRankings",
   fantasyWatchlist: "dash.fantasyWatchlist",
   fantasySleeper: "dash.fantasySleeper",
-  fantasyYahoo: "dash.fantasyYahoo",
   moLinks: "dash.moLinks",
   pkiReport: "dash.pkiReport",
   moSnapshots: "dash.moSnapshots",
@@ -989,13 +988,11 @@ const STORAGE_KEYS = {
 
 // "The War Room" fantasy-football port — defaults for the localStorage-backed
 // fields that replaced its server-side Netlify Blobs storage (cheat sheets,
-// custom rankings, watchlist, linked league IDs). Yahoo tokens are the one
-// exception and stay server-side (see netlify/functions/fantasy-yahoo.js).
+// custom rankings, watchlist, linked league IDs).
 const DEFAULT_FANTASY_CHEAT_SHEETS = {};
 const DEFAULT_FANTASY_CUSTOM_RANKINGS = {};
 const DEFAULT_FANTASY_WATCHLIST = [];
 const DEFAULT_FANTASY_SLEEPER = { username: "", userId: "", linkedLeagueIds: [] };
-const DEFAULT_FANTASY_YAHOO = { linkedLeagueKeys: [] };
 
 function isMergeablePlainObject(v) {
   return v !== null && typeof v === "object" && !Array.isArray(v);
@@ -1823,7 +1820,7 @@ function TripDetail({ theme, trip, onUpdate, onBack, onRemove, inputStyle }) {
             value={packItem}
             onChange={(e) => setPackItem(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addPackItem()}
-            placeholder="Add an item…"
+            placeholder="Add an item…" aria-label="Add an item…"
             className="v-input"
             style={{ ...inputStyle, flex: 1 }}
           />
@@ -1865,12 +1862,12 @@ function TripDetail({ theme, trip, onUpdate, onBack, onRemove, inputStyle }) {
       <Card theme={theme}>
         <SectionLabel theme={theme}>Itinerary</SectionLabel>
         <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
-          <input value={itinDay} onChange={(e) => setItinDay(e.target.value)} placeholder="Day (e.g. Fri)" className="v-input" style={{ ...inputStyle, width: "110px", flexShrink: 0 }} />
+          <input value={itinDay} onChange={(e) => setItinDay(e.target.value)} placeholder="Day (e.g. Fri)" aria-label="Day (e.g. Fri)" className="v-input" style={{ ...inputStyle, width: "110px", flexShrink: 0 }} />
           <input
             value={itinText}
             onChange={(e) => setItinText(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addItinerary()}
-            placeholder="What's happening…"
+            placeholder="What's happening…" aria-label="What's happening…"
             className="v-input"
             style={{ ...inputStyle, flex: 1 }}
           />
@@ -1908,7 +1905,7 @@ function TripDetail({ theme, trip, onUpdate, onBack, onRemove, inputStyle }) {
           <input
             value={budgetLabel}
             onChange={(e) => setBudgetLabel(e.target.value)}
-            placeholder="Item (e.g. Flights)"
+            placeholder="Item (e.g. Flights)" aria-label="Item (e.g. Flights)"
             className="v-input"
             style={{ ...inputStyle, flex: 1 }}
           />
@@ -1917,7 +1914,7 @@ function TripDetail({ theme, trip, onUpdate, onBack, onRemove, inputStyle }) {
             onChange={(e) => setBudgetAmount(e.target.value.replace(/[^0-9.]/g, ""))}
             onKeyDown={(e) => e.key === "Enter" && addBudgetItem()}
             inputMode="decimal"
-            placeholder="$"
+            placeholder="$" aria-label="Amount"
             className="v-input"
             style={{ ...inputStyle, width: "90px" }}
           />
@@ -2025,8 +2022,8 @@ function TravelPage({ theme, trips, setTrips }) {
       </div>
       {showForm && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "18px" }}>
-          <input id="v-field-trip-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Trip name (e.g. Telluride)" className="v-input" style={inputStyle} />
-          <input value={form.destination} onChange={(e) => setForm((f) => ({ ...f, destination: e.target.value }))} placeholder="Destination" className="v-input" style={inputStyle} />
+          <input id="v-field-trip-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Trip name (e.g. Telluride)" aria-label="Trip name (e.g. Telluride)" className="v-input" style={inputStyle} />
+          <input value={form.destination} onChange={(e) => setForm((f) => ({ ...f, destination: e.target.value }))} placeholder="Destination" aria-label="Destination" className="v-input" style={inputStyle} />
           <input type="date" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} className="v-input" style={inputStyle} />
           <input type="date" value={form.endDate} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} className="v-input" style={inputStyle} />
           <button
@@ -2323,7 +2320,7 @@ function MealPlanningPage({ theme, state, setState }) {
             value={ingredientInput}
             onChange={(e) => setIngredientInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addIngredient()}
-            placeholder="e.g. chicken, rice, garlic…"
+            placeholder="e.g. chicken, rice, garlic…" aria-label="e.g. chicken, rice, garlic…"
             className="v-input"
             style={{ ...inputStyle, flex: 1 }}
           />
@@ -2699,7 +2696,7 @@ function MusicPage({ theme, state, setState }) {
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && connect()}
-            placeholder="Last.fm username"
+            placeholder="Last.fm username" aria-label="Last.fm username"
             className="v-input"
             style={inputStyle}
           />
@@ -2707,7 +2704,7 @@ function MusicPage({ theme, state, setState }) {
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && connect()}
-            placeholder="Last.fm API key"
+            placeholder="Last.fm API key" aria-label="Last.fm API key"
             className="v-input"
             style={inputStyle}
           />
@@ -4159,10 +4156,10 @@ function WorkoutLogSection({ theme, workouts, setWorkouts }) {
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: "8px", marginBottom: "16px" }}>
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="v-input" style={inputStyle} />
-        <input id="v-field-lift-name" value={exercise} onChange={(e) => setExercise(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addEntry()} placeholder="Exercise" className="v-input" style={{ ...inputStyle, gridColumn: "span 2" }} />
-        <input id="v-field-lift-sets" value={sets} onChange={(e) => setSets(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addEntry()} placeholder="Sets" inputMode="numeric" className="v-input" style={inputStyle} />
-        <input id="v-field-lift-reps" value={reps} onChange={(e) => setReps(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addEntry()} placeholder="Reps" inputMode="numeric" className="v-input" style={inputStyle} />
-        <input value={weight} onChange={(e) => setWeight(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addEntry()} placeholder="lbs (optional)" inputMode="decimal" className="v-input" style={inputStyle} />
+        <input id="v-field-lift-name" value={exercise} onChange={(e) => setExercise(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addEntry()} placeholder="Exercise" aria-label="Exercise" className="v-input" style={{ ...inputStyle, gridColumn: "span 2" }} />
+        <input id="v-field-lift-sets" value={sets} onChange={(e) => setSets(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addEntry()} placeholder="Sets" aria-label="Sets" inputMode="numeric" className="v-input" style={inputStyle} />
+        <input id="v-field-lift-reps" value={reps} onChange={(e) => setReps(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addEntry()} placeholder="Reps" aria-label="Reps" inputMode="numeric" className="v-input" style={inputStyle} />
+        <input value={weight} onChange={(e) => setWeight(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addEntry()} placeholder="lbs (optional)" aria-label="lbs (optional)" inputMode="decimal" className="v-input" style={inputStyle} />
         <button onClick={addEntry} className="v-btn" style={{ padding: "9px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText }}>Log it</button>
       </div>
       {sorted.length === 0 ? (
@@ -4419,7 +4416,7 @@ function UpcomingSection({ theme, events, setEvents, connectedEvents }) {
       </div>
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
         <input
-          placeholder="Event title"
+          placeholder="Event title" aria-label="Event title"
           id="v-field-event-title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -4444,7 +4441,7 @@ function UpcomingSection({ theme, events, setEvents, connectedEvents }) {
           style={{ ...inputStyle, flex: "1 1 110px" }}
         />
         <input
-          placeholder="Detail (optional)"
+          placeholder="Detail (optional)" aria-label="Detail (optional)"
           value={detail}
           onChange={(e) => setDetail(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addEvent()}
@@ -4608,7 +4605,7 @@ function FinancialAccountsSection({ theme, data, setData, accountHistory, onReco
 
       <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
         <input
-          placeholder="Add another account (e.g. HSA)"
+          placeholder="Add another account (e.g. HSA)" aria-label="Add another account (e.g. HSA)"
           id="v-field-account-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -4694,9 +4691,9 @@ function InvestmentHoldingsSection({ theme, data, setData }) {
         <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="v-input" style={{ ...inputStyle, gridColumn: "span 2" }}>
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
-        <input value={ticker} onChange={(e) => setTicker(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addHolding()} placeholder="Ticker" className="v-input" style={inputStyle} />
-        <input value={shares} onChange={(e) => setShares(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addHolding()} placeholder="Shares" inputMode="decimal" className="v-input" style={inputStyle} />
-        <input value={price} onChange={(e) => setPrice(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addHolding()} placeholder="Price (optional)" inputMode="decimal" className="v-input" style={inputStyle} />
+        <input value={ticker} onChange={(e) => setTicker(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addHolding()} placeholder="Ticker" aria-label="Ticker" className="v-input" style={inputStyle} />
+        <input value={shares} onChange={(e) => setShares(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addHolding()} placeholder="Shares" aria-label="Shares" inputMode="decimal" className="v-input" style={inputStyle} />
+        <input value={price} onChange={(e) => setPrice(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addHolding()} placeholder="Price (optional)" aria-label="Price (optional)" inputMode="decimal" className="v-input" style={inputStyle} />
         <button onClick={addHolding} className="v-btn" style={{ padding: "9px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText }}>Add</button>
       </div>
     </Card>
@@ -4904,7 +4901,7 @@ function CustomTrackersSection({ theme, trackers, setTrackers, trackerHistory, o
                   <input
                     value={t.target || ""}
                     onChange={(e) => updateTrackerTarget(t.id, e.target.value)}
-                    placeholder="optional"
+                    placeholder="optional" aria-label="Target value (optional)"
                     className="v-input v-tabular"
                     style={{
                       width: "100%",
@@ -4961,7 +4958,7 @@ function CustomTrackersSection({ theme, trackers, setTrackers, trackerHistory, o
 
       <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
         <input
-          placeholder="Label (e.g. Pages Read)"
+          placeholder="Label (e.g. Pages Read)" aria-label="Label (e.g. Pages Read)"
           id="v-field-tracker-label"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
@@ -4970,7 +4967,7 @@ function CustomTrackersSection({ theme, trackers, setTrackers, trackerHistory, o
           style={{ ...inputStyle, flex: "2 1 180px" }}
         />
         <input
-          placeholder="Value (e.g. 42)"
+          placeholder="Value (e.g. 42)" aria-label="Value (e.g. 42)"
           id="v-field-tracker-value"
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -4979,7 +4976,7 @@ function CustomTrackersSection({ theme, trackers, setTrackers, trackerHistory, o
           style={{ ...inputStyle, flex: "1 1 100px" }}
         />
         <input
-          placeholder="Goal (optional)"
+          placeholder="Goal (optional)" aria-label="Goal (optional)"
           value={target}
           onChange={(e) => setTarget(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addTracker()}
@@ -5059,9 +5056,9 @@ function TikTokConnect({ theme, integrations, setIntegrations }) {
       return;
     }
     // tiktok-auth-start.js builds the actual TikTok authorize URL with a
-    // server-signed state param (same HMAC pattern Yahoo's connect flow
-    // uses) — the redirect back to tiktok-callback.js verifies it before
-    // exchanging the code, so a forged/replayed callback is rejected.
+    // server-signed state param — the redirect back to tiktok-callback.js
+    // verifies it before exchanging the code, so a forged/replayed
+    // callback is rejected.
     const startUrl = `${backendUrl}/.netlify/functions/tiktok-auth-start?client_key=${encodeURIComponent(integrations.tiktokClientKey.trim())}`;
     window.location.href = startUrl;
   }
@@ -5181,14 +5178,14 @@ function TikTokConnect({ theme, integrations, setIntegrations }) {
       {showConfig && (
         <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
           <input
-            placeholder="TikTok Client Key"
+            placeholder="TikTok Client Key" aria-label="TikTok Client Key"
             value={integrations.tiktokClientKey}
             onChange={(e) => setIntegrations({ ...integrations, tiktokClientKey: e.target.value })}
             className="v-input"
             style={inputStyle}
           />
           <input
-            placeholder="Backend URL (e.g. https://your-site.netlify.app)"
+            placeholder="Backend URL (e.g. https://your-site.netlify.app)" aria-label="Backend URL (e.g. https://your-site.netlify.app)"
             value={integrations.tiktokBackendUrl}
             onChange={(e) => setIntegrations({ ...integrations, tiktokBackendUrl: e.target.value })}
             className="v-input"
@@ -5376,7 +5373,7 @@ function WatchQueueSection({ theme, watchlist, setWatchlist, genres, delay }) {
 
       <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
         <input
-          placeholder="Title"
+          placeholder="Title" aria-label="Title"
           id="v-field-watch-title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -5624,7 +5621,7 @@ function CalendarSection({ theme, events, setEvents, connectedEvents, delay }) {
 
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           <input
-            placeholder="Add an event for this day"
+            placeholder="Add an event for this day" aria-label="Add an event for this day"
             value={addTitle}
             onChange={(e) => setAddTitle(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addToSelected()}
@@ -5716,8 +5713,8 @@ function BudgetEnvelopesSection({ theme, transactions, budgets, setBudgets }) {
         </div>
       )}
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-        <input value={category} onChange={(e) => setCategory(e.target.value)} onKeyDown={(e) => e.key === "Enter" && setBudget()} placeholder="Category (e.g. Dining)" className="v-input" style={{ ...inputStyle, flex: "2 1 160px" }} />
-        <input value={limit} onChange={(e) => setLimit(e.target.value)} onKeyDown={(e) => e.key === "Enter" && setBudget()} placeholder="Monthly limit" inputMode="decimal" className="v-input" style={{ ...inputStyle, flex: "1 1 120px" }} />
+        <input value={category} onChange={(e) => setCategory(e.target.value)} onKeyDown={(e) => e.key === "Enter" && setBudget()} placeholder="Category (e.g. Dining)" aria-label="Category (e.g. Dining)" className="v-input" style={{ ...inputStyle, flex: "2 1 160px" }} />
+        <input value={limit} onChange={(e) => setLimit(e.target.value)} onKeyDown={(e) => e.key === "Enter" && setBudget()} placeholder="Monthly limit" aria-label="Monthly limit" inputMode="decimal" className="v-input" style={{ ...inputStyle, flex: "1 1 120px" }} />
         <button onClick={setBudget} className="v-btn" style={{ padding: "9px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText }}>Set</button>
       </div>
     </Card>
@@ -5945,14 +5942,14 @@ function TransactionsSection({ theme, transactions, setTransactions, categoryOpt
             <input
               value={rulePattern}
               onChange={(e) => setRulePattern(e.target.value)}
-              placeholder="Merchant contains (e.g. amazon)"
+              placeholder="Merchant contains (e.g. amazon)" aria-label="Merchant contains (e.g. amazon)"
               className="v-input"
               style={{ ...inputStyle, flex: "2 1 160px" }}
             />
             <input
               value={ruleCategory}
               onChange={(e) => setRuleCategory(e.target.value)}
-              placeholder="Category"
+              placeholder="Category" aria-label="Category"
               className="v-input"
               style={{ ...inputStyle, flex: "1 1 120px" }}
             />
@@ -5986,6 +5983,7 @@ function TransactionsSection({ theme, transactions, setTransactions, categoryOpt
             value={pasteText}
             onChange={(e) => setPasteText(e.target.value)}
             placeholder={"Paste rows copied from your bank or card statement export — one transaction per line, e.g.\n08/03/2026, STARBUCKS #4521, 5.40\n08/04/2026, AMAZON.COM, 32.10"}
+            aria-label="Paste bank or card statement rows to import"
             className="v-input"
             style={{
               width: "100%",
@@ -6104,7 +6102,7 @@ function TransactionsSection({ theme, transactions, setTransactions, categoryOpt
         <input
           id="v-field-tx-merchant"
           ref={merchantRef}
-          placeholder="Merchant"
+          placeholder="Merchant" aria-label="Merchant"
           value={merchant}
           onChange={(e) => setMerchant(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addTransaction()}
@@ -6113,7 +6111,7 @@ function TransactionsSection({ theme, transactions, setTransactions, categoryOpt
         />
         <input
           id="v-field-tx-amount"
-          placeholder="Amount $"
+          placeholder="Amount $" aria-label="Amount $"
           type="number"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
@@ -6122,7 +6120,7 @@ function TransactionsSection({ theme, transactions, setTransactions, categoryOpt
           style={{ ...inputStyle, flex: "1 1 90px" }}
         />
         <input
-          placeholder="Category (optional)"
+          placeholder="Category (optional)" aria-label="Category (optional)"
           value={category}
           onChange={(e) => setCategory(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addTransaction()}
@@ -6176,7 +6174,7 @@ function JournalSection({ theme, data, setData, delay }) {
       <textarea
         value={todayEntry ? todayEntry.text : ""}
         onChange={(e) => updateToday(e.target.value)}
-        placeholder="What's on your mind today?"
+        placeholder="What's on your mind today?" aria-label="What's on your mind today?"
         className="v-input"
         style={{
           width: "100%",
@@ -6295,7 +6293,7 @@ function GoalsBoardSection({ theme, data, setData, delay }) {
       </div>
       <div style={{ display: "flex", gap: "10px" }}>
         <input
-          placeholder="New goal"
+          placeholder="New goal" aria-label="New goal"
           id="v-field-goal-label"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
@@ -6857,7 +6855,7 @@ function QuizModal({ theme, profile, setProfile, onClose }) {
             <textarea
               value={notes}
               onChange={(e) => updateNotes(e.target.value)}
-              placeholder="e.g. Big fan of heist movies, just got into pottery..."
+              placeholder="e.g. Big fan of heist movies, just got into pottery..." aria-label="e.g. Big fan of heist movies, just got into pottery..."
               className="v-input"
               rows={4}
               style={{
@@ -7008,7 +7006,7 @@ function ProfileSection({ theme, profile, setProfile }) {
       <div style={{ display: "flex", gap: "10px" }}>
         <input
           id="v-field-interest"
-          placeholder="Add an interest (e.g. Cooking)"
+          placeholder="Add an interest (e.g. Cooking)" aria-label="Add an interest (e.g. Cooking)"
           value={tag}
           onChange={(e) => setTag(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addInterest()}
@@ -8141,9 +8139,7 @@ function sanitizeBackup(parsed) {
     if (sanitized) out.golfOutdoorRounds = sanitized;
   }
   // Fantasy tab — cheat sheets, custom rankings, watchlist, and linked
-  // league IDs/keys are all localStorage-backed (see STORAGE_KEYS.fantasy*);
-  // Yahoo's actual OAuth tokens never touch the browser, so there's nothing
-  // Yahoo-specific to sanitize beyond the league keys themselves.
+  // league IDs are all localStorage-backed (see STORAGE_KEYS.fantasy*).
   if (isPlainObject(parsed.fantasyCheatSheets)) {
     const sheets = {};
     for (const [id, sheet] of Object.entries(parsed.fantasyCheatSheets)) {
@@ -8198,12 +8194,6 @@ function sanitizeBackup(parsed) {
       username: typeof s.username === "string" ? s.username : "",
       userId: typeof s.userId === "string" ? s.userId : "",
       linkedLeagueIds: Array.isArray(s.linkedLeagueIds) ? s.linkedLeagueIds.filter((id) => typeof id === "string" && id.trim()) : [],
-    };
-  }
-  if (isPlainObject(parsed.fantasyYahoo)) {
-    const y = parsed.fantasyYahoo;
-    out.fantasyYahoo = {
-      linkedLeagueKeys: Array.isArray(y.linkedLeagueKeys) ? y.linkedLeagueKeys.filter((k) => typeof k === "string" && k.trim()) : [],
     };
   }
   // Raven's Eye — product tracking data backs up; uploaded report file blobs
@@ -8297,7 +8287,6 @@ function BackupMenu({
   fantasyCustomRankings,
   fantasyWatchlist,
   fantasySleeper,
-  fantasyYahoo,
   ravenProducts,
   setThemeKey,
   setFitness,
@@ -8318,7 +8307,6 @@ function BackupMenu({
   setFantasyCustomRankings,
   setFantasyWatchlist,
   setFantasySleeper,
-  setFantasyYahoo,
   setRavenProducts,
 }) {
   const [open, setOpen] = useState(false);
@@ -8360,7 +8348,6 @@ function BackupMenu({
       fantasyCustomRankings,
       fantasyWatchlist,
       fantasySleeper,
-      fantasyYahoo,
       ravenProducts,
       // Complete snapshot. The fields above are kept so an older build can
       // still read this file; anything new lives here.
@@ -8435,7 +8422,6 @@ function BackupMenu({
         if (sanitized.fantasyCustomRankings) setFantasyCustomRankings(sanitized.fantasyCustomRankings);
         if (sanitized.fantasyWatchlist) setFantasyWatchlist(sanitized.fantasyWatchlist);
         if (sanitized.fantasySleeper) setFantasySleeper(sanitized.fantasySleeper);
-        if (sanitized.fantasyYahoo) setFantasyYahoo(sanitized.fantasyYahoo);
         if (sanitized.ravenProducts) setRavenProducts(sanitized.ravenProducts);
         setStatus({ type: "success", message: "Backup restored." });
       } catch (err) {
@@ -8946,7 +8932,7 @@ function CalendarMenu({ theme, integrations, setIntegrations, googleAccounts, on
             </div>
           )}
           <input
-            placeholder="Google Client ID"
+            placeholder="Google Client ID" aria-label="Google Client ID"
             value={integrations.googleClientId}
             onChange={(e) => setIntegrations({ ...integrations, googleClientId: e.target.value })}
             className="v-input"
@@ -8989,7 +8975,7 @@ function CalendarMenu({ theme, integrations, setIntegrations, googleAccounts, on
             Outlook Calendar {microsoftEvents.length > 0 ? `(${microsoftEvents.length} events)` : ""}
           </div>
           <input
-            placeholder="Microsoft Client ID"
+            placeholder="Microsoft Client ID" aria-label="Microsoft Client ID"
             value={integrations.msClientId}
             onChange={(e) => setIntegrations({ ...integrations, msClientId: e.target.value })}
             className="v-input"
@@ -9421,7 +9407,7 @@ function MoDashboard({ theme, snapshots, policies, dailyLog, cveWatchlist, appNo
                 <input
                   value={l.url}
                   onChange={(e) => updateLink(l.id, e.target.value)}
-                  placeholder="https://…"
+                  placeholder="https://…" aria-label="Link URL"
                   className="v-input"
                   style={{ width: "100%", padding: "8px 10px", borderRadius: "8px", fontSize: "13px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent }}
                 />
@@ -9616,7 +9602,7 @@ function PageBanner({ theme, page, images, setImages }) {
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter") saveImg(); if (e.key === "Escape") setEditing(false); }}
-        placeholder="Paste an image URL, or leave blank for the gradient"
+        placeholder="Paste an image URL, or leave blank for the gradient" aria-label="Paste an image URL, or leave blank for the gradient"
         className="v-input"
         autoFocus
         style={{ flex: 1, minWidth: "180px", padding: "8px 10px", borderRadius: "8px", fontSize: "13px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}` }}
@@ -9770,6 +9756,7 @@ function AllPagesDirectory({ theme, page, pageVisits, onNavigate, onOpenMoTool, 
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={"Filter " + (PAGE_META.length + MO_TOOLS.length) + " destinations…"}
+            aria-label="Filter destinations"
             className="v-input"
             autoFocus
             style={{ flex: 1, minWidth: "160px", padding: "0 12px", borderRadius: "10px", fontSize: "var(--fs-4)", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}` }}
@@ -10174,7 +10161,6 @@ function Sidebar({
   fantasyCustomRankings,
   fantasyWatchlist,
   fantasySleeper,
-  fantasyYahoo,
   ravenProducts,
   lock,
   setLock,
@@ -10204,7 +10190,6 @@ function Sidebar({
   setFantasyCustomRankings,
   setFantasyWatchlist,
   setFantasySleeper,
-  setFantasyYahoo,
   setRavenProducts,
   habits,
   workouts,
@@ -10559,7 +10544,6 @@ function Sidebar({
           fantasyCustomRankings={fantasyCustomRankings}
           fantasyWatchlist={fantasyWatchlist}
           fantasySleeper={fantasySleeper}
-          fantasyYahoo={fantasyYahoo}
           ravenProducts={ravenProducts}
           setThemeKey={setThemeKey}
           setFitness={setFitness}
@@ -10580,7 +10564,6 @@ function Sidebar({
           setFantasyCustomRankings={setFantasyCustomRankings}
           setFantasyWatchlist={setFantasyWatchlist}
           setFantasySleeper={setFantasySleeper}
-          setFantasyYahoo={setFantasyYahoo}
           setRavenProducts={setRavenProducts}
         />
         <LockMenu theme={theme} lock={lock} setLock={setLock} onLockNow={onLockNow} />
@@ -11690,7 +11673,7 @@ function HabitsSection({ theme, state, setState }) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") addHabit(); }}
-            placeholder="New habit (e.g. Gym)"
+            placeholder="New habit (e.g. Gym)" aria-label="New habit (e.g. Gym)"
             className="v-input"
             style={{ ...inputStyle, flex: 1, minWidth: "160px" }}
           />
@@ -11947,7 +11930,7 @@ function ReadingSection({ theme, state, setState }) {
 
         {/* Search */}
         <div style={{ display: "flex", gap: "8px", marginTop: "16px", flexWrap: "wrap" }}>
-          <input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") runSearch(); }} placeholder="Search a book by title or author…" className="v-input" style={{ ...inputStyle, flex: 1, minWidth: "180px" }} />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") runSearch(); }} placeholder="Search a book by title or author…" aria-label="Search a book by title or author…" className="v-input" style={{ ...inputStyle, flex: 1, minWidth: "180px" }} />
           <button onClick={runSearch} disabled={searching} className="v-btn" style={{ padding: "9px 16px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText, opacity: searching ? 0.6 : 1 }}>{searching ? "Searching…" : "Search"}</button>
         </div>
         {searchErr && <div style={{ marginTop: "10px", fontSize: "12.5px", color: theme.textMuted, background: theme.accentSoft, borderRadius: "9px", padding: "9px 12px", lineHeight: 1.45 }}>{searchErr}</div>}
@@ -11972,8 +11955,8 @@ function ReadingSection({ theme, state, setState }) {
 
         {/* Manual add */}
         <div style={{ display: "flex", gap: "8px", marginTop: "12px", flexWrap: "wrap" }}>
-          <input id="v-field-book-title" value={manualTitle} onChange={(e) => setManualTitle(e.target.value)} placeholder="…or add manually — title" className="v-input" style={{ ...inputStyle, flex: 1, minWidth: "140px" }} />
-          <input value={manualAuthor} onChange={(e) => setManualAuthor(e.target.value)} placeholder="author (optional)" className="v-input" style={{ ...inputStyle, flex: 1, minWidth: "120px" }} />
+          <input id="v-field-book-title" value={manualTitle} onChange={(e) => setManualTitle(e.target.value)} placeholder="…or add manually — title" aria-label="…or add manually — title" className="v-input" style={{ ...inputStyle, flex: 1, minWidth: "140px" }} />
+          <input value={manualAuthor} onChange={(e) => setManualAuthor(e.target.value)} placeholder="author (optional)" aria-label="author (optional)" className="v-input" style={{ ...inputStyle, flex: 1, minWidth: "120px" }} />
           <button onClick={addManual} className="v-btn" style={{ padding: "9px 14px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.text }}>Add</button>
         </div>
 
@@ -12144,7 +12127,7 @@ function GamesSection({ theme, state, setState }) {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "8px", marginTop: "12px" }}>
-          <input id="v-field-game-title" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addGame(); }} placeholder="Game title" className="v-input" style={{ ...inputStyle, gridColumn: "span 2" }} />
+          <input id="v-field-game-title" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addGame(); }} placeholder="Game title" aria-label="Game title" className="v-input" style={{ ...inputStyle, gridColumn: "span 2" }} />
           <select value={platform} onChange={(e) => setPlatform(e.target.value)} className="v-input" style={inputStyle}>
             {GAME_PLATFORMS.map((pf) => <option key={pf} value={pf}>{pf}</option>)}
           </select>
@@ -12202,7 +12185,7 @@ function GamesSection({ theme, state, setState }) {
                   {g.status === "beaten" && <div style={{ marginTop: "4px" }}><BookStars theme={theme} value={g.rating || 0} onChange={(v) => updateGame(g.id, { rating: v })} /></div>}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "3px", flexShrink: 0 }}>
-                  <input value={g.hours} onChange={(e) => updateGame(g.id, { hours: e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1") })} inputMode="decimal" placeholder="0" title="Hours played" className="v-input" style={{ ...inputStyle, width: "52px", padding: "6px 8px", textAlign: "center" }} />
+                  <input value={g.hours} onChange={(e) => updateGame(g.id, { hours: e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1") })} inputMode="decimal" placeholder="0" aria-label="Hours played" title="Hours played" className="v-input" style={{ ...inputStyle, width: "52px", padding: "6px 8px", textAlign: "center" }} />
                   <span style={{ fontSize: "11px", color: theme.textFaint }}>hrs</span>
                 </div>
                 <select value={g.status} onChange={(e) => updateGame(g.id, { status: e.target.value })} className="v-input" style={{ ...inputStyle, padding: "6px 8px", flexShrink: 0 }}>
@@ -12304,9 +12287,9 @@ function BirthdaysSection({ theme, state, setState }) {
           </div>
         )}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "8px" }}>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" className="v-input" style={{ ...inputStyle, gridColumn: "span 2" }} />
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" aria-label="Name" className="v-input" style={{ ...inputStyle, gridColumn: "span 2" }} />
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} title="Birthday (include year for age)" className="v-input" style={inputStyle} />
-          <input value={relationship} onChange={(e) => setRelationship(e.target.value)} placeholder="Relationship" className="v-input" style={inputStyle} />
+          <input value={relationship} onChange={(e) => setRelationship(e.target.value)} placeholder="Relationship" aria-label="Relationship" className="v-input" style={inputStyle} />
           <button onClick={addPerson} className="v-btn" style={{ padding: "9px 14px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText }}>Add</button>
         </div>
       </Card>
@@ -12339,7 +12322,7 @@ function BirthdaysSection({ theme, state, setState }) {
                 </div>
               )}
               <div style={{ display: "flex", gap: "8px" }}>
-                <input value={giftDraft[p.id] || ""} onChange={(e) => setGiftDraft((d) => ({ ...d, [p.id]: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter") addGift(p.id); }} placeholder="Add a gift idea…" className="v-input" style={{ ...inputStyle, flex: 1, padding: "7px 10px" }} />
+                <input value={giftDraft[p.id] || ""} onChange={(e) => setGiftDraft((d) => ({ ...d, [p.id]: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter") addGift(p.id); }} placeholder="Add a gift idea…" aria-label="Add a gift idea…" className="v-input" style={{ ...inputStyle, flex: 1, padding: "7px 10px" }} />
                 <button onClick={() => addGift(p.id)} className="v-btn" style={{ padding: "7px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.text }}>Add</button>
               </div>
             </div>
@@ -13204,13 +13187,13 @@ function SubscriptionsSection({ theme, subs, setSubs }) {
 
         {/* Add form */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "8px", marginTop: "14px" }}>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name (e.g. Netflix)" className="v-input" style={{ ...inputStyle, gridColumn: "span 2" }} />
-          <input value={cost} onChange={(e) => setCost(e.target.value)} placeholder="Cost" inputMode="decimal" className="v-input" style={inputStyle} />
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name (e.g. Netflix)" aria-label="Name (e.g. Netflix)" className="v-input" style={{ ...inputStyle, gridColumn: "span 2" }} />
+          <input value={cost} onChange={(e) => setCost(e.target.value)} placeholder="Cost" aria-label="Cost" inputMode="decimal" className="v-input" style={inputStyle} />
           <select value={cycle} onChange={(e) => setCycle(e.target.value)} className="v-input" style={inputStyle}>
             {SUB_CYCLES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
           </select>
           <input type="date" value={renewal} onChange={(e) => setRenewal(e.target.value)} title="Next renewal" className="v-input" style={inputStyle} />
-          <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Category (optional)" className="v-input" style={inputStyle} />
+          <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Category (optional)" aria-label="Category (optional)" className="v-input" style={inputStyle} />
           <button onClick={addSub} className="v-btn" style={{ padding: "8px 14px", borderRadius: "9px", fontSize: "13px", fontWeight: 700, border: "none", background: theme.accent, color: theme.accentText }}>Add</button>
         </div>
       </Card>
@@ -13392,7 +13375,7 @@ function NewsSection({ theme, state, setState }) {
             value={topicInput}
             onChange={(e) => setTopicInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") addTopic(); }}
-            placeholder="Add a topic (e.g. SentinelOne, CVE, phishing)…"
+            placeholder="Add a topic (e.g. SentinelOne, CVE, phishing)…" aria-label="Add a topic (e.g. SentinelOne, CVE, phishing)…"
             className="v-input"
             style={{ flex: 1, padding: "8px 11px", borderRadius: "9px", fontSize: "13px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent }}
           />
@@ -13612,7 +13595,7 @@ function LockScreen({ theme, lock, onUnlock }) {
           inputMode="numeric"
           value={pin}
           onChange={(e) => { setPin(e.target.value); setError(false); }}
-          placeholder="••••"
+          placeholder="••••" aria-label="PIN"
           className="v-input v-tabular"
           style={{
             width: "100%", textAlign: "center", letterSpacing: "0.3em", fontSize: "22px", padding: "12px",
@@ -13716,9 +13699,9 @@ function LockMenu({ theme, lock, setLock, onLockNow }) {
           {(mode === "set" || mode === "change") && (
             <div>
               <div style={{ fontSize: "12.5px", fontWeight: 700, color: theme.text, marginBottom: "4px" }}>{mode === "change" ? "Change PIN" : "Set a PIN"}</div>
-              {mode === "change" && <input type="password" inputMode="numeric" value={cur} onChange={(e) => setCur(e.target.value)} placeholder="Current PIN" className="v-input" style={inputStyle} />}
-              <input type="password" inputMode="numeric" value={p1} onChange={(e) => setP1(e.target.value)} placeholder="New PIN" className="v-input" style={inputStyle} />
-              <input type="password" inputMode="numeric" value={p2} onChange={(e) => setP2(e.target.value)} placeholder="Confirm PIN" className="v-input" style={inputStyle} />
+              {mode === "change" && <input type="password" inputMode="numeric" value={cur} onChange={(e) => setCur(e.target.value)} placeholder="Current PIN" aria-label="Current PIN" className="v-input" style={inputStyle} />}
+              <input type="password" inputMode="numeric" value={p1} onChange={(e) => setP1(e.target.value)} placeholder="New PIN" aria-label="New PIN" className="v-input" style={inputStyle} />
+              <input type="password" inputMode="numeric" value={p2} onChange={(e) => setP2(e.target.value)} placeholder="Confirm PIN" aria-label="Confirm PIN" className="v-input" style={inputStyle} />
               <label style={{ display: "flex", alignItems: "flex-start", gap: "7px", marginTop: "10px", fontSize: "11.5px", color: theme.textMuted, cursor: "pointer" }}>
                 <input type="checkbox" checked={encryptOn} onChange={(e) => setEncryptOn(e.target.checked)} style={{ marginTop: "2px" }} />
                 <span>Also encrypt stored data (AES-256, key derived from this PIN). Protects it once you lock — forgetting this PIN makes locked data unrecoverable.</span>
@@ -13733,7 +13716,7 @@ function LockMenu({ theme, lock, setLock, onLockNow }) {
           {mode === "disable" && (
             <div>
               <div style={{ fontSize: "12.5px", fontWeight: 700, color: theme.text, marginBottom: "4px" }}>Turn off lock</div>
-              <input type="password" inputMode="numeric" value={cur} onChange={(e) => setCur(e.target.value)} placeholder="Current PIN" className="v-input" style={inputStyle} />
+              <input type="password" inputMode="numeric" value={cur} onChange={(e) => setCur(e.target.value)} placeholder="Current PIN" aria-label="Current PIN" className="v-input" style={inputStyle} />
               {msg && <div style={{ color: theme.danger, fontSize: "11.5px", marginTop: "6px" }}>{msg}</div>}
               <div style={{ display: "flex", gap: "6px", marginTop: "10px" }}>
                 <button onClick={disable} className="v-btn" style={{ ...menuBtn(theme), background: theme.danger, color: "#fff", textAlign: "center", border: "none" }}>Turn off</button>
@@ -13893,7 +13876,7 @@ function RemindersMenu({ theme, reminders, setReminders, events }) {
 
           {/* Add reminder */}
           <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "12px" }}>
-            <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Remind me to…" className="v-input" style={inputStyle} />
+            <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Remind me to…" aria-label="Remind me to…" className="v-input" style={inputStyle} />
             {/* Wraps: three controls do not fit across a 300px popover, and a
                 fixed row silently pushed Add off the edge where it could not be
                 clicked at all. */}
@@ -14066,7 +14049,7 @@ function CommandPalette({ theme, data, onNavigate, onOpenMoTool, onClose }) {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Search or jump to…"
+            placeholder="Search or jump to…" aria-label="Search or jump to…"
             style={{ flex: 1, border: "none", outline: "none", background: "transparent", color: theme.text, fontSize: "16px" }}
           />
           <span style={{ fontSize: "11px", color: theme.textFaint, border: `1px solid ${theme.cardBorder}`, borderRadius: "6px", padding: "2px 6px" }}>esc</span>
@@ -14135,7 +14118,6 @@ function App() {
   const [fantasyCustomRankings, setFantasyCustomRankings] = usePersistentState(STORAGE_KEYS.fantasyCustomRankings, DEFAULT_FANTASY_CUSTOM_RANKINGS);
   const [fantasyWatchlist, setFantasyWatchlist] = usePersistentState(STORAGE_KEYS.fantasyWatchlist, DEFAULT_FANTASY_WATCHLIST);
   const [fantasySleeper, setFantasySleeper] = usePersistentState(STORAGE_KEYS.fantasySleeper, DEFAULT_FANTASY_SLEEPER);
-  const [fantasyYahoo, setFantasyYahoo] = usePersistentState(STORAGE_KEYS.fantasyYahoo, DEFAULT_FANTASY_YAHOO);
   const [moLinks, setMoLinks] = usePersistentState(STORAGE_KEYS.moLinks, DEFAULT_MO_LINKS);
   const [pkiReport, setPkiReport] = usePersistentState(STORAGE_KEYS.pkiReport, {});
   const [moSnapshots, setMoSnapshots] = usePersistentState(STORAGE_KEYS.moSnapshots, []);
@@ -14421,7 +14403,6 @@ function App() {
         fantasyCustomRankings={fantasyCustomRankings}
         fantasyWatchlist={fantasyWatchlist}
         fantasySleeper={fantasySleeper}
-        fantasyYahoo={fantasyYahoo}
         ravenProducts={ravenProducts}
         lock={lock}
         setLock={setLock}
@@ -14451,7 +14432,6 @@ function App() {
         setFantasyCustomRankings={setFantasyCustomRankings}
         setFantasyWatchlist={setFantasyWatchlist}
         setFantasySleeper={setFantasySleeper}
-        setFantasyYahoo={setFantasyYahoo}
         setRavenProducts={setRavenProducts}
         habits={habits}
         workouts={workouts}
@@ -14512,8 +14492,6 @@ function App() {
               setWatchlist={setFantasyWatchlist}
               sleeper={fantasySleeper}
               setSleeper={setFantasySleeper}
-              yahoo={fantasyYahoo}
-              setYahoo={setFantasyYahoo}
             />
           )}
           {page === "financial" && (
@@ -15018,7 +14996,7 @@ function LazyRavenSection({ theme, ...rest }) {
   return <Comp theme={theme} {...rest} />;
 }
 
-// The Fantasy tab (Sleeper/Yahoo data + trade analyzer + mock draft + cheat
+// The Fantasy tab (Sleeper data + trade analyzer + mock draft + cheat
 // sheets, ported from "The War Room") ships as its own chunk for the same
 // reason as Raven's Eye above — same load/error/placeholder shape.
 function LazyFantasySection(props) {

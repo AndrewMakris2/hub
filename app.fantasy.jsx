@@ -1,5 +1,5 @@
 /*
-  Fantasy tab chunk — Sleeper/FantasyCalc/Yahoo-backed fantasy-football hub
+  Fantasy tab chunk — Sleeper/FantasyCalc-backed fantasy-football hub
   ("The War Room"), lazy-loaded on first visit to #fantasy instead of shipping
   in every page's bundle. See build.js and the "LAZY-LOADED PAGE CHUNKS"
   comment in app.jsx for the loader contract this file participates in.
@@ -146,7 +146,6 @@ const FF_CSS = `
 
   /* Platforms */
   --sleeper: #4c6ef5;
-  --yahoo: #6b21d8;
 
   /* Shape */
   --radius-sm: 6px;
@@ -693,10 +692,6 @@ section {
 
 .platform-badge--sleeper {
   background: var(--sleeper);
-}
-
-.platform-badge--yahoo {
-  background: var(--yahoo);
 }
 
 .team-tag {
@@ -1515,10 +1510,6 @@ h1 .watchlist-button {
 
 .onboarding-section--sleeper {
   border-left-color: var(--sleeper);
-}
-
-.onboarding-section--yahoo {
-  border-left-color: var(--yahoo);
 }
 
 /* ---------- Import rankings ---------- */
@@ -2344,7 +2335,7 @@ h1 .watchlist-button {
 // it's safe to color-mix off directly; --accent-gradient's two hardcoded
 // consumers (button text) get flattened to the theme's real contrast color
 // via --accent-contrast, same fix as Raven's Eye's .btn--primary. Position
-// colors (--pos-qb etc.), platform colors (--sleeper/--yahoo), and
+// colors (--pos-qb etc.), platform colors (--sleeper), and
 // success/danger/warning stay fixed — functional signal colors, not brand.
 function ffThemeCSS(theme) {
   return `
@@ -2739,44 +2730,19 @@ async function ffGetTradeValues(isDynasty, ppr = 1) {
   }
 }
 
-// ---------- Yahoo (via backend — see netlify/functions/yahoo-*.js) ----------
-
-async function ffGetYahooStatus() {
-  const res = await fetch(`${FF_BACKEND_URL}/.netlify/functions/yahoo-status`);
-  if (!res.ok) throw new Error(`yahoo-status error ${res.status}`);
-  return res.json();
-}
-async function ffGetYahooPreview() {
-  const res = await fetch(`${FF_BACKEND_URL}/.netlify/functions/yahoo-preview`);
-  if (!res.ok) throw new Error(`yahoo-preview error ${res.status}`);
-  return res.json();
-}
-async function ffGetYahooLeagueDetail(leagueKey) {
-  const res = await fetch(`${FF_BACKEND_URL}/.netlify/functions/yahoo-league?leagueKey=${encodeURIComponent(leagueKey)}`);
-  if (!res.ok) throw new Error(`yahoo-league error ${res.status}`);
-  return res.json();
-}
-async function ffDisconnectYahoo() {
-  const res = await fetch(`${FF_BACKEND_URL}/.netlify/functions/yahoo-disconnect`, { method: "POST" });
-  if (!res.ok) throw new Error(`yahoo-disconnect error ${res.status}`);
-  return res.json();
-}
-const FF_YAHOO_CONNECT_URL = `https://bearvantagehub.netlify.app/.netlify/functions/yahoo-auth-start`;
-
 // Dispatches to the right platform's league-detail fetcher — the one place
 // callers (LeagueDetail, Trade Analyzer's future league mode) need to know
 // about, instead of branching on platform everywhere.
 async function ffGetLeagueDetailByPlatform(platform, leagueId, sleeperUserId) {
-  if (platform === "yahoo") return ffGetYahooLeagueDetail(leagueId);
   return ffGetLeagueDetail(leagueId, sleeperUserId);
 }
 
-// Backend origin for the two Netlify Functions that must stay server-side
-// (nflverse stats proxy, and Yahoo OAuth once that lands) — hardcoded since
-// Vantage only has one Netlify deploy; GitHub Pages visitors still reach it
-// fine since fetch() is cross-origin here (same pattern the TikTok
-// integration already uses via integrations.tiktokBackendUrl, just fixed
-// instead of user-configurable since there's only ever one target).
+// Backend origin for the Netlify Function that must stay server-side
+// (nflverse stats proxy) — hardcoded since Vantage only has one Netlify
+// deploy; GitHub Pages visitors still reach it fine since fetch() is
+// cross-origin here (same pattern the TikTok integration already uses via
+// integrations.tiktokBackendUrl, just fixed instead of user-configurable
+// since there's only ever one target).
 const FF_BACKEND_URL = "https://bearvantagehub.netlify.app";
 
 async function ffGetSeasonStats() {
@@ -3386,11 +3352,9 @@ function FFComingSoon({ title, note }) {
   );
 }
 
-// Merges Sleeper (client-fetched) + Yahoo (fetched via the backend, since
-// only it holds the access token) into one "leagues" list for the Dashboard.
-async function ffGetLinkedLeagueSummaries(sleeper, yahoo) {
+// Fetches every linked Sleeper league into one "leagues" list for the Dashboard.
+async function ffGetLinkedLeagueSummaries(sleeper) {
   const sleeperIds = (sleeper && sleeper.linkedLeagueIds) || [];
-  const yahooKeys = (yahoo && yahoo.linkedLeagueKeys) || [];
   const leagues = [];
   const errors = [];
 
@@ -3404,28 +3368,17 @@ async function ffGetLinkedLeagueSummaries(sleeper, yahoo) {
     }
   });
 
-  const yahooResults = await Promise.allSettled(yahooKeys.map((key) => ffGetYahooLeagueDetail(key)));
-  yahooResults.forEach((r, i) => {
-    if (r.status === "fulfilled") {
-      const d = r.value;
-      leagues.push({ platform: "yahoo", leagueId: yahooKeys[i], name: d.name, season: d.season, teamName: d.myTeam.teamName, record: d.myTeam.record });
-    } else {
-      errors.push(`Couldn't load a Yahoo league: ${r.reason && r.reason.message}`);
-    }
-  });
-
   return { leagues, errors };
 }
 
-function FFDashboard({ watchlist, setWatchlist, sleeper, yahoo }) {
+function FFDashboard({ watchlist, setWatchlist, sleeper }) {
   const playersQuery = ffUseQuery("ff-players", ffGetFantasyRelevantPlayers);
   const tradeValuesQuery = ffUseQuery("ff-trade-values-false-1", () => ffGetTradeValues(false, 1));
   const linkedIds = (sleeper && sleeper.linkedLeagueIds) || [];
-  const linkedYahooKeys = (yahoo && yahoo.linkedLeagueKeys) || [];
   const leaguesQuery = ffUseQuery(
-    `ff-leagues-${linkedIds.join(",")}-${linkedYahooKeys.join(",")}`,
-    () => ffGetLinkedLeagueSummaries(sleeper, yahoo),
-    [linkedIds.join(","), linkedYahooKeys.join(",")]
+    `ff-leagues-${linkedIds.join(",")}`,
+    () => ffGetLinkedLeagueSummaries(sleeper),
+    [linkedIds.join(",")]
   );
 
   const players = playersQuery.data || [];
@@ -3508,7 +3461,7 @@ function FFDashboard({ watchlist, setWatchlist, sleeper, yahoo }) {
           )}
           {leaguesData.leagues.length === 0 && (
             <p className="empty-state">
-              No leagues linked yet. <a href="#fantasy/onboarding">Connect Sleeper or Yahoo</a> to get started.
+              No leagues linked yet. <a href="#fantasy/onboarding">Connect Sleeper</a> to get started.
             </p>
           )}
           <div className="league-grid">
@@ -5367,10 +5320,6 @@ function FFImportRankingsPage({ customRankings, setCustomRankings }) {
    RosterTable/LeagueSettingsSummary/TransactionsFeed. Sleeper needs no
    credentials (findUserByUsername + getLeaguesForUser, already in the data
    layer) — linked league IDs/username live in fantasySleeper (localStorage).
-   Yahoo needs the OAuth backend from netlify/functions/yahoo-*.js — linked
-   league keys live in fantasyYahoo (localStorage), but the tokens themselves
-   never leave the server, so every Yahoo league READ also goes through the
-   backend (ffGetYahooLeagueDetail etc.), not just the initial connect.
 ---------------------------------------------------------------------- */
 
 async function ffPreviewSleeperLeagues(username) {
@@ -5379,44 +5328,18 @@ async function ffPreviewSleeperLeagues(username) {
   return { userId: user.user_id, leagues };
 }
 
-function FFOnboardingPage({ sleeper, setSleeper, yahoo, setYahoo }) {
+function FFOnboardingPage({ sleeper, setSleeper }) {
   const [username, setUsername] = useState("");
   const [lookupUsername, setLookupUsername] = useState(null);
   const [selectedSleeperIds, setSelectedSleeperIds] = useState(new Set());
-  const [selectedYahooKeys, setSelectedYahooKeys] = useState(new Set());
   const [linkError, setLinkError] = useState(null);
   const [justAdded, setJustAdded] = useState(false);
-  const [yahooDisconnected, setYahooDisconnected] = useState(false);
-  const [yahooDisconnecting, setYahooDisconnecting] = useState(false);
 
   const sleeperPreviewQuery = ffUseQuery(
     lookupUsername ? `ff-sleeper-preview-${lookupUsername}` : "ff-sleeper-preview-none",
     () => (lookupUsername ? ffPreviewSleeperLeagues(lookupUsername) : Promise.resolve(null)),
     [lookupUsername]
   );
-
-  const yahooStatusQuery = ffUseQuery("ff-yahoo-status", ffGetYahooStatus);
-  const yahooConnected = Boolean(yahooStatusQuery.data && yahooStatusQuery.data.connected) && !yahooDisconnected;
-  const yahooPreviewQuery = ffUseQuery(
-    yahooConnected ? "ff-yahoo-preview" : "ff-yahoo-preview-none",
-    () => (yahooConnected ? ffGetYahooPreview() : Promise.resolve(null)),
-    [yahooConnected]
-  );
-
-  async function disconnectYahoo() {
-    setYahooDisconnecting(true);
-    try {
-      await ffDisconnectYahoo();
-      ffQueryCache.delete("ff-yahoo-status");
-      ffQueryCache.delete("ff-yahoo-preview");
-      setYahoo({ linkedLeagueKeys: [] });
-      setYahooDisconnected(true);
-    } catch (err) {
-      setLinkError(err.message);
-    } finally {
-      setYahooDisconnecting(false);
-    }
-  }
 
   function toggle(set, setSet, id) {
     const next = new Set(set);
@@ -5433,19 +5356,14 @@ function FFOnboardingPage({ sleeper, setSleeper, yahoo, setYahoo }) {
         const merged = [...new Set([...(sleeper.linkedLeagueIds || []), ...selectedSleeperIds])];
         setSleeper({ username: lookupUsername, userId, linkedLeagueIds: merged });
       }
-      if (selectedYahooKeys.size > 0) {
-        const merged = [...new Set([...(yahoo.linkedLeagueKeys || []), ...selectedYahooKeys])];
-        setYahoo({ linkedLeagueKeys: merged });
-      }
       setSelectedSleeperIds(new Set());
-      setSelectedYahooKeys(new Set());
       setJustAdded(true);
     } catch (err) {
       setLinkError(err.message);
     }
   }
 
-  const hasSelections = selectedSleeperIds.size > 0 || selectedYahooKeys.size > 0;
+  const hasSelections = selectedSleeperIds.size > 0;
 
   return (
     <div className="page">
@@ -5485,37 +5403,6 @@ function FFOnboardingPage({ sleeper, setSleeper, yahoo, setYahoo }) {
             {sleeperPreviewQuery.data.leagues.length === 0 && <li>No leagues found for this username.</li>}
           </ul>
         )}
-      </section>
-
-      <section className="onboarding-section onboarding-section--yahoo">
-        <h2>Yahoo</h2>
-        {!yahooConnected && (
-          <a className="button-link" href={FF_YAHOO_CONNECT_URL}>
-            Connect Yahoo
-          </a>
-        )}
-        {yahooConnected && (
-          <p className="data-source-note">
-            {(yahoo.linkedLeagueKeys || []).length > 0 ? `${yahoo.linkedLeagueKeys.length} league(s) linked already. ` : ""}
-            <button type="button" onClick={disconnectYahoo} disabled={yahooDisconnecting}>
-              {yahooDisconnecting ? "Disconnecting…" : "Disconnect Yahoo"}
-            </button>
-          </p>
-        )}
-        {yahooConnected && yahooPreviewQuery.data && (
-          <ul className="checklist">
-            {yahooPreviewQuery.data.leagues.map((league) => (
-              <li key={league.league_key}>
-                <label>
-                  <input type="checkbox" checked={selectedYahooKeys.has(league.league_key)} onChange={() => toggle(selectedYahooKeys, setSelectedYahooKeys, league.league_key)} />
-                  {league.name} ({league.season})
-                </label>
-              </li>
-            ))}
-            {yahooPreviewQuery.data.leagues.length === 0 && <li>No leagues found on this Yahoo account.</li>}
-          </ul>
-        )}
-        {yahooConnected && yahooPreviewQuery.isError && <p className="error-text">{yahooPreviewQuery.error && yahooPreviewQuery.error.message}</p>}
       </section>
 
       {linkError && <p className="error-text">{linkError}</p>}
@@ -5758,7 +5645,7 @@ function FFLeagueDetailPage({ platform, leagueId, sleeper }) {
                 }}
               />
             ) : (
-              <p className="empty-state">{data.platform === "yahoo" ? "Draft recap isn't available for Yahoo leagues yet." : "This league hasn't drafted yet."}</p>
+              <p className="empty-state">This league hasn't drafted yet.</p>
             )}
           </section>
 
@@ -5772,7 +5659,7 @@ function FFLeagueDetailPage({ platform, leagueId, sleeper }) {
   );
 }
 
-function FFPage({ theme, cheatSheets, setCheatSheets, customRankings, setCustomRankings, watchlist, setWatchlist, sleeper, setSleeper, yahoo, setYahoo }) {
+function FFPage({ theme, cheatSheets, setCheatSheets, customRankings, setCustomRankings, watchlist, setWatchlist, sleeper, setSleeper }) {
   const [segments, navigateFF] = useFantasySubRoute();
   const sub = segments[0] || "";
 
@@ -5807,7 +5694,7 @@ function FFPage({ theme, cheatSheets, setCheatSheets, customRankings, setCustomR
       <FFSubNav theme={theme} active={sub} onNavigate={navigateFF} />
 
       <FFShadowRoot theme={theme}>
-        {sub === "" && <FFDashboard watchlist={watchlist} setWatchlist={setWatchlist} sleeper={sleeper} yahoo={yahoo} />}
+        {sub === "" && <FFDashboard watchlist={watchlist} setWatchlist={setWatchlist} sleeper={sleeper} />}
         {sub === "players" && segments[1] && <FFPlayerProfilePage playerId={segments[1]} watchlist={watchlist} setWatchlist={setWatchlist} />}
         {sub === "players" && !segments[1] && <FFPlayersPage watchlist={watchlist} setWatchlist={setWatchlist} />}
         {sub === "compare" && <FFPlayerComparisonPage />}
@@ -5819,7 +5706,7 @@ function FFPage({ theme, cheatSheets, setCheatSheets, customRankings, setCustomR
           <FFCheatSheetEditorPage sheetId={segments[1]} cheatSheets={cheatSheets} setCheatSheets={setCheatSheets} />
         )}
         {sub === "import-rankings" && <FFImportRankingsPage customRankings={customRankings} setCustomRankings={setCustomRankings} />}
-        {sub === "onboarding" && <FFOnboardingPage sleeper={sleeper} setSleeper={setSleeper} yahoo={yahoo} setYahoo={setYahoo} />}
+        {sub === "onboarding" && <FFOnboardingPage sleeper={sleeper} setSleeper={setSleeper} />}
         {sub === "leagues" && segments[1] && segments[2] && <FFLeagueDetailPage platform={segments[1]} leagueId={segments[2]} sleeper={sleeper} />}
       </FFShadowRoot>
     </div>

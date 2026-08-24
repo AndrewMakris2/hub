@@ -1,13 +1,13 @@
 // Kicks off TikTok's OAuth2 flow with a server-signed state parameter, so
 // tiktok-callback.js can verify the redirect actually originated from here
-// (rather than trusting whatever `code`/`state` a caller sends back) —
-// mirrors yahoo-auth-start.js via the same _lib/oauthState helpers. The
-// frontend used to generate its own state and hand it straight to TikTok
-// without ever verifying it came back unchanged; this replaces that with a
-// real HMAC-signed, time-limited state, checked server-side in the callback.
+// (rather than trusting whatever `code`/`state` a caller sends back) — see
+// _lib/oauthState.js for the HMAC-signing helpers. The frontend used to
+// generate its own state and hand it straight to TikTok without ever
+// verifying it came back unchanged; this replaces that with a real
+// HMAC-signed, time-limited state, checked server-side in the callback.
 //
 // Required environment variables (set in Netlify site settings, not here):
-//   SESSION — HMAC-signs the OAuth state param (same secret Yahoo uses)
+//   SESSION — HMAC-signs the OAuth state param
 //
 // client_key is TikTok's public app identifier (not a secret — see
 // tiktok-callback.js's own comment), passed through from the frontend the

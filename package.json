@@ -1,7 +1,7 @@
 {
   "name": "vantage",
   "private": true,
-  "description": "Vantage: a personal dashboard. The frontend's source of truth is app.jsx, compiled by build.js (Babel + Terser) into the self-contained index.html that both Netlify and GitHub Pages serve as-is — run `node build.js` after editing app.jsx and commit both. This package.json also carries the Netlify Functions dependencies for netlify/functions/ (Vantage's TikTok and Yahoo Fantasy OAuth integrations). See README.md.",
+  "description": "Vantage: a personal dashboard. The frontend's source of truth is app.jsx, compiled by build.js (Babel + Terser) into the self-contained index.html that both Netlify and GitHub Pages serve as-is — run `node build.js` after editing app.jsx and commit both. This package.json also carries the Netlify Functions dependencies for netlify/functions/ (Vantage's TikTok OAuth integration). See README.md.",
   "scripts": {
     "build": "node build.js"
   },

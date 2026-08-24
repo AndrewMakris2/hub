@@ -1,17 +1,17 @@
 // Receives TikTok's OAuth redirect (?code=&state=...), verifies the state
-// came from tiktok-auth-start.js within the last 10 minutes (same
-// HMAC-signed pattern Yahoo's callback already uses — see _lib/oauthState),
-// exchanges the code for an access token using the client secret (kept only
-// in this server-side environment variable, never sent to the browser),
-// stores the token in Netlify Blobs, and sends the browser back to Vantage.
+// came from tiktok-auth-start.js within the last 10 minutes (HMAC-signed —
+// see _lib/oauthState), exchanges the code for an access token using the
+// client secret (kept only in this server-side environment variable, never
+// sent to the browser), stores the token in Netlify Blobs, and sends the
+// browser back to Vantage.
 //
 // Required environment variables (set in Netlify site settings, not here):
 //   TIKTOK_CLIENT_KEY     — public, same value used in the frontend
 //   TIKTOK_CLIENT_SECRET  — secret, only ever lives here
 //   TIKTOK_REDIRECT_URI   — this function's own URL, must exactly match
 //                           what's registered in TikTok's Login Kit settings
-//   SESSION                — HMAC-signs the OAuth state param (same secret
-//                           Yahoo uses; also required by tiktok-auth-start.js)
+//   SESSION               — HMAC-signs the OAuth state param (also
+//                           required by tiktok-auth-start.js)
 //   VANTAGE_URL           — https://andrewmakris2.github.io/hub/
 
 const { getStore } = require("@netlify/blobs");

@@ -34,20 +34,20 @@ output actually matches the source).
 There is currently no automated check that a commit's compiled output matches its source, and no
 test suite — changes are verified by hand, in a real browser, against the live app. If you add
 tests, the highest-value first targets are the pure helpers with no DOM dependency: the OAuth
-state signing/verification in `netlify/functions/_lib/oauthState.js`, the Yahoo token
-encryption in `_lib/yahooCrypto.js`, and `app.jsx`'s schema migrations (`runMigrations`) and
-PIN/vault crypto (`derivePinHash`, `deriveVaultKey`).
+state signing/verification in `netlify/functions/_lib/oauthState.js`, and `app.jsx`'s schema
+migrations (`runMigrations`) and PIN/vault crypto (`derivePinHash`, `deriveVaultKey`).
 
 ## File map
 
 | File | Role |
 |---|---|
 | `app.jsx` | Core application — all shared pages, Home dashboard, navigation, theming, persistence, migrations, the PIN/vault lock, and the `window.__v` bridge each chunk reads from. |
-| `app.fantasy.jsx` | Fantasy football chunk — Sleeper/FantasyCalc/Yahoo-backed dashboard, trade analyzer, draft tools. |
+| `app.fantasy.jsx` | Fantasy football chunk — Sleeper/FantasyCalc-backed dashboard, trade analyzer, draft tools. |
 | `app.golf.jsx` | Golf chunk — scorecards and handicap tracking. |
 | `app.ravenseye.jsx` | Raven's Eye chunk — pen-test and threat-model tracking. |
 | `app.mechanicalorchard.jsx` | Mechanical Orchard chunk — the 13 security-analyst tools (vulnerability analysis, CVE/KEV lookup, phishing header analysis, etc). |
 | `app.jobsearch.jsx` | Job Search chunk — resume-matched cybersecurity role search. |
+| `app.terraform.jsx` | Terraform chunk — curriculum viewer, progress dashboard, and quiz engine for the Terraform Mastery course. |
 | `build.js` | The compile step described above. |
 | `index.shell.html` | The static HTML/CSS shell `build.js` injects the compiled app into (via the `<!--APP-->` marker). |
 | `index.html` | Generated — do not hand-edit. Overwritten by every `node build.js` run. |
@@ -93,17 +93,16 @@ All set in Netlify's site settings (Site configuration → Environment variables
 
 | Variable | Used by | Required for |
 |---|---|---|
-| `SESSION` | `yahoo-auth-start.js`, `yahoo-auth-callback.js`, `tiktok-auth-start.js`, `tiktok-callback.js`, `_lib/yahooTokens.js` | HMAC-signs OAuth state (Yahoo + TikTok) and derives the Yahoo token encryption key. Without it, both integrations refuse to connect. |
+| `SESSION` | `tiktok-auth-start.js`, `tiktok-callback.js` | HMAC-signs the OAuth state param. Without it, TikTok connect refuses to start. |
 | `TIKTOK_CLIENT_KEY` | `tiktok-callback.js` | TikTok token exchange (public value — the same one entered in the app's Settings). |
 | `TIKTOK_CLIENT_SECRET` | `tiktok-callback.js` | TikTok token exchange. Secret — never sent to the browser. |
 | `TIKTOK_REDIRECT_URI` | `tiktok-callback.js` | Must exactly match what's registered in TikTok's Login Kit settings. |
-| `YAHOO_CLIENT_ID` | `_lib/yahooClient.js` | Yahoo OAuth. |
-| `YAHOO_CLIENT_SECRET` | `_lib/yahooClient.js` | Yahoo OAuth. Secret. |
-| `VANTAGE_URL` | `yahoo-auth-callback.js`, `tiktok-callback.js`, `tiktok-auth-start.js` | Where to redirect the browser back to after a connect/error. Defaults to the GitHub Pages URL if unset. |
-| `VANTAGE_ORIGIN` | `tiktok-status.js`, `tiktok-disconnect.js` | CORS allow-origin for those two endpoints. `_lib/cors.js`'s `corsHeaders()` (used by the Yahoo endpoints) instead allowlists both known origins directly and doesn't need this variable. |
+| `VANTAGE_URL` | `tiktok-callback.js`, `tiktok-auth-start.js` | Where to redirect the browser back to after a connect/error. Defaults to the GitHub Pages URL if unset. |
+| `VANTAGE_ORIGIN` | `tiktok-status.js`, `tiktok-disconnect.js` | CORS allow-origin for those two endpoints. `_lib/cors.js`'s `corsHeaders()` (used elsewhere) instead allowlists both known origins directly and doesn't need this variable. |
 
 Nothing here is required for the dashboard itself to work — every one of these only gates the
-optional Yahoo Fantasy and TikTok connections.
+optional TikTok connection. Sleeper (Fantasy) needs no credentials at all — it's read directly
+from the browser.
 
 ## Data & privacy — what actually happens, not just what's promised
 
@@ -123,18 +122,13 @@ this writing:
   the full reasoning.
 - Google Calendar / Microsoft Outlook tokens are held only in browser memory for the session —
   never sent to or stored by any BearVantageHub server.
-- Yahoo Fantasy tokens **are** stored server-side (Netlify Blobs, `yahoo-tokens` store, key
-  `"primary"` — single-tenant by design, one set of tokens for the one person who uses this),
-  encrypted with AES-256-GCM (`_lib/yahooCrypto.js`) using a key derived from `SESSION`.
-  The OAuth `state` param is HMAC-signed and expires after 10 minutes
-  (`_lib/oauthState.js`). Disconnecting (Fantasy → Connect your leagues → "Disconnect Yahoo")
-  deletes the stored tokens via `yahoo-disconnect.js`.
+- Sleeper (Fantasy) needs no OAuth at all — its public API is read directly from the browser with
+  just a username. Nothing is stored server-side.
 - TikTok tokens **are** stored server-side (Netlify Blobs, `tiktok-tokens` store, key `"primary"`)
   — access token, refresh token, and both expiry timestamps, kept until you disconnect. The
-  connect flow's OAuth `state` is now HMAC-signed the same way Yahoo's is
-  (`tiktok-auth-start.js` / `tiktok-callback.js`), closing what used to be an unverified state
-  parameter. Disconnecting (Settings → TikTok → "Disconnect") deletes the stored token via
-  `tiktok-disconnect.js`.
+  connect flow's OAuth `state` is HMAC-signed and expires after 10 minutes
+  (`tiktok-auth-start.js` / `tiktok-callback.js` / `_lib/oauthState.js`). Disconnecting
+  (Settings → TikTok → "Disconnect") deletes the stored token via `tiktok-disconnect.js`.
 - The exported JSON backup (Settings → Backup) is **plaintext** and can contain financial,
   journal, and profile data along with integration configuration — treat it like any other
   sensitive personal file.
