@@ -3869,12 +3869,16 @@ function extFromType(type) {
   return parts[1] ? parts[1].split(";")[0] : "mp4";
 }
 
-async function shareVideoFile(video, onStatus) {
+// Hands a video off via the OS's own share sheet — it lists every app on the
+// device that accepts a shared video file, not just one, so "appName" is
+// purely the button's own framing/status copy, not something that actually
+// filters which app the share sheet offers.
+async function shareVideoFile(video, onStatus, appName = "TikTok") {
   const file = new File([video.blob], `${video.title || "video"}.${extFromType(video.type)}`, { type: video.type });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({ files: [file], title: video.title || "Fitness video" });
-      onStatus({ type: "success", message: "Shared — finish posting inside TikTok." });
+      onStatus({ type: "success", message: `Shared — finish posting inside ${appName}.` });
     } catch (err) {
       if (err && err.name !== "AbortError") {
         onStatus({ type: "error", message: "Share was cancelled or failed." });
@@ -3890,7 +3894,7 @@ async function shareVideoFile(video, onStatus) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  onStatus({ type: "success", message: "Native share isn't available here — downloaded instead. Upload it in TikTok." });
+  onStatus({ type: "success", message: `Native share isn't available here — downloaded instead. Upload it in ${appName}.` });
 }
 
 /* ----------------------------------------------------------------------
@@ -6314,27 +6318,50 @@ function VideoLibrarySection({ theme, integrations, setIntegrations }) {
                   }}
                 />
                 <div style={{ fontSize: "11px", color: theme.textFaint }}>{formatBytes(v.size)}</div>
-                <div style={{ display: "flex", gap: "8px" }}>
+                <div style={{ display: "flex", gap: "6px" }}>
                   <button
-                    onClick={() => shareVideoFile(v, (s) => setStatus(v.id, s))}
+                    onClick={() => shareVideoFile(v, (s) => setStatus(v.id, s), "TikTok")}
                     className="v-btn"
+                    title="Share to TikTok"
                     style={{
                       flex: 1,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      gap: "6px",
+                      gap: "5px",
                       background: theme.accent,
                       color: theme.accentText,
                       border: "none",
                       borderRadius: "8px",
-                      padding: "7px 10px",
-                      fontSize: "12px",
+                      padding: "7px 8px",
+                      fontSize: "11.5px",
                       fontWeight: 700,
                     }}
                   >
-                    <IconShare />
-                    Share to TikTok
+                    <IconShare size={13} />
+                    TikTok
+                  </button>
+                  <button
+                    onClick={() => shareVideoFile(v, (s) => setStatus(v.id, s), "YouTube")}
+                    className="v-btn"
+                    title="Share to YouTube"
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "5px",
+                      background: "transparent",
+                      color: theme.text,
+                      border: `1px solid ${theme.inputBorder}`,
+                      borderRadius: "8px",
+                      padding: "7px 8px",
+                      fontSize: "11.5px",
+                      fontWeight: 700,
+                    }}
+                  >
+                    <IconYoutube size={13} />
+                    YouTube
                   </button>
                   <button
                     onClick={() => deleteVideo(v.id)}
