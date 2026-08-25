@@ -9804,6 +9804,36 @@ const THEME_POSTERS = [
   { id: "batman-rain", src: "https://wallpapers.com/images/high/the-batman-movie-rain-ayptzykaum2b9nw3.webp", label: "The Batman", tag: "Batman" },
   { id: "black-panther", src: "https://wallpapers.com/images/high/amoled-black-panther-4k-ultra-hd-dark-id3lohdpw2ddw7fu.webp", label: "Black Panther", tag: "Marvel" },
 ];
+// Which poster(s) show, as real content (not a header), on a given page —
+// picked for a real thematic fit each time, not just filled in. A page not
+// listed here gets none; a page can list more than one where there's room.
+const PAGE_POSTERS = {
+  weather: ["superman-flying"],
+  travel: ["spiderman-travel"],
+  videos: ["doctor-strange"],
+  goals: ["cooper-kupp"],
+  journal: ["wonder-woman"],
+  reading: ["iron-man"],
+  habits: ["lebron"],
+  profile: ["batman-arkham"],
+  financial: ["jalen-brunson"],
+  youtube: ["steph-curry-2"],
+  transactions: ["barry-sanders"],
+  jobsearch: ["broncos"],
+  mo: ["batman-rain"],
+  music: ["black-panther"],
+};
+function PagePosterRow({ page }) {
+  const ids = PAGE_POSTERS[page];
+  if (!ids || !ids.length) return null;
+  const posters = ids.map((id) => THEME_POSTERS.find((p) => p.id === id)).filter(Boolean);
+  if (!posters.length) return null;
+  return (
+    <div style={{ marginBottom: "18px" }}>
+      <PosterWall posters={posters} height={posters.length > 1 ? 170 : 190} />
+    </div>
+  );
+}
 const PAGE_BANNER_VARIANT = {
   movies: "hero", watchlist: "hero", gaming: "hero", games: "hero", sports: "hero",
   fantasy: "ribbon", youtube: "ribbon", videos: "ribbon", goals: "ribbon", trackers: "ribbon",
@@ -14874,6 +14904,7 @@ function App() {
         <PageIdContext.Provider value={page}>
         <div className={"v-container " + containerVariant(page)}>
           <PageBanner theme={theme} page={page} images={pageImages} setImages={setPageImages} />
+          <PagePosterRow page={page} />
           <PageErrorBoundary theme={theme} page={page}>
           {page === "home" && (
             <HomeOverview
