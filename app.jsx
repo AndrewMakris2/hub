@@ -9783,12 +9783,12 @@ const PAGE_BANNER_IMG = {
   watchlist: "https://images.wallpapersden.com/image/download/4k-superman-poster_bmhnZmuUmZqaraWkpJRnbGhmrWllbms.jpg",
   gaming: "https://images.hdqwalls.com/wallpapers/batman-in-red-city-4k-2a.jpg",
   games: "https://c4.wallpaperflare.com/wallpaper/265/757/289/flash-superhero-dc-comics-wallpaper-preview.jpg",
-  videos: "https://wallpapercave.com/wp/wp2092057.jpg",
-  goals: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT9eDVEr2iS_ClKFxJgOlGZpaGCt0eSaG3m079u6Gkm8bnPEPXDu5ix6nvT&s=10",
-  journal: "https://pbs.twimg.com/media/E1uLYKkXoAYrGhd.jpg",
-  reading: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ6TOzaBIPq345NNDSygYYsEC_uSXga0i3Q6t2ha8beKxVPhiZzR-HKWxE&s=10",
-  habits: "https://i.pinimg.com/736x/f4/a2/48/f4a248dea58747dcc39027a998831daf.jpg",
-  profile: "https://i.pinimg.com/736x/10/b3/d2/10b3d235e3cbd4e58c671f7a960c3f5c.jpg",
+  videos: "https://wallpapers.com/images/high/sanctum-sanctorum-doctor-strange-4k-wxa32h6cfnx7kqua.webp",
+  goals: "https://wallpapers.com/images/high/cooper-kupp-nfl-la-rams-football-run-photography-sascam36fxi108kg.webp",
+  journal: "https://wallpapers.com/images/high/justice-league-wonder-woman-426fb4vqg3rqp38z.webp",
+  reading: "https://wallpapers.com/images/high/matte-iron-man-full-hd-black-we8fb0nzigroxij3.webp",
+  habits: "https://wallpapers.com/images/high/4k-nba-lebron-dunking-7yteulam51lwrdzu.webp",
+  profile: "https://wallpapers.com/images/high/batman-facing-arkham-city-4k-vtpagw71cole4qtg.webp",
 };
 const PAGE_BANNER_VARIANT = {
   movies: "hero", watchlist: "hero", gaming: "hero", games: "hero", sports: "hero",
