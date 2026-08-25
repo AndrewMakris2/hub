@@ -13,7 +13,19 @@ const { getStore } = require("@netlify/blobs");
 
 const INDEX_KEY = "index";
 
+// Netlify's "automatic" getStore(name) config (reading site/token from an
+// injected context) turned out to be unreliable specifically for writes on
+// this project's functions — reads succeeded, writes threw
+// MissingBlobsEnvironmentError even on retry. Falling back to explicit
+// siteID/token (Netlify's own documented manual-config path) sidesteps
+// that detection entirely. NETLIFY_BLOBS_TOKEN is a Netlify Personal
+// Access Token — see README.md. Falls back to automatic mode if it isn't
+// set, so `netlify dev` locally still works unconfigured.
 function store() {
+  const token = process.env.NETLIFY_BLOBS_TOKEN;
+  if (token) {
+    return getStore({ name: "autopost-videos", siteID: process.env.SITE_ID || "76b83faf-a147-4bff-976d-907546ada669", token });
+  }
   return getStore("autopost-videos");
 }
 

@@ -111,6 +111,14 @@ feature running; leave them unset and it just no-ops (each function logs why and
 - `INTERNAL_TRIGGER_SECRET` — any random string you pick. Gates the scheduled function's internal
   handoff to the background function that does the actual upload, so that URL isn't a bare,
   guessable "post a video right now" endpoint.
+- `NETLIFY_BLOBS_TOKEN` — a Netlify Personal Access Token (User settings → Applications →
+  New access token). Netlify's "automatic" Blobs configuration (the same `getStore(name)` call
+  `_lib/statsData.js` already relies on) turned out to be unreliable specifically for *writes* on
+  this project's functions — reads succeeded, writes threw `MissingBlobsEnvironmentError` even on
+  retry. `_lib/videoPool.js` falls back to explicit `siteID`/`token` config (Netlify's own
+  documented manual path) when this is set, which sidesteps that detection entirely. Only the
+  auto-poster's Blobs usage needs this; `_lib/statsData.js`'s read-heavy cache is unaffected and
+  left on automatic config.
 
 Auto-posts are always `privacyStatus: private` — Google restricts unverified apps (this one) to
 private-only API uploads regardless of the publishing-status toggle above, which is a separate,
