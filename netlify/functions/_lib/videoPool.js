@@ -12,6 +12,8 @@
 const { getStore } = require("@netlify/blobs");
 
 const INDEX_KEY = "index";
+const HISTORY_KEY = "history";
+const HISTORY_MAX = 20;
 
 // Netlify's "automatic" getStore(name) config (reading site/token from an
 // injected context) turned out to be unreliable specifically for writes on
@@ -73,4 +75,29 @@ async function removeVideo(id) {
   );
 }
 
-module.exports = { readIndex, writeIndex, addToIndex, writeChunk, readChunk, removeVideo };
+// So the Home page can show "auto-posted X — Watch it" (or a failure) the
+// next time someone opens the app, without any push/notification system —
+// it just reads this on load. Newest first, capped so it can't grow
+// forever across months of daily posts.
+async function readHistory() {
+  try {
+    const data = await store().get(HISTORY_KEY, { type: "json" });
+    return data || [];
+  } catch (err) {
+    console.error("autopost-videos history unavailable:", err.message);
+    return [];
+  }
+}
+
+async function appendHistory(entry) {
+  try {
+    const list = await readHistory();
+    list.unshift(entry);
+    await store().setJSON(HISTORY_KEY, list.slice(0, HISTORY_MAX));
+  } catch (err) {
+    // A failed history write shouldn't mask the real upload result.
+    console.error("Failed to append autopost history:", err.message);
+  }
+}
+
+module.exports = { readIndex, writeIndex, addToIndex, writeChunk, readChunk, removeVideo, readHistory, appendHistory };

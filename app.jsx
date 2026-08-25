@@ -984,6 +984,7 @@ const STORAGE_KEYS = {
   jobSearchProfile: "dash.jobSearchProfile",
   jobSearchCache: "dash.jobSearchCache",
   jobSearchStatus: "dash.jobSearchStatus",
+  autopostLastSeen: "dash.autopostLastSeen",
 };
 
 // "The War Room" fantasy-football port — defaults for the localStorage-backed
@@ -11294,6 +11295,85 @@ function HomeStatRail({ theme, pageStats, onNavigate, ids }) {
 const HOME_PINNED = ["fitness", "golf", "financial", "upcoming", "habits", "news"];
 const HOME_RAIL = ["fitness", "golf", "financial", "transactions", "subscriptions", "habits", "goals", "reading"];
 
+// The scheduled auto-poster runs entirely server-side with no browser
+// open, so there's nothing to push a live notification to — this just
+// reads the last history entry from the same Blobs store on Home's next
+// load and shows it once, dismissible, so a post (or failure) that
+// happened overnight isn't invisible. "Seen" is tracked by timestamp
+// (dash.autopostLastSeen) rather than an id, so re-showing after dismiss
+// only happens for a genuinely newer entry.
+function AutopostAlert({ theme }) {
+  const [entry, setEntry] = useState(null);
+  const [lastSeen, setLastSeen] = useState(() => loadJSON(STORAGE_KEYS.autopostLastSeen, 0));
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${AUTOPOST_BACKEND_URL}/.netlify/functions/autopost-pool`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        const latest = (data.history || [])[0];
+        if (latest) setEntry(latest);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!entry || entry.postedAt <= lastSeen) return null;
+
+  function dismiss() {
+    saveJSON(STORAGE_KEYS.autopostLastSeen, entry.postedAt);
+    setLastSeen(entry.postedAt);
+  }
+
+  const isError = entry.status === "error";
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
+        padding: "11px 14px",
+        borderRadius: "12px",
+        background: isError ? theme.dangerSoft : theme.accentSoft,
+        color: isError ? theme.danger : theme.text,
+        fontSize: "13px",
+      }}
+    >
+      <IconYoutube size={16} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {isError ? (
+          <>Scheduled auto-post failed: {entry.message || "unknown error"}</>
+        ) : (
+          <>
+            Auto-posted <strong>&ldquo;{entry.title}&rdquo;</strong> to YouTube —{" "}
+            <a
+              href={`https://youtube.com/watch?v=${entry.youtubeVideoId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: theme.accent, fontWeight: 700, textDecoration: "none" }}
+            >
+              Watch it →
+            </a>
+          </>
+        )}
+        <span style={{ color: theme.textFaint, marginLeft: "8px" }}>{relTimeFrom(entry.postedAt)}</span>
+      </div>
+      <button
+        onClick={dismiss}
+        className="v-btn v-iconbtn"
+        title="Dismiss"
+        style={{ border: "none", background: "transparent", color: "inherit", padding: "4px", flexShrink: 0, opacity: 0.7 }}
+      >
+        <IconClose size={14} />
+      </button>
+    </div>
+  );
+}
+
 function HomeOverview({
   theme, suggestions, weather, weatherStatus, onEnableWeather, onOpenBriefing, pageStats, onNavigate,
   events, feeds, setFeeds, profile,
@@ -11312,6 +11392,7 @@ function HomeOverview({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <AutopostAlert theme={theme} />
       <HomeGreeting theme={theme} name={name} weather={weather} weatherStatus={weatherStatus} onEnableWeather={onEnableWeather} />
       <HomeWeatherStrip theme={theme} weather={weather} weatherStatus={weatherStatus} onEnableWeather={onEnableWeather} onNavigate={onNavigate} />
       <div className="v-home-brief">

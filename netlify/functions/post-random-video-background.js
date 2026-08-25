@@ -4,7 +4,7 @@
 // chunks and uploading it to YouTube can plausibly take longer than 30s.
 // Gated by X-Internal-Secret so this isn't a bare public "post a video
 // right now" URL — only post-random-video.js is meant to call it.
-const { readIndex, readChunk, removeVideo } = require("./_lib/videoPool");
+const { readIndex, readChunk, removeVideo, appendHistory } = require("./_lib/videoPool");
 
 async function getAccessToken() {
   const res = await fetch("https://oauth2.googleapis.com/token", {
@@ -71,22 +71,25 @@ exports.handler = async (event) => {
   const entry = list.find((v) => v.id === videoId);
   if (!entry) {
     console.error(`post-random-video-background: video ${videoId} is no longer in the pool.`);
+    await appendHistory({ status: "error", title: null, message: "Picked video was no longer in the pool.", postedAt: Date.now() });
     return { statusCode: 404, body: "video not found" };
   }
 
+  const title = process.env.AUTOPOST_TITLE || "Vantage auto-post";
   try {
     const chunkBuffers = await Promise.all(Array.from({ length: entry.chunkCount }, (_, i) => readChunk(videoId, i)));
     const videoBuffer = Buffer.concat(chunkBuffers.map((b) => Buffer.from(b)));
 
     const accessToken = await getAccessToken();
-    const title = process.env.AUTOPOST_TITLE || "Vantage auto-post";
     const result = await uploadToYouTube(videoBuffer, entry.type, title, accessToken);
 
     await removeVideo(videoId);
     console.log(`post-random-video-background: posted "${title}" as https://youtube.com/watch?v=${result.id}, removed from pool.`);
+    await appendHistory({ status: "success", title, youtubeVideoId: result.id, postedAt: Date.now() });
     return { statusCode: 200, body: JSON.stringify({ ok: true, videoId: result.id }) };
   } catch (err) {
     console.error("post-random-video-background error:", err.message);
+    await appendHistory({ status: "error", title, message: err.message, postedAt: Date.now() });
     return { statusCode: 500, body: err.message };
   }
 };

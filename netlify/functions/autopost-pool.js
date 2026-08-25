@@ -1,8 +1,10 @@
 // Lists or removes videos in the scheduled auto-poster's server-side pool.
 // Used by VideoLibrarySection (app.jsx) to show pool membership/count and
-// let the user pull a video back out before it gets posted.
+// let the user pull a video back out before it gets posted, and by
+// AutopostAlert (app.jsx, Home page) to show a "just auto-posted" banner —
+// history rides along on the same GET rather than a separate endpoint.
 const { corsHeaders } = require("./_lib/cors");
-const { readIndex, removeVideo } = require("./_lib/videoPool");
+const { readIndex, removeVideo, readHistory } = require("./_lib/videoPool");
 
 exports.handler = async (event) => {
   const headers = corsHeaders(event);
@@ -11,8 +13,8 @@ exports.handler = async (event) => {
   }
 
   if (event.httpMethod === "GET") {
-    const videos = await readIndex();
-    return { statusCode: 200, headers, body: JSON.stringify({ videos }) };
+    const [videos, history] = await Promise.all([readIndex(), readHistory()]);
+    return { statusCode: 200, headers, body: JSON.stringify({ videos, history }) };
   }
 
   if (event.httpMethod === "POST") {
