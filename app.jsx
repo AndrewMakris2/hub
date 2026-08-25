@@ -6132,6 +6132,26 @@ function PostToYouTubeModal({ theme, video, integrations, onClose }) {
   const [privacy, setPrivacy] = useState("private");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
+  // YouTube decides Shorts vs. regular video itself — there's no API field
+  // for it. This just reads the file's own dimensions/duration client-side
+  // so the user sees, before posting, which way YouTube's own rule (vertical
+  // or square, 3 minutes or under) will land it.
+  const [format, setFormat] = useState(null);
+
+  useEffect(() => {
+    const el = document.createElement("video");
+    el.preload = "metadata";
+    el.src = video.url;
+    function onLoaded() {
+      const w = el.videoWidth, h = el.videoHeight, d = el.duration;
+      if (!w || !h || !isFinite(d)) { setFormat("error"); return; }
+      setFormat({ width: w, height: h, duration: d, isShort: h >= w && d <= 180 });
+    }
+    el.addEventListener("loadedmetadata", onLoaded);
+    el.addEventListener("error", () => setFormat("error"));
+    return () => el.removeAttribute("src");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [video.url]);
 
   const clientId = integrations.googleClientId.trim();
 
@@ -6232,6 +6252,36 @@ function PostToYouTubeModal({ theme, video, integrations, onClose }) {
             <div>
               <div style={{ fontSize: "11.5px", fontWeight: 700, color: theme.textMuted, marginBottom: "4px" }}>Title</div>
               <input value={title} onChange={(e) => setTitle(e.target.value)} className="v-input" style={inputStyle} />
+            </div>
+            <div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  fontSize: "12.5px",
+                  padding: "9px 12px",
+                  borderRadius: "8px",
+                  background: theme.chip,
+                  color: theme.chipText,
+                }}
+              >
+                {format === null ? (
+                  "Checking format…"
+                ) : format === "error" ? (
+                  "Couldn't read this video's format — YouTube will classify it after upload."
+                ) : (
+                  <>
+                    <strong style={{ color: theme.text }}>{format.isShort ? "Will post as a Short" : "Will post as a regular video"}</strong>
+                    <span>
+                      · {Math.floor(format.duration / 60)}:{String(Math.round(format.duration % 60)).padStart(2, "0")} · {format.width}×{format.height}
+                    </span>
+                  </>
+                )}
+              </div>
+              <div style={{ fontSize: "10.5px", color: theme.textFaint, marginTop: "5px", lineHeight: 1.4 }}>
+                YouTube makes this call itself — vertical or square, 3 minutes or under, becomes a Short. Vantage can't override it; crop or trim the file first for a different result.
+              </div>
             </div>
             <div>
               <div style={{ fontSize: "11.5px", fontWeight: 700, color: theme.textMuted, marginBottom: "4px" }}>Description</div>
