@@ -14,6 +14,7 @@ const { getStore } = require("@netlify/blobs");
 const INDEX_KEY = "index";
 const HISTORY_KEY = "history";
 const HISTORY_MAX = 20;
+const PAUSED_KEY = "paused";
 
 // Netlify's "automatic" getStore(name) config (reading site/token from an
 // injected context) turned out to be unreliable specifically for writes on
@@ -100,4 +101,32 @@ async function appendHistory(entry) {
   }
 }
 
-module.exports = { readIndex, writeIndex, addToIndex, writeChunk, readChunk, removeVideo, readHistory, appendHistory };
+// A pause you can flip from the Videos page (before a trip, say) without
+// touching Netlify env vars or waiting on a redeploy — a Blobs write takes
+// effect on the very next scheduled run.
+async function readPaused() {
+  try {
+    const data = await store().get(PAUSED_KEY, { type: "json" });
+    return data === true;
+  } catch (err) {
+    console.error("autopost-videos paused flag unavailable:", err.message);
+    return false;
+  }
+}
+
+async function writePaused(paused) {
+  await store().setJSON(PAUSED_KEY, !!paused);
+}
+
+module.exports = {
+  readIndex,
+  writeIndex,
+  addToIndex,
+  writeChunk,
+  readChunk,
+  removeVideo,
+  readHistory,
+  appendHistory,
+  readPaused,
+  writePaused,
+};

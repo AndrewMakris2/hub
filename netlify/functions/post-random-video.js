@@ -5,9 +5,14 @@
 // to YouTube can plausibly take longer than that for a multi-minute clip,
 // hence the two-function relay — the background function gets a 15-minute
 // cap instead.
-const { readIndex } = require("./_lib/videoPool");
+const { readIndex, readPaused } = require("./_lib/videoPool");
 
 exports.handler = async (event) => {
+  if (await readPaused()) {
+    console.log("post-random-video: paused, skipping today.");
+    return { statusCode: 200, body: "paused" };
+  }
+
   const list = await readIndex();
   if (list.length === 0) {
     console.log("post-random-video: pool is empty, nothing to post.");

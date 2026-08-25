@@ -4,7 +4,7 @@
 // AutopostAlert (app.jsx, Home page) to show a "just auto-posted" banner —
 // history rides along on the same GET rather than a separate endpoint.
 const { corsHeaders } = require("./_lib/cors");
-const { readIndex, removeVideo, readHistory } = require("./_lib/videoPool");
+const { readIndex, removeVideo, readHistory, readPaused, writePaused } = require("./_lib/videoPool");
 
 exports.handler = async (event) => {
   const headers = corsHeaders(event);
@@ -13,8 +13,8 @@ exports.handler = async (event) => {
   }
 
   if (event.httpMethod === "GET") {
-    const [videos, history] = await Promise.all([readIndex(), readHistory()]);
-    return { statusCode: 200, headers, body: JSON.stringify({ videos, history }) };
+    const [videos, history, paused] = await Promise.all([readIndex(), readHistory(), readPaused()]);
+    return { statusCode: 200, headers, body: JSON.stringify({ videos, history, paused }) };
   }
 
   if (event.httpMethod === "POST") {
@@ -30,6 +30,15 @@ exports.handler = async (event) => {
         return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
       } catch (err) {
         console.error("autopost-pool remove error:", err);
+        return { statusCode: 502, headers, body: JSON.stringify({ error: err.message }) };
+      }
+    }
+    if (payload.action === "pause" || payload.action === "resume") {
+      try {
+        await writePaused(payload.action === "pause");
+        return { statusCode: 200, headers, body: JSON.stringify({ ok: true, paused: payload.action === "pause" }) };
+      } catch (err) {
+        console.error("autopost-pool pause/resume error:", err);
         return { statusCode: 502, headers, body: JSON.stringify({ error: err.message }) };
       }
     }

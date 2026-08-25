@@ -6338,6 +6338,8 @@ function VideoLibrarySection({ theme, integrations, setIntegrations }) {
   const [postingVideo, setPostingVideo] = useState(null);
   const [poolIds, setPoolIds] = useState(new Set());
   const [poolBusyById, setPoolBusyById] = useState({});
+  const [paused, setPaused] = useState(false);
+  const [pauseBusy, setPauseBusy] = useState(false);
   const fileInputRef = useRef(null);
 
   function refreshStorageEstimate() {
@@ -6387,12 +6389,30 @@ function VideoLibrarySection({ theme, integrations, setIntegrations }) {
       .then((data) => {
         if (cancelled) return;
         setPoolIds(new Set((data.videos || []).map((v) => v.id)));
+        setPaused(!!data.paused);
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
   }, []);
+
+  async function togglePause() {
+    setPauseBusy(true);
+    try {
+      const res = await fetch(`${AUTOPOST_BACKEND_URL}/.netlify/functions/autopost-pool`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: paused ? "resume" : "pause" }),
+      });
+      if (!res.ok) throw new Error("request failed");
+      setPaused((prev) => !prev);
+    } catch {
+      toast.error("Couldn't update the auto-poster's pause state — try again.");
+    } finally {
+      setPauseBusy(false);
+    }
+  }
 
   async function togglePool(video) {
     if (poolIds.has(video.id)) {
@@ -6524,7 +6544,20 @@ function VideoLibrarySection({ theme, integrations, setIntegrations }) {
       )}
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", fontSize: "11.5px", color: theme.textFaint, marginBottom: "14px", flexWrap: "wrap" }}>
-        <span>{poolIds.size} video{poolIds.size === 1 ? "" : "s"} in the scheduled auto-post pool</span>
+        <span style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          <span>
+            {poolIds.size} video{poolIds.size === 1 ? "" : "s"} in the scheduled auto-post pool
+            {paused && <strong style={{ color: theme.danger }}> · paused</strong>}
+          </span>
+          <button
+            onClick={togglePause}
+            disabled={pauseBusy}
+            className="v-btn"
+            style={{ border: `1px solid ${theme.inputBorder}`, background: "transparent", color: theme.textMuted, borderRadius: "6px", padding: "3px 8px", fontSize: "11px", fontWeight: 700, opacity: pauseBusy ? 0.6 : 1 }}
+          >
+            {pauseBusy ? "…" : paused ? "Resume" : "Pause"}
+          </button>
+        </span>
         <a
           href={`${AUTOPOST_BACKEND_URL}/.netlify/functions/youtube-auth-start`}
           target="_blank"
@@ -11302,9 +11335,41 @@ const HOME_RAIL = ["fitness", "golf", "financial", "transactions", "subscription
 // happened overnight isn't invisible. "Seen" is tracked by timestamp
 // (dash.autopostLastSeen) rather than an id, so re-showing after dismiss
 // only happens for a genuinely newer entry.
+const AUTOPOST_LOW_POOL_THRESHOLD = 1;
+
+function AutopostAlertRow({ theme, tone, onDismiss, children }) {
+  const palette =
+    tone === "error"
+      ? { background: theme.dangerSoft, color: theme.danger }
+      : tone === "warn"
+      ? { background: theme.chip, color: theme.chipText }
+      : { background: theme.accentSoft, color: theme.text };
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "11px 14px", borderRadius: "12px", fontSize: "13px", ...palette }}>
+      <IconYoutube size={16} />
+      <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
+      <button
+        onClick={onDismiss}
+        className="v-btn v-iconbtn"
+        title="Dismiss"
+        style={{ border: "none", background: "transparent", color: "inherit", padding: "4px", flexShrink: 0, opacity: 0.7 }}
+      >
+        <IconClose size={14} />
+      </button>
+    </div>
+  );
+}
+
 function AutopostAlert({ theme }) {
   const [entry, setEntry] = useState(null);
+  const [poolCount, setPoolCount] = useState(null);
+  const [paused, setPaused] = useState(false);
   const [lastSeen, setLastSeen] = useState(() => loadJSON(STORAGE_KEYS.autopostLastSeen, 0));
+  // Not persisted on purpose — unlike the post notice above, an empty pool
+  // is an ongoing fact, not a one-time event, so it's meant to resurface on
+  // the next visit if it's still true. This just quiets it for the rest of
+  // the current visit once acknowledged.
+  const [lowPoolDismissed, setLowPoolDismissed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -11314,6 +11379,8 @@ function AutopostAlert({ theme }) {
         if (cancelled || !data) return;
         const latest = (data.history || [])[0];
         if (latest) setEntry(latest);
+        setPoolCount((data.videos || []).length);
+        setPaused(!!data.paused);
       })
       .catch(() => {});
     return () => {
@@ -11321,34 +11388,25 @@ function AutopostAlert({ theme }) {
     };
   }, []);
 
-  if (!entry || entry.postedAt <= lastSeen) return null;
+  const showPost = entry && entry.postedAt > lastSeen;
+  const showLowPool = !paused && poolCount !== null && poolCount <= AUTOPOST_LOW_POOL_THRESHOLD && !lowPoolDismissed;
+  if (!showPost && !showLowPool) return null;
 
-  function dismiss() {
+  function dismissPost() {
     saveJSON(STORAGE_KEYS.autopostLastSeen, entry.postedAt);
     setLastSeen(entry.postedAt);
   }
 
-  const isError = entry.status === "error";
-
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "10px",
-        padding: "11px 14px",
-        borderRadius: "12px",
-        background: isError ? theme.dangerSoft : theme.accentSoft,
-        color: isError ? theme.danger : theme.text,
-        fontSize: "13px",
-      }}
-    >
-      <IconYoutube size={16} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        {isError ? (
-          <>Scheduled auto-post failed: {entry.message || "unknown error"}</>
+    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      {showPost &&
+        (entry.status === "error" ? (
+          <AutopostAlertRow theme={theme} tone="error" onDismiss={dismissPost}>
+            Scheduled auto-post failed: {entry.message || "unknown error"}
+            <span style={{ color: theme.textFaint, marginLeft: "8px" }}>{relTimeFrom(entry.postedAt)}</span>
+          </AutopostAlertRow>
         ) : (
-          <>
+          <AutopostAlertRow theme={theme} tone="success" onDismiss={dismissPost}>
             Auto-posted <strong>&ldquo;{entry.title}&rdquo;</strong> to YouTube —{" "}
             <a
               href={`https://youtube.com/watch?v=${entry.youtubeVideoId}`}
@@ -11358,18 +11416,14 @@ function AutopostAlert({ theme }) {
             >
               Watch it →
             </a>
-          </>
-        )}
-        <span style={{ color: theme.textFaint, marginLeft: "8px" }}>{relTimeFrom(entry.postedAt)}</span>
-      </div>
-      <button
-        onClick={dismiss}
-        className="v-btn v-iconbtn"
-        title="Dismiss"
-        style={{ border: "none", background: "transparent", color: "inherit", padding: "4px", flexShrink: 0, opacity: 0.7 }}
-      >
-        <IconClose size={14} />
-      </button>
+            <span style={{ color: theme.textFaint, marginLeft: "8px" }}>{relTimeFrom(entry.postedAt)}</span>
+          </AutopostAlertRow>
+        ))}
+      {showLowPool && (
+        <AutopostAlertRow theme={theme} tone="warn" onDismiss={() => setLowPoolDismissed(true)}>
+          {poolCount === 0 ? "Auto-post pool is empty" : "Only 1 video left in the auto-post pool"} — add more on the Videos page or it'll skip a day.
+        </AutopostAlertRow>
+      )}
     </div>
   );
 }

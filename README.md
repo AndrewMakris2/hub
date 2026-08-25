@@ -106,8 +106,10 @@ feature running; leave them unset and it just no-ops (each function logs why and
 - `YOUTUBE_REFRESH_TOKEN` — obtained by visiting
   `/.netlify/functions/youtube-auth-start` once the two vars above are set; the callback page
   shows it once to copy in.
-- `AUTOPOST_TITLE` — the fixed title used for every auto-post. Defaults to "Vantage auto-post" if
-  unset.
+- `AUTOPOST_TITLE` — the title used for every auto-post. Defaults to "Vantage auto-post" if unset.
+  Can hold several titles separated by `|` (e.g. `GYM Day|Leg Day|Cardio Session`) — one is picked
+  at random each post; a single title with no `|` still works exactly as before. The post date is
+  always appended, so even a one-title setup varies day to day.
 - `INTERNAL_TRIGGER_SECRET` — any random string you pick. Gates the scheduled function's internal
   handoff to the background function that does the actual upload, so that URL isn't a bare,
   guessable "post a video right now" endpoint.
@@ -160,7 +162,10 @@ this writing:
   account's control, not a third party's — until the scheduled job posts and deletes them. A
   Google OAuth refresh token is also stored server-side (as the `YOUTUBE_REFRESH_TOKEN`
   environment variable) so the scheduled job can post without anyone present. See "Environment
-  variables" above for the full mechanism. Every auto-post is Private.
+  variables" above for the full mechanism. Every auto-post is Private. Since nothing pushes a
+  notification when it runs, `AutopostAlert` (Home page) shows the last post or failure once on
+  next load, and warns if the pool's down to its last video. A "Pause" toggle next to the pool
+  count (Videos page) skips scheduled runs without emptying the pool — useful before a trip.
 - The exported JSON backup (Settings → Backup) is **plaintext** and can contain financial,
   journal, and profile data along with integration configuration — treat it like any other
   sensitive personal file.

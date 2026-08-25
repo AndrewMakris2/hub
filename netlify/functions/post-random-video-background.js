@@ -51,6 +51,19 @@ async function uploadToYouTube(videoBuffer, mimeType, title, accessToken) {
   return data;
 }
 
+// AUTOPOST_TITLE can hold several titles separated by "|" (e.g.
+// "GYM Day|Leg Day|Cardio Session") — one is picked at random each post so
+// they're not all byte-identical. A single title with no "|" still works
+// exactly as before. The date is always appended so even a one-title setup
+// varies day to day and is easy to place in YouTube Studio.
+function pickTitle() {
+  const raw = process.env.AUTOPOST_TITLE || "Vantage auto-post";
+  const options = raw.split("|").map((s) => s.trim()).filter(Boolean);
+  const base = options[Math.floor(Math.random() * options.length)] || "Vantage auto-post";
+  const date = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  return `${base} — ${date}`;
+}
+
 exports.handler = async (event) => {
   const secret = process.env.INTERNAL_TRIGGER_SECRET;
   const gotSecret = event.headers && (event.headers["x-internal-secret"] || event.headers["X-Internal-Secret"]);
@@ -75,7 +88,7 @@ exports.handler = async (event) => {
     return { statusCode: 404, body: "video not found" };
   }
 
-  const title = process.env.AUTOPOST_TITLE || "Vantage auto-post";
+  const title = pickTitle();
   try {
     const chunkBuffers = await Promise.all(Array.from({ length: entry.chunkCount }, (_, i) => readChunk(videoId, i)));
     const videoBuffer = Buffer.concat(chunkBuffers.map((b) => Buffer.from(b)));
