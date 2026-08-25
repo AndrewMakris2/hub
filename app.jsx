@@ -985,6 +985,7 @@ const STORAGE_KEYS = {
   jobSearchCache: "dash.jobSearchCache",
   jobSearchStatus: "dash.jobSearchStatus",
   autopostLastSeen: "dash.autopostLastSeen",
+  terraformBridge: "dash.terraformBridge",
 };
 
 // "The War Room" fantasy-football port — defaults for the localStorage-backed

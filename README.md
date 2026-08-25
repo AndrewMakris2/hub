@@ -46,7 +46,8 @@ schema migrations (`runMigrations`) and PIN/vault crypto (`derivePinHash`, `deri
 | `app.ravenseye.jsx` | Raven's Eye chunk — pen-test and threat-model tracking. |
 | `app.mechanicalorchard.jsx` | Mechanical Orchard chunk — the 13 security-analyst tools (vulnerability analysis, CVE/KEV lookup, phishing header analysis, etc). |
 | `app.jobsearch.jsx` | Job Search chunk — resume-matched cybersecurity role search. |
-| `app.terraform.jsx` | Terraform chunk — curriculum viewer, progress dashboard, and quiz engine for the Terraform Mastery course. |
+| `app.terraform.jsx` | Terraform chunk — curriculum viewer, progress dashboard, quiz engine, and a Workspace tab (editor + fmt/validate/plan/apply) for the Terraform Mastery course. |
+| `terraform-bridge/` | A local companion process (not deployed anywhere — the user runs it on their own machine) that the Workspace tab talks to over `127.0.0.1` to actually run `terraform`. See its own README.md for the full security model. |
 | `build.js` | The compile step described above. |
 | `index.shell.html` | The static HTML/CSS shell `build.js` injects the compiled app into (via the `<!--APP-->` marker). |
 | `index.html` | Generated — do not hand-edit. Overwritten by every `node build.js` run. |
@@ -185,7 +186,28 @@ origin — deliberately broad, since the app calls a couple dozen distinct publi
 from the browser by design (Google, Microsoft, YouTube, Last.fm, ESPN, Open-Meteo, Open Library,
 Google News RSS, FantasyCalc, NVD, CISA KEV, and more). Narrowing this to an explicit allowlist is
 a real hardening step, but a nontrivial one — it means enumerating and maintaining every domain
-those integrations actually call.
+those integrations actually call. One narrow, explicit exception to the "https only" rule:
+`http://127.0.0.1:4787` for the Terraform Workspace tab's local bridge (see below) — a single
+fixed plain-HTTP loopback address, not a general HTTP allowance.
+
+## Local Terraform bridge
+
+The Terraform page's **Workspace** tab (editor, `fmt`/`validate`/`plan`/`apply`) is the one place
+in Hub that can touch real infrastructure, so it's built differently from everything else here:
+nothing about it runs on Netlify, and no server anywhere holds an AWS credential. Instead,
+`terraform-bridge/terraform-bridge.js` is a small companion script the user runs on their own
+machine (`node terraform-bridge/terraform-bridge.js /path/to/project`); the Workspace tab talks to
+it over `127.0.0.1:4787`, and it shells out to the user's own already-configured local `terraform`.
+
+That's viable at all because `127.0.0.1`/`localhost` is a browser-spec "potentially trustworthy
+origin" — an HTTPS page can `fetch()` it without mixed-content blocking, the same mechanism every
+local dev server (Vite, webpack-dev-server, etc.) already relies on.
+
+Full security model — origin+token gating, no shell/arbitrary-command surface, `apply` can only
+ever apply a plan the bridge just generated and showed the user, file access locked to the chosen
+workspace directory — is in `terraform-bridge/README.md`. The short version: this process only
+exists, and Hub can only reach it, while the user is deliberately running it in their own
+terminal — closing that terminal is the master off switch.
 
 ## Known gaps (intentionally not fixed here)
 
