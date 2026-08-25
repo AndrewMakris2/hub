@@ -9783,21 +9783,27 @@ const PAGE_BANNER_IMG = {
   watchlist: "https://images.wallpapersden.com/image/download/4k-superman-poster_bmhnZmuUmZqaraWkpJRnbGhmrWllbms.jpg",
   gaming: "https://images.hdqwalls.com/wallpapers/batman-in-red-city-4k-2a.jpg",
   games: "https://c4.wallpaperflare.com/wallpaper/265/757/289/flash-superhero-dc-comics-wallpaper-preview.jpg",
-  videos: "https://wallpapers.com/images/high/sanctum-sanctorum-doctor-strange-4k-wxa32h6cfnx7kqua.webp",
-  goals: "https://wallpapers.com/images/high/cooper-kupp-nfl-la-rams-football-run-photography-sascam36fxi108kg.webp",
-  journal: "https://wallpapers.com/images/high/justice-league-wonder-woman-426fb4vqg3rqp38z.webp",
-  reading: "https://wallpapers.com/images/high/matte-iron-man-full-hd-black-we8fb0nzigroxij3.webp",
-  habits: "https://wallpapers.com/images/high/4k-nba-lebron-dunking-7yteulam51lwrdzu.webp",
-  profile: "https://wallpapers.com/images/high/batman-facing-arkham-city-4k-vtpagw71cole4qtg.webp",
-  weather: "https://wallpapers.com/images/high/superman-flying-heroic-pose-y0o1zchnewtnd8ar.webp",
-  travel: "https://wallpapers.com/images/high/spider-man-far-from-home-2019-city-lb7fdznu3zq4awrm.webp",
-  financial: "https://wallpapers.com/images/high/jalen-brunson-driving-to-the-basket-vxsz2ctj5aan11rd.webp",
-  youtube: "https://wallpapers.com/images/high/steph-curry-wearing-black-golden-state-jersey-nfilxym81o6apkvf.webp",
-  transactions: "https://wallpapers.com/images/high/barry-sanders-detroit-legend-in-action-v5aeedvzmwjfxgxv.webp",
-  jobsearch: "https://wallpapers.com/images/high/denver-broncos-in-action-oo6k8wto8fwt4ada.webp",
-  mo: "https://wallpapers.com/images/high/the-batman-movie-rain-ayptzykaum2b9nw3.webp",
-  music: "https://wallpapers.com/images/high/amoled-black-panther-4k-ultra-hd-dark-id3lohdpw2ddw7fu.webp",
 };
+// Themed posters — Batman/DC/NFL/NBA/Marvel — shown as actual full-aspect
+// posters (see PosterWall/PosterCard) rather than squeezed into every page's
+// thin banner strip, which is where these used to live and didn't really
+// fit. Same hotlink-with-graceful-degradation approach as PAGE_BANNER_IMG.
+const THEME_POSTERS = [
+  { id: "doctor-strange", src: "https://wallpapers.com/images/high/sanctum-sanctorum-doctor-strange-4k-wxa32h6cfnx7kqua.webp", label: "Doctor Strange", tag: "Marvel" },
+  { id: "cooper-kupp", src: "https://wallpapers.com/images/high/cooper-kupp-nfl-la-rams-football-run-photography-sascam36fxi108kg.webp", label: "Cooper Kupp", tag: "NFL" },
+  { id: "wonder-woman", src: "https://wallpapers.com/images/high/justice-league-wonder-woman-426fb4vqg3rqp38z.webp", label: "Wonder Woman", tag: "DC" },
+  { id: "iron-man", src: "https://wallpapers.com/images/high/matte-iron-man-full-hd-black-we8fb0nzigroxij3.webp", label: "Iron Man", tag: "Marvel" },
+  { id: "lebron", src: "https://wallpapers.com/images/high/4k-nba-lebron-dunking-7yteulam51lwrdzu.webp", label: "LeBron James", tag: "NBA" },
+  { id: "batman-arkham", src: "https://wallpapers.com/images/high/batman-facing-arkham-city-4k-vtpagw71cole4qtg.webp", label: "Batman", tag: "Batman" },
+  { id: "superman-flying", src: "https://wallpapers.com/images/high/superman-flying-heroic-pose-y0o1zchnewtnd8ar.webp", label: "Superman", tag: "DC" },
+  { id: "spiderman-travel", src: "https://wallpapers.com/images/high/spider-man-far-from-home-2019-city-lb7fdznu3zq4awrm.webp", label: "Spider-Man", tag: "Marvel" },
+  { id: "jalen-brunson", src: "https://wallpapers.com/images/high/jalen-brunson-driving-to-the-basket-vxsz2ctj5aan11rd.webp", label: "Jalen Brunson", tag: "NBA" },
+  { id: "steph-curry-2", src: "https://wallpapers.com/images/high/steph-curry-wearing-black-golden-state-jersey-nfilxym81o6apkvf.webp", label: "Stephen Curry", tag: "NBA" },
+  { id: "barry-sanders", src: "https://wallpapers.com/images/high/barry-sanders-detroit-legend-in-action-v5aeedvzmwjfxgxv.webp", label: "Barry Sanders", tag: "NFL" },
+  { id: "broncos", src: "https://wallpapers.com/images/high/denver-broncos-in-action-oo6k8wto8fwt4ada.webp", label: "Denver Broncos", tag: "NFL" },
+  { id: "batman-rain", src: "https://wallpapers.com/images/high/the-batman-movie-rain-ayptzykaum2b9nw3.webp", label: "The Batman", tag: "Batman" },
+  { id: "black-panther", src: "https://wallpapers.com/images/high/amoled-black-panther-4k-ultra-hd-dark-id3lohdpw2ddw7fu.webp", label: "Black Panther", tag: "Marvel" },
+];
 const PAGE_BANNER_VARIANT = {
   movies: "hero", watchlist: "hero", gaming: "hero", games: "hero", sports: "hero",
   fantasy: "ribbon", youtube: "ribbon", videos: "ribbon", goals: "ribbon", trackers: "ribbon",
@@ -11437,6 +11443,58 @@ function AutopostAlert({ theme }) {
   );
 }
 
+// A real poster — full aspect ratio, not squeezed into a page-header strip
+// (that's what these used to be and a lot of them didn't fit). Degrades
+// silently on a broken hotlink, same as everything else that borrows images
+// from third-party hosts.
+function PosterCard({ src, label, tag, height = 210 }) {
+  const [broken, setBroken] = useState(false);
+  if (!src || broken) return null;
+  return (
+    <div
+      style={{
+        position: "relative",
+        flexShrink: 0,
+        width: Math.round(height * 0.7),
+        height,
+        borderRadius: "12px",
+        overflow: "hidden",
+        boxShadow: "0 10px 24px -8px rgba(0,0,0,0.35)",
+      }}
+    >
+      <img
+        src={src}
+        alt={label || ""}
+        loading="lazy"
+        onError={() => setBroken(true)}
+        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+      />
+      {(label || tag) && (
+        <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "18px 10px 8px", background: "linear-gradient(0deg, rgba(0,0,0,0.78), transparent)" }}>
+          {tag && <div style={{ fontSize: "9px", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.75)" }}>{tag}</div>}
+          {label && <div style={{ fontSize: "12px", fontWeight: 700, color: "#fff", lineHeight: 1.25 }}>{label}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// A horizontally-scrolling shelf of posters — the "spread throughout, like
+// an actual website" pattern (a poster row/shelf) instead of one image
+// forced into every page's banner. `posters` lets a page show a themed
+// subset instead of the whole pool.
+function PosterWall({ posters, height }) {
+  const list = posters || THEME_POSTERS;
+  if (!list.length) return null;
+  return (
+    <div className="v-scroll" style={{ display: "flex", gap: "12px", overflowX: "auto", paddingBottom: "4px" }}>
+      {list.map((p) => (
+        <PosterCard key={p.id} src={p.src} label={p.label} tag={p.tag} height={height} />
+      ))}
+    </div>
+  );
+}
+
 function HomeOverview({
   theme, suggestions, weather, weatherStatus, onEnableWeather, onOpenBriefing, pageStats, onNavigate,
   events, feeds, setFeeds, profile,
@@ -11458,6 +11516,10 @@ function HomeOverview({
       <AutopostAlert theme={theme} />
       <HomeGreeting theme={theme} name={name} weather={weather} weatherStatus={weatherStatus} onEnableWeather={onEnableWeather} />
       <HomeWeatherStrip theme={theme} weather={weather} weatherStatus={weatherStatus} onEnableWeather={onEnableWeather} onNavigate={onNavigate} />
+      <Card theme={theme} delay={80}>
+        <SectionLabel theme={theme}>Poster Wall</SectionLabel>
+        <PosterWall />
+      </Card>
       <div className="v-home-brief">
         <div className="v-home-col">
           <HomeHeadlines theme={theme} feeds={feeds} setFeeds={setFeeds} onNavigate={onNavigate} limit={7} lead />
