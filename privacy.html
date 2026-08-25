@@ -39,13 +39,16 @@
 
   <h2>What's stored, and where</h2>
   <p>All dashboard data — fitness, golf, financial, custom trackers, profile/quiz answers, and uploaded
-  videos — is stored entirely in your own browser (via localStorage and IndexedDB). None of it is sent
-  to, or stored on, any server operated by BearVantageHub.</p>
+  videos — is stored entirely in your own browser (via localStorage and IndexedDB), with one
+  exception: videos you deliberately add to the scheduled YouTube auto-poster's pool (see below).
+  Everything else is never sent to, or stored on, any server operated by BearVantageHub.</p>
 
   <h2>Third-party connections</h2>
   <ul>
     <li><strong>Google Calendar / Microsoft Outlook:</strong> if you connect a calendar, sign-in happens directly through Google's or Microsoft's own login screens. The resulting access token is held only in your browser's memory for that session and is used only to fetch your own upcoming events — it is never sent to or stored by any BearVantageHub server.</li>
-    <li><strong>TikTok / YouTube:</strong> "Share to TikTok" and "Share to YouTube" both use your device's own share sheet (or, if that's unavailable, a plain file download) to hand a video off to the corresponding app — the video goes straight from your device to that app. There is no BearVantageHub server involved at all.</li>
+    <li><strong>Share to TikTok:</strong> uses your device's own share sheet (or, if that's unavailable, a plain file download) to hand a video off to the TikTok app directly — the video goes straight from your device to that app. There is no BearVantageHub server involved at all.</li>
+    <li><strong>Post to YouTube (manual button):</strong> uploads a video you choose directly from your browser to Google's YouTube API. Sign-in happens through Google's own screen; the resulting token is held only in your browser's memory and is never sent to or stored by any BearVantageHub server. Uploads are Private unless you change that per-upload.</li>
+    <li><strong>Scheduled YouTube auto-poster (opt-in, off unless BearVantageHub's owner explicitly sets it up):</strong> the one feature where content does live on a BearVantageHub-controlled server. Videos deliberately added to its "pool" are stored in this site's own Netlify account (not a third party's) until a scheduled job posts one at random under a fixed title and deletes it from the pool — this is what lets it run with nobody present. A Google OAuth refresh token is also stored there for the same reason. Auto-posts are always Private.</li>
     <li><strong>Sleeper (fantasy football):</strong> Sleeper's public API is read directly from your browser using only a username you provide — no login, no token, nothing stored on any server.</li>
   </ul>
 

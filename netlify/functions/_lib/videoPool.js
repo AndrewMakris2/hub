@@ -1,0 +1,64 @@
+// Server-side storage for the scheduled YouTube auto-poster's video pool.
+// Nothing else in this project stores user media server-side — the Videos
+// page is deliberately browser-local only (see README.md) — but an
+// unattended scheduled job has no browser to read from, so videos added to
+// the pool live here instead, in this Netlify site's own Blobs store.
+//
+// A single JSON "index" blob carries all metadata for every pooled video.
+// Each video's bytes are split into separate chunk blobs under
+// chunks/{id}/{i} — Netlify Functions cap request bodies at ~4.5MB
+// effective (binary gets base64-encoded internally), well under real video
+// sizes, so the client uploads in pieces (see autopost-upload-chunk.js).
+const { getStore } = require("@netlify/blobs");
+
+const INDEX_KEY = "index";
+
+function store() {
+  return getStore("autopost-videos");
+}
+
+async function readIndex() {
+  // Same defensive stance as _lib/statsData.js: getStore() has been
+  // observed to fail even when the identical pattern works elsewhere in
+  // this project. An empty pool is a safe fallback for a listing; write
+  // operations below let errors propagate so a failed save isn't silent.
+  try {
+    const data = await store().get(INDEX_KEY, { type: "json" });
+    return data || [];
+  } catch (err) {
+    console.error("autopost-videos index unavailable:", err.message);
+    return [];
+  }
+}
+
+async function writeIndex(list) {
+  await store().setJSON(INDEX_KEY, list);
+}
+
+async function addToIndex(entry) {
+  const list = await readIndex();
+  const next = list.filter((v) => v.id !== entry.id);
+  next.push(entry);
+  await writeIndex(next);
+}
+
+async function writeChunk(id, i, buffer) {
+  await store().set(`chunks/${id}/${i}`, buffer);
+}
+
+async function readChunk(id, i) {
+  return store().get(`chunks/${id}/${i}`, { type: "arrayBuffer" });
+}
+
+async function removeVideo(id) {
+  const list = await readIndex();
+  const entry = list.find((v) => v.id === id);
+  await writeIndex(list.filter((v) => v.id !== id));
+  if (!entry) return;
+  const s = store();
+  await Promise.all(
+    Array.from({ length: entry.chunkCount }, (_, i) => s.delete(`chunks/${id}/${i}`).catch(() => {}))
+  );
+}
+
+module.exports = { readIndex, writeIndex, addToIndex, writeChunk, readChunk, removeVideo };

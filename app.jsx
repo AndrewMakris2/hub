@@ -6335,6 +6335,8 @@ function VideoLibrarySection({ theme, integrations, setIntegrations }) {
   const [storageEstimate, setStorageEstimate] = useState(null);
   const [storageSupported, setStorageSupported] = useState(true);
   const [postingVideo, setPostingVideo] = useState(null);
+  const [poolIds, setPoolIds] = useState(new Set());
+  const [poolBusyById, setPoolBusyById] = useState({});
   const fileInputRef = useRef(null);
 
   function refreshStorageEstimate() {
@@ -6377,6 +6379,48 @@ function VideoLibrarySection({ theme, integrations, setIntegrations }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${AUTOPOST_BACKEND_URL}/.netlify/functions/autopost-pool`)
+      .then((res) => (res.ok ? res.json() : { videos: [] }))
+      .then((data) => {
+        if (cancelled) return;
+        setPoolIds(new Set((data.videos || []).map((v) => v.id)));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function togglePool(video) {
+    if (poolIds.has(video.id)) {
+      setPoolBusyById((prev) => ({ ...prev, [video.id]: "removing" }));
+      try {
+        await removeVideoFromAutopostPool(video.id);
+        setPoolIds((prev) => {
+          const next = new Set(prev);
+          next.delete(video.id);
+          return next;
+        });
+      } catch {
+        setStatus(video.id, { type: "error", message: "Couldn't remove from the auto-post pool." });
+      } finally {
+        setPoolBusyById((prev) => ({ ...prev, [video.id]: null }));
+      }
+      return;
+    }
+    setPoolBusyById((prev) => ({ ...prev, [video.id]: { sent: 0, total: 1 } }));
+    try {
+      await addVideoToAutopostPool(video, (sent, total) => setPoolBusyById((prev) => ({ ...prev, [video.id]: { sent, total } })));
+      setPoolIds((prev) => new Set(prev).add(video.id));
+    } catch (err) {
+      setStatus(video.id, { type: "error", message: err.message || "Couldn't add to the auto-post pool." });
+    } finally {
+      setPoolBusyById((prev) => ({ ...prev, [video.id]: null }));
+    }
+  }
+
   function setStatus(id, status) {
     setStatusById((prev) => ({ ...prev, [id]: status }));
     if (status) {
@@ -6416,6 +6460,16 @@ function VideoLibrarySection({ theme, integrations, setIntegrations }) {
     setVideos((prev) => prev.filter((v) => v.id !== id));
     await dbDeleteVideo(id);
     refreshStorageEstimate();
+    // Deleting locally shouldn't leave a copy sitting in the server-side
+    // pool waiting to be auto-posted as a surprise later.
+    if (poolIds.has(id)) {
+      removeVideoFromAutopostPool(id).catch(() => {});
+      setPoolIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
   }
 
   const totalVideoBytes = videos.reduce((s, v) => s + (v.size || 0), 0);
@@ -6467,6 +6521,18 @@ function VideoLibrarySection({ theme, integrations, setIntegrations }) {
           </div>
         </div>
       )}
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", fontSize: "11.5px", color: theme.textFaint, marginBottom: "14px", flexWrap: "wrap" }}>
+        <span>{poolIds.size} video{poolIds.size === 1 ? "" : "s"} in the scheduled auto-post pool</span>
+        <a
+          href={`${AUTOPOST_BACKEND_URL}/.netlify/functions/youtube-auth-start`}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: theme.accent, fontWeight: 600, textDecoration: "none" }}
+        >
+          Set up / re-authorize auto-poster →
+        </a>
+      </div>
 
       {dbError && (
         <div style={{ fontSize: "13px", color: theme.danger, marginBottom: "14px" }}>{dbError}</div>
@@ -6587,6 +6653,34 @@ function VideoLibrarySection({ theme, integrations, setIntegrations }) {
                     <IconClose size={13} />
                   </button>
                 </div>
+                <button
+                  onClick={() => togglePool(v)}
+                  disabled={!!poolBusyById[v.id]}
+                  className="v-btn"
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "5px",
+                    background: poolIds.has(v.id) ? theme.dangerSoft : "transparent",
+                    color: poolIds.has(v.id) ? theme.danger : theme.textMuted,
+                    border: `1px dashed ${poolIds.has(v.id) ? theme.danger : theme.inputBorder}`,
+                    borderRadius: "8px",
+                    padding: "6px 8px",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    opacity: poolBusyById[v.id] ? 0.7 : 1,
+                  }}
+                >
+                  {poolBusyById[v.id]
+                    ? poolBusyById[v.id] === "removing"
+                      ? "Removing…"
+                      : `Adding to pool… ${poolBusyById[v.id].sent}/${poolBusyById[v.id].total}`
+                    : poolIds.has(v.id)
+                    ? "Remove from auto-post pool"
+                    : "Add to auto-post pool"}
+                </button>
                 {status && (
                   <div
                     style={{
@@ -8725,6 +8819,53 @@ async function uploadVideoToYouTube(video, meta, accessToken) {
     throw new Error((data && data.error && data.error.message) || `YouTube upload failed (${res.status}).`);
   }
   return data;
+}
+
+// The scheduled, unattended YouTube auto-poster: videos added to this pool
+// live server-side (Netlify Blobs, this site's own account — see
+// netlify/functions/_lib/videoPool.js) so a scheduled job with no browser
+// open can pick one at random and post it. Same cross-origin backend
+// pattern app.fantasy.jsx already uses for the stats proxy (FF_BACKEND_URL)
+// — the app is served from two origins (GitHub Pages + Netlify), and only
+// the Netlify one runs Functions.
+const AUTOPOST_BACKEND_URL = "https://bearvantagehub.netlify.app";
+// ~2MB raw chunks base64-inflate to ~2.7MB, safely under Netlify Functions'
+// ~4.5MB effective binary body cap.
+const AUTOPOST_CHUNK_BYTES = 2 * 1024 * 1024;
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+    reader.onerror = () => reject(reader.error || new Error("Couldn't read file."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function addVideoToAutopostPool(video, onProgress) {
+  const chunkCount = Math.max(1, Math.ceil(video.size / AUTOPOST_CHUNK_BYTES));
+  for (let i = 0; i < chunkCount; i++) {
+    const slice = video.blob.slice(i * AUTOPOST_CHUNK_BYTES, (i + 1) * AUTOPOST_CHUNK_BYTES);
+    const dataBase64 = await blobToBase64(slice);
+    const res = await fetch(`${AUTOPOST_BACKEND_URL}/.netlify/functions/autopost-upload-chunk`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videoId: video.id, chunkIndex: i, chunkCount, title: video.title, type: video.type, size: video.size, dataBase64 }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error((data && data.error) || `Upload failed (${res.status}).`);
+    }
+    if (onProgress) onProgress(i + 1, chunkCount);
+  }
+}
+
+function removeVideoFromAutopostPool(id) {
+  return fetch(`${AUTOPOST_BACKEND_URL}/.netlify/functions/autopost-pool`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "remove", id }),
+  });
 }
 
 // Lazily pull msal-browser from its CDN only when the user actually clicks

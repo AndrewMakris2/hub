@@ -6,6 +6,13 @@
 [functions]
   node_bundler = "esbuild"
 
+# Thin cron trigger for the scheduled YouTube auto-poster — it only picks a
+# video and hands off to post-random-video-background.js (see that file and
+# README.md for the full picture). 6pm UTC daily; change the cron
+# expression to whatever cadence/time is wanted.
+[functions."post-random-video"]
+  schedule = "0 18 * * *"
+
 # Security headers. Only takes effect on the Netlify deploy — GitHub Pages
 # has no mechanism for custom response headers, so that copy relies solely
 # on the <meta http-equiv="Content-Security-Policy"> tag in index.html

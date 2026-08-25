@@ -69,8 +69,9 @@ node build.js         # recompiles index.html and every chunk-*.js from app.jsx
 ```
 
 Then open `index.html` directly, or serve the directory with any static file server. The Netlify
-Function (the nflverse stats proxy) won't run from a plain static server — use `netlify dev`
-(Netlify CLI) if you need to exercise it locally.
+Functions (the nflverse stats proxy, and the scheduled YouTube auto-poster's backend — see below)
+won't run from a plain static server — use `netlify dev` (Netlify CLI) if you need to exercise
+them locally.
 
 ## Deployment
 
@@ -86,13 +87,38 @@ Static hosting in two places, from the same build output:
 
 ## Environment variables
 
-None required. `netlify/functions/` is down to a single public, credential-free surface (see
-below) after removing the Yahoo and TikTok OAuth integrations — both needed app-review approval
-from their respective platforms that was never realistic for a single-user personal tool, so
-they're gone rather than left half-working. If you previously set `SESSION`,
-`TIKTOK_CLIENT_KEY`/`SECRET`, `YAHOO_CLIENT_ID`/`SECRET`, `VANTAGE_URL`, or `VANTAGE_ORIGIN` in
-Netlify's site settings, none of them are read by anything anymore — safe to remove, though
-harmless to leave.
+Everything except the nflverse stats proxy is credential-free. One feature needs real server-side
+secrets: the scheduled YouTube auto-poster (`post-random-video.js` /
+`post-random-video-background.js`), which posts a random video from the server-side pool
+(`autopost-upload-chunk.js`, `autopost-pool.js`) to YouTube on a cron with no browser involved —
+unlike every other integration in this app, that requires a refresh token, which requires a client
+secret, which can never reach the browser. Set these in Netlify's site settings if you want that
+feature running; leave them unset and it just no-ops (each function logs why and returns early):
+
+- `GOOGLE_SERVER_CLIENT_ID` / `GOOGLE_SERVER_CLIENT_SECRET` — a **second** OAuth Client ID (type
+  "Web application") in the same Google Cloud project the browser-side `googleClientId` setting
+  already uses, with `youtube.upload` scope. This one needs a client secret; the browser-side one
+  can't have one, so it can't do this. Authorized redirect URI:
+  `https://bearvantagehub.netlify.app/.netlify/functions/youtube-auth-callback`. Also flip
+  **OAuth consent screen → Audience → Publish app** (Testing → In production) — otherwise Google
+  expires the refresh token after 7 days; publishing removes that cap without requiring Google's
+  full verification review for an app under 100 users.
+- `YOUTUBE_REFRESH_TOKEN` — obtained by visiting
+  `/.netlify/functions/youtube-auth-start` once the two vars above are set; the callback page
+  shows it once to copy in.
+- `AUTOPOST_TITLE` — the fixed title used for every auto-post. Defaults to "Vantage auto-post" if
+  unset.
+- `INTERNAL_TRIGGER_SECRET` — any random string you pick. Gates the scheduled function's internal
+  handoff to the background function that does the actual upload, so that URL isn't a bare,
+  guessable "post a video right now" endpoint.
+
+Auto-posts are always `privacyStatus: private` — Google restricts unverified apps (this one) to
+private-only API uploads regardless of the publishing-status toggle above, which is a separate,
+additional content-audit process not pursued here.
+
+If you previously set `SESSION`, `TIKTOK_CLIENT_KEY`/`SECRET`, `YAHOO_CLIENT_ID`/`SECRET`,
+`VANTAGE_URL`, or `VANTAGE_ORIGIN` in Netlify's site settings, none of them are read by anything
+anymore — safe to remove, though harmless to leave.
 
 ## Data & privacy — what actually happens, not just what's promised
 
@@ -116,11 +142,17 @@ this writing:
   just a username. Nothing is stored server-side.
 - "Share to TikTok" (`shareVideoFile` in `app.jsx`) uses the device's own share sheet
   (`navigator.share`), or a plain file download when that's unavailable, to hand a video off to
-  the TikTok app directly. No backend, no token, no server involved at all.
-- There is no server-side token storage left in this project — no Netlify Blobs usage, nothing
-  requiring an environment variable. Yahoo Fantasy and TikTok auto-post both used to store OAuth
-  tokens server-side; both were removed (see git history) once it was clear neither integration's
-  OAuth app review was realistically going to clear for a single-user personal tool.
+  the TikTok app directly. No backend, no token, no server involved at all. The manual "Post to
+  YouTube" button (`PostToYouTubeModal`) is similar but does a real upload — the access token it
+  gets from Google is short-lived and held only in browser memory, never sent to or stored by any
+  BearVantageHub server, same as Calendar's.
+- **The scheduled YouTube auto-poster is the one exception to "nothing lives on our server."**
+  Videos added to its pool (the "Add to auto-post pool" button on the Videos page) are uploaded
+  in pieces to this site's own Netlify Blobs storage and held there — under this same Google
+  account's control, not a third party's — until the scheduled job posts and deletes them. A
+  Google OAuth refresh token is also stored server-side (as the `YOUTUBE_REFRESH_TOKEN`
+  environment variable) so the scheduled job can post without anyone present. See "Environment
+  variables" above for the full mechanism. Every auto-post is Private.
 - The exported JSON backup (Settings → Backup) is **plaintext** and can contain financial,
   journal, and profile data along with integration configuration — treat it like any other
   sensitive personal file.
