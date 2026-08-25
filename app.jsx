@@ -9789,6 +9789,14 @@ const PAGE_BANNER_IMG = {
   reading: "https://wallpapers.com/images/high/matte-iron-man-full-hd-black-we8fb0nzigroxij3.webp",
   habits: "https://wallpapers.com/images/high/4k-nba-lebron-dunking-7yteulam51lwrdzu.webp",
   profile: "https://wallpapers.com/images/high/batman-facing-arkham-city-4k-vtpagw71cole4qtg.webp",
+  weather: "https://wallpapers.com/images/high/superman-flying-heroic-pose-y0o1zchnewtnd8ar.webp",
+  travel: "https://wallpapers.com/images/high/spider-man-far-from-home-2019-city-lb7fdznu3zq4awrm.webp",
+  financial: "https://wallpapers.com/images/high/jalen-brunson-driving-to-the-basket-vxsz2ctj5aan11rd.webp",
+  youtube: "https://wallpapers.com/images/high/steph-curry-wearing-black-golden-state-jersey-nfilxym81o6apkvf.webp",
+  transactions: "https://wallpapers.com/images/high/barry-sanders-detroit-legend-in-action-v5aeedvzmwjfxgxv.webp",
+  jobsearch: "https://wallpapers.com/images/high/denver-broncos-in-action-oo6k8wto8fwt4ada.webp",
+  mo: "https://wallpapers.com/images/high/the-batman-movie-rain-ayptzykaum2b9nw3.webp",
+  music: "https://wallpapers.com/images/high/amoled-black-panther-4k-ultra-hd-dark-id3lohdpw2ddw7fu.webp",
 };
 const PAGE_BANNER_VARIANT = {
   movies: "hero", watchlist: "hero", gaming: "hero", games: "hero", sports: "hero",
@@ -13873,6 +13881,11 @@ function IconLock({ size = 16 }) {
   );
 }
 
+// Same hotlink-with-graceful-degradation approach as PAGE_BANNER_IMG — this
+// is the one full-screen surface in the app, so it gets one deliberately
+// bold pick rather than a per-theme thing.
+const LOCK_SCREEN_IMG = "https://wallpapers.com/images/high/marvel-s-avengers-silhouetted-superheroes-desktop-wwvqrbtxr2zpysna.webp";
+
 function LockScreen({ theme, lock, onUnlock }) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState(false);
@@ -13928,10 +13941,19 @@ function LockScreen({ theme, lock, onUnlock }) {
     <div
       style={{
         position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center",
-        padding: "20px", background: theme.pageBgGradient !== "none" ? theme.pageBgGradient : theme.pageBg,
+        padding: "20px", overflow: "hidden",
+        background: theme.pageBgGradient !== "none" ? theme.pageBgGradient : theme.pageBg,
       }}
     >
-      <form onSubmit={submit} style={{ ...cardBackgroundStyle(theme), padding: "34px 30px", width: "100%", maxWidth: "360px", textAlign: "center" }}>
+      <img
+        src={LOCK_SCREEN_IMG}
+        alt=""
+        aria-hidden="true"
+        onError={(e) => { e.currentTarget.style.display = "none"; }}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.55 }}
+      />
+      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.5), rgba(0,0,0,0.75))" }} />
+      <form onSubmit={submit} style={{ ...cardBackgroundStyle(theme), padding: "34px 30px", width: "100%", maxWidth: "360px", textAlign: "center", position: "relative", zIndex: 1 }}>
         <div style={{ color: theme.accent, display: "inline-flex", marginBottom: "12px" }}><IconLock size={30} /></div>
         <div style={{ fontSize: "19px", fontWeight: 800, color: theme.text, marginBottom: "4px" }}>BearVantageHub is locked</div>
         <div style={{ fontSize: "13px", color: theme.textMuted, marginBottom: "20px" }}>Enter your PIN to continue.</div>
