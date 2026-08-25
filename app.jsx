@@ -1624,6 +1624,22 @@ function IconCloud({ size = 14 }) {
 
 const WEATHER_DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+// Condition-tinted gradients for the Weather page's hero — deliberately
+// fixed rather than theme-derived (Apple Weather does the same: the sky
+// looks like the sky regardless of the OS's light/dark setting). White text
+// sits on all of these reliably, so the hero supplies its own contained
+// palette instead of reading from `theme`.
+function weatherGradient(code) {
+  if (code === 0) return "linear-gradient(160deg, #4fa8f5 0%, #2f6fd6 55%, #1a4fb0 100%)";
+  if (code >= 1 && code <= 3) return "linear-gradient(160deg, #7c98b3 0%, #5b7590 55%, #3f5670 100%)";
+  if (code === 45 || code === 48) return "linear-gradient(160deg, #9aa5ab 0%, #798488 55%, #5c6669 100%)";
+  if (code >= 51 && code <= 67) return "linear-gradient(160deg, #5c7d99 0%, #3f5f7a 55%, #293f52 100%)";
+  if (code >= 71 && code <= 77) return "linear-gradient(160deg, #b8d4e8 0%, #8fb3cf 55%, #6690b3 100%)";
+  if (code >= 80 && code <= 82) return "linear-gradient(160deg, #6a8caa 0%, #4a6d8c 55%, #33506b 100%)";
+  if (code >= 95) return "linear-gradient(160deg, #4a4467 0%, #332e4d 55%, #1f1b33 100%)";
+  return "linear-gradient(160deg, #86a4c2 0%, #5f80a3 55%, #425f80 100%)";
+}
+
 // A dedicated forecast view for data that was already being fetched
 // (fetchWeatherDays above) but never had anywhere to be seen beyond
 // feeding golf/briefing suggestions — this is pure presentation, no new
@@ -1634,10 +1650,19 @@ function WeatherPage({ theme, weather, weatherStatus, onEnableWeather }) {
 
   if (!enabled) {
     return (
-      <Card theme={theme}>
-        <SectionLabel theme={theme} icon={<IconCloud size={16} />}>Weather</SectionLabel>
-        <p style={{ fontSize: "14px", color: theme.textMuted, marginBottom: "16px" }}>
-          Add your location to see a 10-day forecast here.
+      <div
+        style={{
+          borderRadius: "24px",
+          padding: "48px 28px",
+          textAlign: "center",
+          background: "linear-gradient(160deg, #5b7590 0%, #3f5670 55%, #293f52 100%)",
+          color: "#fff",
+        }}
+      >
+        <div style={{ fontSize: "44px", marginBottom: "10px" }}>⛅</div>
+        <div style={{ fontSize: "20px", fontWeight: 800, marginBottom: "6px" }}>See the sky where you are</div>
+        <p style={{ fontSize: "13.5px", color: "rgba(255,255,255,0.75)", marginBottom: "20px", maxWidth: "320px", marginLeft: "auto", marginRight: "auto" }}>
+          A 10-day outlook, once you share your location.
         </p>
         <button
           onClick={onEnableWeather}
@@ -1645,86 +1670,108 @@ function WeatherPage({ theme, weather, weatherStatus, onEnableWeather }) {
           style={{
             fontSize: "13px",
             fontWeight: 700,
-            color: theme.accentText,
-            background: theme.accent,
+            color: "#1a4fb0",
+            background: "#fff",
             border: "none",
             borderRadius: "999px",
-            padding: "9px 18px",
-            alignSelf: "flex-start",
+            padding: "11px 22px",
           }}
         >
           {weatherStatus && weatherStatus.type === "loading" ? weatherStatus.message : "Add local weather"}
         </button>
         {weatherStatus && weatherStatus.type === "error" && (
-          <div style={{ fontSize: "12px", color: theme.danger, marginTop: "12px" }}>{weatherStatus.message}</div>
+          <div style={{ fontSize: "12px", color: "#ffd4d0", marginTop: "14px" }}>{weatherStatus.message}</div>
         )}
-      </Card>
+      </div>
     );
   }
 
   const days = weather.days || [];
+  const today = days.find((d) => d.date === todayIso) || days[0];
+  const rest = days.filter((d) => d !== today);
+  const todayInfo = today ? weatherInfo(today.code) : null;
 
   return (
-    <Card theme={theme}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "18px", flexWrap: "wrap", gap: "8px" }}>
-        <SectionLabel theme={theme} icon={<IconCloud size={16} />} style={{ marginBottom: 0 }}>
-          10-Day Forecast
-        </SectionLabel>
-        <button
-          onClick={onEnableWeather}
-          className="v-btn"
-          style={{ fontSize: "11.5px", fontWeight: 700, color: theme.textMuted, background: "transparent", border: `1px solid ${theme.divider}`, borderRadius: "999px", padding: "4px 10px" }}
+    <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+      {today && (
+        <div
+          style={{
+            borderRadius: "24px",
+            padding: "32px 28px",
+            background: weatherGradient(today.code),
+            color: "#fff",
+            position: "relative",
+            overflow: "hidden",
+          }}
         >
-          {weatherStatus && weatherStatus.type === "loading" ? weatherStatus.message : "Refresh"}
-        </button>
-      </div>
-      {weatherStatus && weatherStatus.type === "error" && (
-        <div style={{ fontSize: "12px", color: theme.danger, marginBottom: "14px" }}>
-          {days.length > 0 && weather.fetchedAt
-            ? `Couldn't refresh — showing forecast from ${timeAgo(weather.fetchedAt)}.`
-            : weatherStatus.message}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "22px" }}>
+            <span style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(255,255,255,0.7)" }}>
+              {weather.fetchedAt ? `Updated ${timeAgo(weather.fetchedAt)}` : "Today"}
+            </span>
+            <button
+              onClick={onEnableWeather}
+              className="v-btn"
+              style={{ fontSize: "11px", fontWeight: 700, color: "#fff", background: "rgba(255,255,255,0.18)", border: "none", borderRadius: "999px", padding: "5px 12px" }}
+            >
+              {weatherStatus && weatherStatus.type === "loading" ? weatherStatus.message : "Refresh"}
+            </button>
+          </div>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: "20px", flexWrap: "wrap" }}>
+            <div style={{ fontSize: "88px", lineHeight: 1, filter: "drop-shadow(0 6px 18px rgba(0,0,0,0.25))" }}>{todayInfo.icon}</div>
+            <div>
+              <div className="v-tabular" style={{ fontSize: "56px", fontWeight: 800, lineHeight: 1, letterSpacing: "-0.02em" }}>
+                {today.tempMax}&deg;
+              </div>
+              <div style={{ fontSize: "15px", fontWeight: 600, color: "rgba(255,255,255,0.85)", marginTop: "4px" }}>
+                {todayInfo.label} · Low {today.tempMin}&deg;
+                {today.precipProb > 0 ? ` · ${today.precipProb}% rain` : ""}
+              </div>
+            </div>
+          </div>
+          {weatherStatus && weatherStatus.type === "error" && (
+            <div style={{ fontSize: "12px", color: "#ffd4d0", marginTop: "16px" }}>
+              Couldn't refresh — showing forecast from {timeAgo(weather.fetchedAt)}.
+            </div>
+          )}
         </div>
       )}
-      {days.length > 0 && (!weatherStatus || weatherStatus.type !== "error") && weather.fetchedAt && (
-        <div style={{ fontSize: "11px", color: theme.textFaint, marginBottom: "14px" }}>Updated {timeAgo(weather.fetchedAt)}</div>
-      )}
+
       {days.length === 0 ? (
-        <p style={{ fontSize: "14px", color: theme.textFaint }}>No forecast yet — try refreshing.</p>
+        <Card theme={theme}>
+          <p style={{ fontSize: "14px", color: theme.textFaint, margin: 0 }}>No forecast yet — try refreshing.</p>
+        </Card>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: "10px" }}>
-          {days.map((d) => {
+        <div className="v-scroll" style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "4px" }}>
+          {rest.map((d) => {
             const info = weatherInfo(d.code);
-            const isToday = d.date === todayIso;
             const dow = WEATHER_DAY_NAMES[new Date(d.date + "T00:00:00").getDay()];
             return (
               <div
                 key={d.date}
                 style={{
+                  flexShrink: 0,
+                  width: "84px",
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
                   gap: "6px",
-                  padding: "14px 8px",
-                  borderRadius: "12px",
-                  border: `1px solid ${isToday ? theme.accent : theme.divider}`,
-                  background: isToday ? theme.accentSoft : "transparent",
+                  padding: "14px 6px",
+                  borderRadius: "16px",
+                  ...cardBackgroundStyle(theme),
                 }}
               >
-                <span style={{ fontSize: "11px", fontWeight: 700, color: isToday ? theme.accent : theme.textMuted, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                  {isToday ? "Today" : dow}
+                <span style={{ fontSize: "11px", fontWeight: 700, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.04em" }}>{dow}</span>
+                <span style={{ fontSize: "24px" }}>{info.icon}</span>
+                <span className="v-tabular" style={{ fontSize: "14px", fontWeight: 700, color: theme.text }}>
+                  {d.tempMax}&deg;<span style={{ color: theme.textFaint, fontWeight: 500 }}> {d.tempMin}&deg;</span>
                 </span>
-                <span style={{ fontSize: "28px" }}>{info.icon}</span>
-                <span style={{ fontSize: "11px", color: theme.textFaint, textAlign: "center" }}>{info.label}</span>
-                <span className="v-tabular" style={{ fontSize: "15px", fontWeight: 700, color: theme.text }}>
-                  {d.tempMax}&deg; <span style={{ color: theme.textFaint, fontWeight: 500 }}>{d.tempMin}&deg;</span>
-                </span>
-                {d.precipProb > 0 && <span style={{ fontSize: "10.5px", color: theme.sectionLabelColor }}>💧 {d.precipProb}%</span>}
+                {d.precipProb > 0 && <span style={{ fontSize: "10px", color: theme.sectionLabelColor }}>💧{d.precipProb}%</span>}
               </div>
             );
           })}
         </div>
       )}
-    </Card>
+    </div>
   );
 }
 
@@ -1790,28 +1837,19 @@ function TripDetail({ theme, trip, onUpdate, onBack, onRemove, inputStyle }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      <Card theme={theme}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
-          <div>
-            <button onClick={onBack} className="v-btn" style={{ fontSize: "12px", fontWeight: 700, color: theme.textMuted, background: "transparent", border: "none", padding: 0, marginBottom: "6px", cursor: "pointer" }}>
-              ← All trips
-            </button>
-            <SectionLabel theme={theme} icon={<IconPlane size={16} />} style={{ marginBottom: 0 }}>
-              {trip.name}
-            </SectionLabel>
-            <div style={{ fontSize: "12.5px", color: theme.textMuted, marginTop: "4px" }}>
-              {trip.destination || "—"} {trip.startDate && `· ${trip.startDate}${trip.endDate ? " – " + trip.endDate : ""}`}
-            </div>
-          </div>
-          <button
-            onClick={onRemove}
-            className="v-btn"
-            style={{ fontSize: "11.5px", fontWeight: 700, color: theme.danger, background: "transparent", border: `1px solid ${theme.divider}`, borderRadius: "999px", padding: "4px 10px" }}
-          >
-            Delete trip
-          </button>
-        </div>
-      </Card>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
+        <button onClick={onBack} className="v-btn" style={{ fontSize: "12px", fontWeight: 700, color: theme.textMuted, background: "transparent", border: "none", padding: 0, cursor: "pointer" }}>
+          ← All trips
+        </button>
+        <button
+          onClick={onRemove}
+          className="v-btn"
+          style={{ fontSize: "11.5px", fontWeight: 700, color: theme.danger, background: "transparent", border: `1px solid ${theme.divider}`, borderRadius: "999px", padding: "4px 10px" }}
+        >
+          Delete trip
+        </button>
+      </div>
+      <BoardingPass theme={theme} trip={trip} />
 
       <Card theme={theme}>
         <SectionLabel theme={theme}>Packing list{trip.packing.length > 0 ? ` (${packedCount}/${trip.packing.length})` : ""}</SectionLabel>
@@ -1944,6 +1982,91 @@ function TripDetail({ theme, trip, onUpdate, onBack, onRemove, inputStyle }) {
   );
 }
 
+// Boarding-pass-style identity for the Travel page (TripIt's own signature
+// pattern) — a 3-letter "destination code" instead of a generic list row.
+function destCode(destination) {
+  const clean = (destination || "").trim();
+  if (!clean) return "TBD";
+  const words = clean.split(/\s+/);
+  if (words.length >= 2) return (words[0][0] + words[1].slice(0, 2)).toUpperCase();
+  return clean.slice(0, 3).toUpperCase();
+}
+function formatDateShort(iso) {
+  if (!iso) return "";
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+function tripDateRange(trip) {
+  if (!trip.startDate) return "";
+  if (!trip.endDate) return formatDateShort(trip.startDate);
+  return `${formatDateShort(trip.startDate)}–${formatDateShort(trip.endDate)}`;
+}
+function BoardingPass({ theme, trip, onClick }) {
+  const until = trip.startDate ? daysUntil(trip.startDate) : null;
+  return (
+    <div
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter") onClick(); } : undefined}
+      style={{
+        display: "flex",
+        alignItems: "stretch",
+        borderRadius: "16px",
+        overflow: "hidden",
+        ...cardBackgroundStyle(theme),
+        cursor: onClick ? "pointer" : "default",
+      }}
+    >
+      <div
+        style={{
+          width: "92px",
+          flexShrink: 0,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          background: theme.accent,
+          color: theme.accentText,
+          padding: "16px 8px",
+        }}
+      >
+        <span style={{ fontSize: "26px", fontWeight: 800, letterSpacing: "0.02em" }}>{destCode(trip.destination)}</span>
+        <IconPlane size={14} />
+      </div>
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          overflow: "hidden",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "10px",
+          padding: "14px 16px",
+          borderLeft: `2px dashed ${theme.divider}`,
+        }}
+      >
+        <div style={{ minWidth: 0, overflow: "hidden" }}>
+          <div style={{ fontSize: "15px", fontWeight: 700, color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{trip.name}</div>
+          <div style={{ fontSize: "12px", color: theme.textMuted, marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {trip.destination || "Destination TBD"}
+            {tripDateRange(trip) && ` · ${tripDateRange(trip)}`}
+          </div>
+        </div>
+        <div style={{ flexShrink: 0, textAlign: "right" }}>
+          {until != null && until >= 0 ? (
+            <div>
+              <div className="v-tabular" style={{ fontSize: "18px", fontWeight: 800, color: theme.accent }}>{until}</div>
+              <div style={{ fontSize: "9.5px", fontWeight: 700, color: theme.textFaint, textTransform: "uppercase", letterSpacing: "0.05em" }}>days out</div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TravelPage({ theme, trips, setTrips }) {
   const [selectedId, setSelectedId] = useState(null);
   const [form, setForm] = useState(tripBlank());
@@ -2038,26 +2161,10 @@ function TravelPage({ theme, trips, setTrips }) {
       {trips.length === 0 ? (
         <p style={{ fontSize: "14px", color: theme.textFaint }}>No trips yet — plan your first one above.</p>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {trips.map((t) => {
-            const packed = t.packing.filter((p) => p.done).length;
-            return (
-              <button
-                key={t.id}
-                onClick={() => setSelectedId(t.id)}
-                className="v-btn"
-                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", textAlign: "left", background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "10px", padding: "12px 14px", color: theme.text }}
-              >
-                <div>
-                  <div style={{ fontSize: "14px", fontWeight: 700 }}>{t.name}</div>
-                  <div style={{ fontSize: "12px", color: theme.textMuted, marginTop: "2px" }}>
-                    {t.destination || "—"} {t.startDate && `· ${t.startDate}${t.endDate ? " – " + t.endDate : ""}`}
-                  </div>
-                </div>
-                <div style={{ fontSize: "11.5px", color: theme.textFaint, flexShrink: 0 }}>{t.packing.length > 0 ? `${packed}/${t.packing.length} packed` : ""}</div>
-              </button>
-            );
-          })}
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {trips.map((t) => (
+            <BoardingPass key={t.id} theme={theme} trip={t} onClick={() => setSelectedId(t.id)} />
+          ))}
         </div>
       )}
     </Card>
@@ -2178,6 +2285,42 @@ function IconChefHat({ size = 14 }) {
       <path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z" />
       <line x1="6" y1="17" x2="18" y2="17" />
     </svg>
+  );
+}
+
+const RECIPE_SERIF = "Georgia, 'Iowan Old Style', 'Times New Roman', serif";
+
+function RecipeCard({ theme, name, thumb, tag, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="v-btn"
+      style={{
+        position: "relative",
+        display: "block",
+        width: "100%",
+        aspectRatio: "4 / 5",
+        borderRadius: "14px",
+        overflow: "hidden",
+        border: `1px solid ${theme.divider}`,
+        padding: 0,
+        background: thumb ? theme.chip : theme.accentSoft,
+        textAlign: "left",
+        cursor: "pointer",
+      }}
+    >
+      {thumb ? (
+        <img src={thumb} alt="" loading="lazy" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+      ) : (
+        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: theme.accent, opacity: 0.35 }}>
+          <IconChefHat size={40} />
+        </div>
+      )}
+      <div style={{ position: "absolute", inset: "auto 0 0 0", padding: "22px 10px 9px", background: "linear-gradient(180deg, transparent, rgba(0,0,0,0.74))" }}>
+        <div style={{ fontFamily: RECIPE_SERIF, fontSize: "13px", fontWeight: 700, color: "#fff", lineHeight: 1.25 }}>{name}</div>
+        {tag && <div style={{ fontSize: "10.5px", color: "rgba(255,255,255,0.88)", marginTop: "3px", fontWeight: 600 }}>{tag}</div>}
+      </div>
+    </button>
   );
 }
 
@@ -2306,13 +2449,16 @@ function MealPlanningPage({ theme, state, setState }) {
     "--focus-border": theme.accent,
   };
 
+  const sectionHeading = { fontFamily: RECIPE_SERIF, margin: 0, fontSize: "17px", fontWeight: 700, color: theme.text };
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      <Card theme={theme}>
-        <SectionLabel theme={theme} icon={<IconChefHat size={16} />}>
-          Foods you like
-        </SectionLabel>
-        <p style={{ fontSize: "13px", color: theme.textMuted, marginBottom: "12px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+      <div style={{ ...cardBackgroundStyle(theme), padding: "20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px", color: theme.accent }}>
+          <IconChefHat size={18} />
+          <h2 style={sectionHeading}>Your pantry</h2>
+        </div>
+        <p style={{ fontSize: "13px", color: theme.textMuted, marginBottom: "14px" }}>
           Add ingredients you like, then generate recipes that use as many of them as possible.
         </p>
         <div style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
@@ -2333,7 +2479,7 @@ function MealPlanningPage({ theme, state, setState }) {
           </button>
         </div>
         {s.likedIngredients.length > 0 && (
-          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "14px" }}>
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "16px" }}>
             {s.likedIngredients.map((ing) => (
               <span
                 key={ing}
@@ -2345,7 +2491,7 @@ function MealPlanningPage({ theme, state, setState }) {
                   fontWeight: 600,
                   color: theme.text,
                   background: theme.accentSoft,
-                  border: `1px solid ${theme.divider}`,
+                  border: `1px dashed ${theme.divider}`,
                   borderRadius: "999px",
                   padding: "5px 6px 5px 12px",
                 }}
@@ -2363,130 +2509,138 @@ function MealPlanningPage({ theme, state, setState }) {
           disabled={s.likedIngredients.length === 0 || searching}
           className="v-btn"
           style={{
-            fontSize: "13px",
+            fontSize: "13.5px",
             fontWeight: 700,
             color: theme.accentText,
             background: theme.accent,
             border: "none",
             borderRadius: "999px",
-            padding: "9px 18px",
+            padding: "10px 22px",
             opacity: s.likedIngredients.length === 0 ? 0.5 : 1,
           }}
         >
-          {searching ? "Searching…" : "Find recipes"}
+          {searching ? "Searching…" : "Find recipes →"}
         </button>
         {searchError && <div style={{ fontSize: "12.5px", color: theme.danger, marginTop: "10px" }}>{searchError}</div>}
-      </Card>
+      </div>
 
-      <Card theme={theme}>
-        <SectionLabel theme={theme} icon={<IconChefHat size={16} />}>Quick picks — high protein, low calorie</SectionLabel>
-        <p style={{ fontSize: "13px", color: theme.textMuted, marginBottom: "12px" }}>
-          Built-in, no search needed — each one is 3-5 ingredients and 200-450 calories.
+      <div>
+        <h3 style={{ ...sectionHeading, marginBottom: "4px" }}>Quick picks</h3>
+        <p style={{ fontSize: "12.5px", color: theme.textMuted, marginBottom: "12px" }}>
+          High-protein, low-calorie, no search needed — each one is 3-5 ingredients.
         </p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "12px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: "10px" }}>
           {QUICK_MEALS.map((m) => (
-            <button
-              key={m.id}
-              onClick={() => openQuickDetail(m)}
-              className="v-btn"
-              style={{ display: "flex", flexDirection: "column", textAlign: "left", background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "10px", overflow: "hidden", padding: 0 }}
-            >
-              <div style={{ width: "100%", aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center", background: theme.chip, color: theme.accent }}>
-                <IconChefHat size={26} />
-              </div>
-              <div style={{ padding: "8px 10px" }}>
-                <div style={{ fontSize: "12.5px", fontWeight: 700, color: theme.text, lineHeight: 1.3 }}>{m.name}</div>
-                <div style={{ fontSize: "11px", color: theme.accent, marginTop: "4px", fontWeight: 600 }}>
-                  {m.kcal} kcal · {m.protein}g protein
-                </div>
-              </div>
-            </button>
+            <RecipeCard key={m.id} theme={theme} name={m.name} thumb={m.thumb} tag={`${m.kcal} kcal · ${m.protein}g protein`} onClick={() => openQuickDetail(m)} />
           ))}
         </div>
-      </Card>
+      </div>
 
       {results && results.length > 0 && (
-        <Card theme={theme}>
-          <SectionLabel theme={theme}>
+        <div>
+          <h3 style={{ ...sectionHeading, marginBottom: "10px" }}>
             {results.length} recipe{results.length === 1 ? "" : "s"} found
-          </SectionLabel>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "12px" }}>
+          </h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: "10px" }}>
             {results.map((r) => (
-              <button
-                key={r.id}
-                onClick={() => openDetail(r.id)}
-                className="v-btn"
-                style={{ display: "flex", flexDirection: "column", textAlign: "left", background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "10px", overflow: "hidden", padding: 0 }}
-              >
-                <img src={r.thumb} alt="" loading="lazy" decoding="async" style={{ width: "100%", aspectRatio: "1", objectFit: "cover" }} />
-                <div style={{ padding: "8px 10px" }}>
-                  <div style={{ fontSize: "12.5px", fontWeight: 700, color: theme.text, lineHeight: 1.3 }}>{r.name}</div>
-                  <div style={{ fontSize: "11px", color: theme.accent, marginTop: "4px", fontWeight: 600 }}>
-                    Matches {r.matchCount} of {s.likedIngredients.length}
-                  </div>
-                </div>
-              </button>
+              <RecipeCard key={r.id} theme={theme} name={r.name} thumb={r.thumb} tag={`Matches ${r.matchCount} of ${s.likedIngredients.length}`} onClick={() => openDetail(r.id)} />
             ))}
           </div>
-        </Card>
+        </div>
       )}
 
-      <Card theme={theme}>
-        <SectionLabel theme={theme}>Saved recipes</SectionLabel>
+      <div style={{ ...cardBackgroundStyle(theme), padding: "18px 20px" }}>
+        <h3 style={{ ...sectionHeading, marginBottom: "12px" }}>Recipe box</h3>
         {s.savedRecipes.length === 0 ? (
           <p style={{ fontSize: "13px", color: theme.textFaint }}>Save a recipe from your search results to plan meals with it.</p>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            {s.savedRecipes.map((r) => (
-              <div key={r.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 10px", background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "8px" }}>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {s.savedRecipes.map((r, i) => (
+              <div
+                key={r.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  padding: "10px 2px",
+                  borderTop: i === 0 ? "none" : `1px dashed ${theme.divider}`,
+                }}
+              >
                 {r.thumb ? (
-                  <img src={r.thumb} alt="" loading="lazy" decoding="async" style={{ width: "36px", height: "36px", borderRadius: "6px", objectFit: "cover", flexShrink: 0 }} />
+                  <img src={r.thumb} alt="" loading="lazy" decoding="async" style={{ width: "40px", height: "40px", borderRadius: "8px", objectFit: "cover", flexShrink: 0 }} />
                 ) : (
-                  <span style={{ width: "36px", height: "36px", borderRadius: "6px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: theme.chip, color: theme.accent }}>
-                    <IconChefHat size={16} />
+                  <span style={{ width: "40px", height: "40px", borderRadius: "8px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: theme.chip, color: theme.accent }}>
+                    <IconChefHat size={17} />
                   </span>
                 )}
                 <button
                   onClick={() => openDetail(r.id)}
                   className="v-btn"
-                  style={{ flex: 1, textAlign: "left", fontSize: "13.5px", color: theme.text, background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
+                  style={{ flex: 1, minWidth: 0, textAlign: "left", background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
                 >
-                  {r.name}
-                  {r.kcal != null && <span style={{ fontSize: "11px", color: theme.textFaint, marginLeft: "8px" }}>{r.kcal} kcal · {r.protein}g protein</span>}
+                  <div style={{ fontFamily: RECIPE_SERIF, fontSize: "14.5px", fontWeight: 700, color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
+                  {r.kcal != null && <div style={{ fontSize: "11px", color: theme.textFaint, marginTop: "2px" }}>{r.kcal} kcal · {r.protein}g protein</div>}
                 </button>
-                <button onClick={() => unsaveRecipe(r.id)} className="v-btn" style={{ fontSize: "16px", color: theme.textFaint, background: "transparent", border: "none", padding: "0 4px", cursor: "pointer" }}>
+                <button onClick={() => unsaveRecipe(r.id)} className="v-btn" style={{ fontSize: "16px", color: theme.textFaint, background: "transparent", border: "none", padding: "0 4px", cursor: "pointer", flexShrink: 0 }}>
                   ×
                 </button>
               </div>
             ))}
           </div>
         )}
-      </Card>
+      </div>
 
       {s.savedRecipes.length > 0 && (
-        <Card theme={theme}>
-          <SectionLabel theme={theme}>Weekly plan</SectionLabel>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: "8px" }}>
-            {WEEK_DAYS.map((d) => (
-              <div key={d.id}>
-                <div style={{ fontSize: "11px", fontWeight: 700, color: theme.textMuted, marginBottom: "4px", textTransform: "uppercase" }}>{d.label}</div>
-                <select
-                  value={s.weeklyPlan[d.id] || ""}
-                  onChange={(e) => assignDay(d.id, e.target.value)}
-                  className="v-input"
-                  style={{ ...inputStyle, width: "100%", fontSize: "12px", padding: "7px 8px" }}
-                >
-                  <option value="">—</option>
-                  {s.savedRecipes.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ))}
+        <div>
+          <h3 style={{ ...sectionHeading, marginBottom: "12px" }}>This week</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(112px, 1fr))", gap: "10px" }}>
+            {WEEK_DAYS.map((d) => {
+              const planned = s.savedRecipes.find((r) => r.id === s.weeklyPlan[d.id]);
+              return (
+                <div key={d.id} style={{ ...cardBackgroundStyle(theme), padding: "10px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <div style={{ fontSize: "10.5px", fontWeight: 700, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.05em" }}>{d.label}</div>
+                  <div
+                    style={{
+                      width: "100%",
+                      aspectRatio: "1",
+                      borderRadius: "8px",
+                      overflow: "hidden",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: planned ? theme.chip : "transparent",
+                      border: planned ? "none" : `1.5px dashed ${theme.divider}`,
+                    }}
+                  >
+                    {planned && planned.thumb ? (
+                      <img src={planned.thumb} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : (
+                      <span style={{ color: planned ? theme.accent : theme.textFaint, fontSize: planned ? "18px" : "20px" }}>
+                        {planned ? <IconChefHat size={18} /> : "+"}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontFamily: RECIPE_SERIF, fontSize: "11.5px", fontWeight: 700, color: theme.text, minHeight: "28px", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                    {planned ? planned.name : "Unplanned"}
+                  </div>
+                  <select
+                    value={s.weeklyPlan[d.id] || ""}
+                    onChange={(e) => assignDay(d.id, e.target.value)}
+                    className="v-input"
+                    style={{ ...inputStyle, width: "100%", fontSize: "11px", padding: "5px 6px" }}
+                  >
+                    <option value="">—</option>
+                    {s.savedRecipes.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })}
           </div>
-        </Card>
+        </div>
       )}
 
       {(detail || detailLoading) && (
@@ -2514,7 +2668,7 @@ function MealPlanningPage({ theme, state, setState }) {
               <>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", marginBottom: "14px" }}>
                   <div>
-                    <h3 style={{ margin: 0, fontSize: "18px", color: theme.text }}>{detail.name}</h3>
+                    <h3 style={{ fontFamily: RECIPE_SERIF, margin: 0, fontSize: "19px", color: theme.text }}>{detail.name}</h3>
                     <div style={{ fontSize: "12px", color: theme.textMuted, marginTop: "4px" }}>{[detail.category, detail.area].filter(Boolean).join(" · ")}</div>
                   </div>
                   <button
