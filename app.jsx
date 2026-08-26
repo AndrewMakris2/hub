@@ -4433,6 +4433,45 @@ function formatEventTime(hhmm) {
   return new Date(2000, 0, 1, h, m || 0).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
+function dayGroupLabel(iso, todayIso) {
+  const diffDays = Math.round((new Date(iso + "T00:00:00") - new Date(todayIso + "T00:00:00")) / 86400000);
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Tomorrow";
+  if (diffDays === -1) return "Yesterday";
+  return new Date(iso + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+}
+
+function groupEventsByDate(list) {
+  const order = [];
+  const map = new Map();
+  list.forEach((ev) => {
+    if (!map.has(ev.date)) { map.set(ev.date, []); order.push(ev.date); }
+    map.get(ev.date).push(ev);
+  });
+  return order.map((date) => ({ date, items: map.get(date) }));
+}
+
+function UpcomingEventRow({ theme, ev, onRemove }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "10px" }}>
+      {ev.time && (
+        <span className="v-tabular" style={{ fontSize: "11.5px", fontWeight: 700, color: theme.accent, flexShrink: 0, width: "50px" }}>
+          {formatEventTime(ev.time)}
+        </span>
+      )}
+      <span style={{ flex: 1, minWidth: 0, fontSize: "14px", fontWeight: 600, color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {ev.title}
+        {ev.source && <span style={{ fontSize: "10px", fontWeight: 700, color: theme.textFaint, marginLeft: "6px" }}>{ev.source}</span>}
+      </span>
+      {!ev.source && (
+        <button onClick={onRemove} title="Remove" className="v-btn" style={{ width: "20px", height: "20px", borderRadius: "50%", border: "none", background: theme.dangerSoft, color: theme.danger, fontSize: "12px", lineHeight: "20px", textAlign: "center", padding: 0, flexShrink: 0 }}>
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+
 function UpcomingSection({ theme, events, setEvents, connectedEvents }) {
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
@@ -4482,96 +4521,53 @@ function UpcomingSection({ theme, events, setEvents, connectedEvents }) {
     "--focus-border": theme.accent,
   };
 
+  const todayIso = isoDate(new Date());
+  const aheadGroups = groupEventsByDate(merged.ahead);
+  const behindGroups = groupEventsByDate(merged.behind);
+
   return (
     <Card theme={theme} delay={120}>
       <SectionLabel theme={theme} icon={<IconCalendar />}>Upcoming</SectionLabel>
-      <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginBottom: "16px" }}>
+      <div style={{ marginBottom: "18px" }}>
         {merged.all.length === 0 && (
           <div style={{ fontSize: "13px", color: theme.textFaint }}>No upcoming events — add one below.</div>
         )}
         {merged.ahead.length === 0 && merged.behind.length > 0 && (
-          <div style={{ fontSize: "13px", color: theme.textFaint }}>Nothing ahead — everything below has already happened.</div>
+          <div style={{ fontSize: "13px", color: theme.textFaint, marginBottom: "10px" }}>Nothing ahead — everything below has already happened.</div>
         )}
-        {merged.all.map((ev, i) => (
-          <React.Fragment key={"g" + ev.id}>
-          {i === merged.ahead.length && merged.ahead.length > 0 && (
-            <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: theme.textFaint, marginTop: "4px" }}>Earlier</div>
-          )}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: "10px",
-              paddingBottom: "12px",
-              borderBottom: `1px solid ${theme.divider}`,
-            }}
-          >
-            <span style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0, flex: 1 }}>
-              {ev.time && (
-                <span className="v-tabular" style={{ fontSize: "11.5px", fontWeight: 700, color: theme.accent, flexShrink: 0 }}>
-                  {formatEventTime(ev.time)}
-                </span>
-              )}
-              <span
-                style={{
-                  fontSize: "15px",
-                  fontWeight: 600,
-                  color: theme.text,
-                  minWidth: 0,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {ev.title}
-                {ev.source && (
-                  <span style={{ fontSize: "10px", fontWeight: 700, color: theme.textFaint, marginLeft: "6px" }}>
-                    {ev.source}
-                  </span>
-                )}
-              </span>
-            </span>
-            <span style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
-              <span
-                style={{
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  color: theme.chipText,
-                  background: theme.chip,
-                  padding: "5px 10px",
-                  borderRadius: "999px",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {ev.detail}
-              </span>
-              {!ev.source && (
-                <button
-                  onClick={() => removeEvent(ev.id)}
-                  title="Remove"
-                  className="v-btn"
-                  style={{
-                    width: "20px",
-                    height: "20px",
-                    borderRadius: "50%",
-                    border: "none",
-                    background: theme.dangerSoft,
-                    color: theme.danger,
-                    fontSize: "12px",
-                    lineHeight: "20px",
-                    textAlign: "center",
-                    padding: 0,
-                    flexShrink: 0,
-                  }}
-                >
-                  ×
-                </button>
-              )}
-            </span>
+        {aheadGroups.length > 0 && (
+          <div style={{ borderLeft: `2px solid ${theme.divider}`, paddingLeft: "20px" }}>
+            {aheadGroups.map((g, gi) => (
+              <div key={g.date} style={{ position: "relative", marginBottom: gi === aheadGroups.length - 1 ? 0 : "20px" }}>
+                <span style={{ position: "absolute", left: "-25px", top: "3px", width: "9px", height: "9px", borderRadius: "50%", background: theme.accent }} />
+                <div style={{ fontSize: "13px", fontWeight: 800, color: theme.text, marginBottom: "8px" }}>{dayGroupLabel(g.date, todayIso)}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  {g.items.map((ev) => (
+                    <UpcomingEventRow key={ev.id} theme={theme} ev={ev} onRemove={() => removeEvent(ev.id)} />
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
-          </React.Fragment>
-        ))}
+        )}
+        {behindGroups.length > 0 && (
+          <div style={{ marginTop: aheadGroups.length > 0 ? "20px" : 0 }}>
+            <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: theme.textFaint, marginBottom: "10px" }}>Earlier</div>
+            <div style={{ borderLeft: `2px solid ${theme.divider}`, paddingLeft: "20px", opacity: 0.75 }}>
+              {behindGroups.map((g, gi) => (
+                <div key={g.date} style={{ position: "relative", marginBottom: gi === behindGroups.length - 1 ? 0 : "16px" }}>
+                  <span style={{ position: "absolute", left: "-25px", top: "3px", width: "9px", height: "9px", borderRadius: "50%", background: theme.textFaint }} />
+                  <div style={{ fontSize: "12.5px", fontWeight: 700, color: theme.textMuted, marginBottom: "8px" }}>{dayGroupLabel(g.date, todayIso)}</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {g.items.map((ev) => (
+                      <UpcomingEventRow key={ev.id} theme={theme} ev={ev} onRemove={() => removeEvent(ev.id)} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
         <input
@@ -5507,16 +5503,33 @@ function CalendarSection({ theme, events, setEvents, connectedEvents, delay }) {
                   flexDirection: "column",
                   alignItems: "center",
                   justifyContent: "flex-start",
-                  gap: "3px",
-                  padding: "6px 2px 8px",
+                  gap: "4px",
+                  padding: "5px 2px 8px",
                   borderRadius: "9px",
                   minHeight: "50px",
-                  border: `1px solid ${isSelected ? theme.accent : "transparent"}`,
-                  background: isSelected ? theme.accentSoft : isToday ? theme.chip : "transparent",
+                  border: `1px solid ${isSelected && !isToday ? theme.accent : "transparent"}`,
+                  background: "transparent",
                   opacity: inMonth ? 1 : 0.35,
                 }}
               >
-                <span className="v-tabular" style={{ fontSize: "12.5px", fontWeight: isToday ? 800 : 600, color: isToday ? theme.accent : theme.text }}>{d.getDate()}</span>
+                <span
+                  className="v-tabular"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: "24px",
+                    height: "24px",
+                    borderRadius: "50%",
+                    fontSize: "12.5px",
+                    fontWeight: isToday || isSelected ? 800 : 600,
+                    color: isToday ? theme.accentText : isSelected ? theme.accent : theme.text,
+                    background: isToday ? theme.accent : "transparent",
+                    border: isSelected && !isToday ? `1.5px solid ${theme.accent}` : "none",
+                  }}
+                >
+                  {d.getDate()}
+                </span>
                 <span style={{ display: "flex", gap: "2px", minHeight: "5px" }}>
                   {items.slice(0, 3).map((_, k) => (
                     <span key={k} style={{ width: "4px", height: "4px", borderRadius: "50%", background: theme.accent }} />
@@ -5546,8 +5559,8 @@ function CalendarSection({ theme, events, setEvents, connectedEvents, delay }) {
                   gap: "10px",
                   padding: "10px 12px",
                   background: theme.accentSoft,
-                  border: `1px solid ${theme.divider}`,
-                  borderRadius: "10px",
+                  borderLeft: `3px solid ${theme.accent}`,
+                  borderRadius: "0 10px 10px 0",
                 }}
               >
                 <span className="v-tabular" style={{ fontSize: "12px", fontWeight: 700, color: theme.accent, width: "76px", flexShrink: 0 }}>
@@ -6118,11 +6131,19 @@ function JournalSection({ theme, data, setData, delay }) {
     }
   }
 
+  const now = new Date();
+  const journalSerif = "Georgia, 'Times New Roman', serif";
+
   return (
-    <Card theme={theme} delay={delay}>
-      <SectionLabel theme={theme} icon={<IconBookOpen />}>Journal</SectionLabel>
-      <div style={{ fontSize: "12px", color: theme.textMuted, marginBottom: "8px" }}>
-        {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
+    <div style={{ ...cardBackgroundStyle(theme), padding: "22px" }}>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: "14px", marginBottom: "20px" }}>
+        <div style={{ fontFamily: journalSerif, fontSize: "52px", fontWeight: 700, lineHeight: 1, color: theme.text }}>{now.getDate()}</div>
+        <div style={{ paddingBottom: "4px" }}>
+          <div style={{ fontSize: "13px", fontWeight: 800, color: theme.accent, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            {now.toLocaleDateString(undefined, { weekday: "long" })}
+          </div>
+          <div style={{ fontSize: "12.5px", color: theme.textMuted }}>{now.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</div>
+        </div>
       </div>
       <textarea
         value={todayEntry ? todayEntry.text : ""}
@@ -6131,16 +6152,20 @@ function JournalSection({ theme, data, setData, delay }) {
         className="v-input"
         style={{
           width: "100%",
-          minHeight: "80px",
+          minHeight: "140px",
           resize: "vertical",
           background: theme.inputBg,
           border: `1px solid ${theme.inputBorder}`,
-          borderRadius: "10px",
+          borderLeft: `3px solid ${theme.danger}`,
+          borderRadius: "4px 10px 10px 4px",
           color: theme.inputText,
-          padding: "12px",
+          padding: "10px 14px",
           fontSize: "13.5px",
-          lineHeight: 1.5,
-          marginBottom: "16px",
+          fontFamily: journalSerif,
+          lineHeight: "27px",
+          backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent 26px, ${theme.divider} 26px, ${theme.divider} 27px)`,
+          backgroundAttachment: "local",
+          marginBottom: "20px",
           "--focus-ring": theme.accentSoft,
           "--focus-border": theme.accent,
         }}
@@ -6149,10 +6174,10 @@ function JournalSection({ theme, data, setData, delay }) {
       {past.length > 0 ? (
         <div className="v-scroll" style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "min(62vh, 900px)", overflowY: "auto" }}>
           {past.map((e) => (
-            <div key={e.date} style={{ background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "10px", padding: "10px 12px" }}>
+            <div key={e.date} style={{ background: theme.accentSoft, borderLeft: `3px solid ${theme.accent}`, borderRadius: "0 10px 10px 0", padding: "10px 14px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
-                <span style={{ fontSize: "11px", fontWeight: 700, color: theme.textMuted }}>
-                  {new Date(e.date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                <span style={{ fontFamily: journalSerif, fontStyle: "italic", fontSize: "12.5px", fontWeight: 700, color: theme.textMuted }}>
+                  {new Date(e.date + "T00:00:00").toLocaleDateString(undefined, { month: "long", day: "numeric" })}
                 </span>
                 <button
                   onClick={() => removeEntry(e.date)}
@@ -6170,7 +6195,7 @@ function JournalSection({ theme, data, setData, delay }) {
       ) : (
         <div style={{ fontSize: "12.5px", color: theme.textFaint }}>Past entries will show up here.</div>
       )}
-    </Card>
+    </div>
   );
 }
 
@@ -12200,6 +12225,33 @@ function HabitHeatmap({ theme, items, done }) {
   );
 }
 
+function ProgressRing({ theme, value, size = 92, strokeWidth = 11, children }) {
+  const r = (size - strokeWidth) / 2;
+  const c = 2 * Math.PI * r;
+  const clamped = Math.min(Math.max(value, 0), 1);
+  const dash = c * clamped;
+  return (
+    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: "rotate(-90deg)" }}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={theme.chip} strokeWidth={strokeWidth} />
+        {clamped > 0 && (
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke={theme.accent}
+            strokeWidth={strokeWidth}
+            strokeDasharray={`${dash} ${c - dash}`}
+            strokeLinecap="round"
+          />
+        )}
+      </svg>
+      <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>{children}</div>
+    </div>
+  );
+}
+
 function HabitsSection({ theme, state, setState }) {
   const s = state && state.items ? state : DEFAULT_HABITS;
   const [name, setName] = useState("");
@@ -12259,12 +12311,18 @@ function HabitsSection({ theme, state, setState }) {
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       <Card theme={theme} delay={0}>
         <SectionLabel theme={theme} icon={<IconFlame />}>Habits</SectionLabel>
-        <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap", marginBottom: "6px" }}>
-          <span className="v-tabular" style={{ fontSize: "30px", fontWeight: 800, color: theme.text }}>{doneToday}/{items.length || 0}</span>
-          <span style={{ fontSize: "13px", color: theme.textMuted }}>done today</span>
-          {items.length > 0 && doneToday === items.length && (
-            <span style={{ fontSize: "13px", color: theme.positive, fontWeight: 700, marginLeft: "auto" }}>All done — nice! 🔥</span>
-          )}
+        <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap", marginBottom: "6px" }}>
+          <ProgressRing theme={theme} value={items.length ? doneToday / items.length : 0}>
+            <span className="v-tabular" style={{ fontSize: "20px", fontWeight: 800, color: theme.text }}>{doneToday}/{items.length || 0}</span>
+          </ProgressRing>
+          <div>
+            <div style={{ fontSize: "14px", fontWeight: 700, color: theme.text }}>done today</div>
+            {items.length > 0 && doneToday === items.length ? (
+              <div style={{ fontSize: "13px", color: theme.positive, fontWeight: 700, marginTop: "2px" }}>All done — nice! 🔥</div>
+            ) : (
+              <div style={{ fontSize: "12.5px", color: theme.textMuted, marginTop: "2px" }}>{items.length ? `${items.length - doneToday} left to close the ring` : "Add a habit to get started"}</div>
+            )}
+          </div>
         </div>
 
         <div style={{ display: "flex", gap: "8px", marginTop: "12px", flexWrap: "wrap" }}>
