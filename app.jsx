@@ -10087,10 +10087,18 @@ const PAGE_BANNER_VARIANT = {
 // than the full width of a monitor. Everything else is a list, a grid or a
 // form and gets the room.
 const CONTAINER_READER = ["journal", "resume", "profile", "goals"];
-const CONTAINER_XWIDE = ["fantasy", "ravenseye", "transactions", "videos", "golf", "reading", "games", "movies", "news", "sports", "mo", "home", "jobsearch", "terraform"];
+// Grid/dashboard pages whose cards are an open-ended, auto-fill/auto-fit
+// collection (accounts, trackers, tool tiles, poster/video grids) — these
+// gain real extra width on an ultrawide monitor because they render more
+// columns. Everything else is a single column of full-width cards (or a
+// small fixed set of stat tiles) that would just stretch awkwardly, so it
+// stays at its current width no matter how wide the viewport gets.
+const CONTAINER_ULTRAWIDE = ["trackers", "financial", "gaming", "home", "mo", "movies", "videos"];
+const CONTAINER_XWIDE = ["fantasy", "ravenseye", "transactions", "golf", "reading", "games", "news", "sports", "jobsearch", "terraform"];
 function containerVariant(page) {
   if (page === "securityx") return "v-container--full";
   if (CONTAINER_READER.includes(page)) return "v-container--reader";
+  if (CONTAINER_ULTRAWIDE.includes(page)) return "v-container--ultra";
   if (CONTAINER_XWIDE.includes(page)) return "v-container--xwide";
   return "v-container--wide";
 }

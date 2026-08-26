@@ -951,6 +951,7 @@
   .v-container--reader { max-width: 820px; }
   .v-container--wide  { max-width: 1200px; }
   .v-container--xwide { max-width: 1320px; }
+  .v-container--ultra { max-width: 1320px; }
   .v-container--full  { max-width: none; padding: 0; }
 
   /* ---- Modals / sheets ---- */
@@ -1186,6 +1187,16 @@
   @media (min-width: 1600px) {
     .v-container--wide { max-width: 1360px; }
     .v-container--xwide { max-width: 1480px; }
+    .v-container--ultra { max-width: 1480px; }
+  }
+
+  /* Ultrawide monitors (34"+, ~3440px logical width and up): give the
+     grid/dashboard pages real extra room. Reader pages, and the wide/xwide
+     pages that are a single column of full-width cards rather than a card
+     grid, are deliberately left alone here too — extra width only helps a
+     page that has more columns to show it in. */
+  @media (min-width: 2200px) {
+    .v-container--ultra { max-width: 1880px; }
   }
 
   /* ---- Reduced motion ---- */
