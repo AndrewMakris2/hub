@@ -5269,8 +5269,8 @@ function WatchQueueSection({ theme, watchlist, setWatchlist, genres, delay }) {
                 alignItems: "center",
                 gap: "10px",
                 background: theme.accentSoft,
-                border: `1px solid ${theme.divider}`,
-                borderRadius: "10px",
+                borderLeft: `3px solid ${w.status === "done" ? theme.positive : w.status === "watching" ? theme.accent : theme.textFaint}`,
+                borderRadius: "0 10px 10px 0",
                 padding: "10px 12px",
               }}
             >
@@ -6787,17 +6787,18 @@ function VideoLibrarySection({ theme, integrations, setIntegrations }) {
                 style={{
                   background: theme.accentSoft,
                   border: `1px solid ${theme.divider}`,
-                  borderRadius: "12px",
+                  borderRadius: "14px",
                   padding: "12px",
                   display: "flex",
                   flexDirection: "column",
                   gap: "8px",
+                  boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
                 }}
               >
                 <video
                   src={v.url}
                   controls
-                  style={{ width: "100%", borderRadius: "8px", background: "#000", display: "block", maxHeight: "220px" }}
+                  style={{ width: "100%", borderRadius: "10px", background: "#000", display: "block", maxHeight: "220px" }}
                 />
                 <input
                   value={v.title}
@@ -9593,16 +9594,18 @@ function YouTubeSection({ theme, integrations, setIntegrations, videos, onVideos
                 textDecoration: "none",
               }}
             >
-              {v.thumbnail ? (
-                <img src={v.thumbnail} alt="" loading="lazy" decoding="async" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} style={{ width: "64px", height: "36px", objectFit: "cover", borderRadius: "6px", flexShrink: 0, display: "block", background: theme.chip }} />
-              ) : (
-                <div style={{ width: "64px", height: "36px", borderRadius: "6px", background: theme.progressTrack, flexShrink: 0 }} />
-              )}
+              <span style={{ position: "relative", flexShrink: 0 }}>
+                {v.thumbnail ? (
+                  <img src={v.thumbnail} alt="" loading="lazy" decoding="async" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} style={{ width: "96px", height: "54px", objectFit: "cover", borderRadius: "8px", display: "block", background: theme.chip }} />
+                ) : (
+                  <div style={{ width: "96px", height: "54px", borderRadius: "8px", background: theme.progressTrack }} />
+                )}
+                {isNew(v) && (
+                  <span style={{ position: "absolute", top: "4px", left: "4px", fontSize: "8.5px", fontWeight: 800, color: theme.accentText, background: theme.accent, borderRadius: "4px", padding: "1px 5px", letterSpacing: "0.03em" }}>NEW</span>
+                )}
+              </span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  {isNew(v) && (
-                    <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: theme.accent, flexShrink: 0 }} />
-                  )}
                   <span style={{ fontSize: "13px", color: theme.text, fontWeight: isNew(v) ? 700 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {v.title}
                   </span>
@@ -13311,6 +13314,52 @@ function FeedCard({ theme, item, variant }) {
       </a>
     );
   }
+  if (variant === "screen" || variant === "gaming") {
+    const square = variant === "gaming";
+    return (
+      <a
+        href={item.link}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          position: "relative",
+          display: "block",
+          aspectRatio: square ? "1 / 1" : "16 / 9",
+          borderRadius: "14px",
+          overflow: "hidden",
+          border: `1px solid ${theme.cardBorder}`,
+          textDecoration: "none",
+          background: item.image ? theme.chip : feedArtGradient(item.host || item.title),
+        }}
+      >
+        {item.image && (
+          <img src={item.image} alt="" loading="lazy" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+        )}
+        <div style={{ position: "absolute", inset: "auto 0 0 0", padding: square ? "28px 10px 10px" : "40px 14px 12px", background: "linear-gradient(180deg, transparent, rgba(0,0,0,0.8))" }}>
+          <span
+            style={{
+              display: "-webkit-box",
+              WebkitLineClamp: square ? 3 : 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+              fontSize: square ? "12.5px" : "15px",
+              fontWeight: 800,
+              lineHeight: 1.3,
+              color: "#fff",
+              textTransform: square ? "uppercase" : "none",
+              letterSpacing: square ? "0.01em" : "normal",
+            }}
+          >
+            {item.title}
+          </span>
+          <span style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "10.5px", fontWeight: 600, color: "rgba(255,255,255,0.75)", marginTop: "6px" }}>
+            <span>{item.source || item.host}</span>
+            {item.pub && <span>· {feedRelTime(item.pub)}</span>}
+          </span>
+        </div>
+      </a>
+    );
+  }
   return (
     <a
       href={item.link}
@@ -13468,6 +13517,10 @@ function FeedSection({ theme, state, setState, categories, title, icon, intro, v
         </Card>
       ) : variant === "news" ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {items.map((it) => <FeedCard key={it.id} theme={theme} item={it} variant={variant} />)}
+        </div>
+      ) : variant === "screen" || variant === "gaming" ? (
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${variant === "gaming" ? "130px" : "220px"}, 1fr))`, gap: "12px" }}>
           {items.map((it) => <FeedCard key={it.id} theme={theme} item={it} variant={variant} />)}
         </div>
       ) : (
@@ -15324,6 +15377,7 @@ function App() {
                 title="Movies & TV"
                 icon={<IconClapper />}
                 intro="Release dates, casting, box office, premieres, renewals and cancellations."
+                variant="screen"
               />
             </>
           )}
@@ -15336,6 +15390,7 @@ function App() {
               title="Gaming"
               icon={<IconGamepad />}
               intro="Releases, reveals, studio news and esports."
+              variant="gaming"
             />
           )}
           {page === "games" && <GamesSection theme={theme} state={games} setState={setGames} />}
