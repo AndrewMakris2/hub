@@ -4709,7 +4709,22 @@ function FinancialAccountsSection({ theme, data, setData, accountHistory, onReco
         </button>
       </div>
       <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap", marginTop: "10px", marginBottom: "6px" }}>
-        <span className="v-tabular" style={{ fontSize: "30px", fontWeight: 800, color: theme.text }}>{fmtMoney(total)}</span>
+        <span className="v-tabular" style={{ fontSize: "34px", fontWeight: 800, color: theme.text }}>{fmtMoney(total)}</span>
+        {netWorthSeries.length >= 2 && netWorthSeries[netWorthSeries.length - 1].value !== netWorthSeries[0].value && (
+          <span
+            className="v-tabular"
+            style={{
+              fontSize: "12px",
+              fontWeight: 700,
+              padding: "3px 8px",
+              borderRadius: "999px",
+              color: netWorthSeries[netWorthSeries.length - 1].value >= netWorthSeries[0].value ? theme.positive : theme.danger,
+              background: netWorthSeries[netWorthSeries.length - 1].value >= netWorthSeries[0].value ? theme.positive + "22" : theme.dangerSoft,
+            }}
+          >
+            {netWorthSeries[netWorthSeries.length - 1].value >= netWorthSeries[0].value ? "↑" : "↓"} {fmtMoney(Math.abs(netWorthSeries[netWorthSeries.length - 1].value - netWorthSeries[0].value))}
+          </span>
+        )}
         <span style={{ fontSize: "13px", color: theme.textMuted }}>across {accounts.length} account{accounts.length === 1 ? "" : "s"}</span>
       </div>
       {netWorthSeries.length >= 2 && (
@@ -4722,7 +4737,7 @@ function FinancialAccountsSection({ theme, data, setData, accountHistory, onReco
         {accounts.map((a) => {
           const series = (accountHistory && accountHistory[a.id]) || [];
           return (
-            <div key={a.id} className="v-rowact" style={{ background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "14px", padding: "14px 16px" }}>
+            <div key={a.id} className="v-rowact" style={{ background: `linear-gradient(135deg, ${theme.accentSoft}, ${theme.chip})`, border: `1px solid ${theme.divider}`, borderRadius: "14px", padding: "14px 16px" }}>
               <button
                 onClick={() => removeAccount(a.id)}
                 title={"Remove " + (a.name || "account")}
@@ -4831,7 +4846,7 @@ function InvestmentHoldingsSection({ theme, data, setData }) {
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                 {items.map((h) => (
                   <div key={h.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 10px", background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "8px" }}>
-                    <span style={{ fontSize: "13.5px", fontWeight: 700, color: theme.text, width: "60px", flexShrink: 0 }}>{h.ticker}</span>
+                    <span className="v-tabular" style={{ fontSize: "11.5px", fontWeight: 800, letterSpacing: "0.02em", color: theme.accent, background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "6px", padding: "3px 7px", width: "60px", textAlign: "center", flexShrink: 0 }}>{h.ticker}</span>
                     <span className="v-tabular" style={{ fontSize: "12.5px", color: theme.textMuted, flex: 1 }}>{h.shares} sh{h.price != null ? ` @ ${fmtMoney(h.price)}` : ""}</span>
                     {h.price != null && <span className="v-tabular" style={{ fontSize: "13px", fontWeight: 700, color: theme.text }}>{fmtMoney(h.shares * h.price)}</span>}
                     <button onClick={() => removeHolding(h.id)} className="v-btn" title="Remove holding" style={{ fontSize: "16px", color: theme.textFaint, background: "transparent", border: "none", padding: "0 4px", cursor: "pointer" }}>×</button>
@@ -4904,8 +4919,9 @@ function FinancialSection({ theme, data, setData }) {
       </MetricGrid>
       {target > 0 && <ProgressBar theme={theme} from={0} to={target} current={currentSavings} />}
       {target > 0 && (
-        <div style={{ fontSize: "12px", color: theme.textMuted, marginTop: "8px" }}>
-          ${remaining.toLocaleString()} to go
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: theme.textMuted, marginTop: "8px" }}>
+          <span>${remaining.toLocaleString()} to go</span>
+          <span className="v-tabular" style={{ fontWeight: 700, color: theme.accent }}>{Math.min(100, Math.round((currentSavings / target) * 100))}%</span>
         </div>
       )}
     </Card>
@@ -5646,15 +5662,18 @@ function BudgetEnvelopesSection({ theme, transactions, budgets, setBudgets }) {
             const pct = l > 0 ? Math.min(100, Math.round((spent / l) * 100)) : 0;
             const over = spent > l;
             return (
-              <div key={c}>
-                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "4px", gap: "8px" }}>
-                  <span style={{ fontSize: "13px", fontWeight: 700, color: theme.text }}>{c}</span>
-                  <span className="v-tabular" style={{ fontSize: "12px", color: over ? theme.danger : theme.textMuted, flexShrink: 0 }}>{fmtMoney(spent)} / {fmtMoney(l)}</span>
-                  <button onClick={() => removeBudget(c)} className="v-btn" title="Remove budget" style={{ fontSize: "14px", color: theme.textFaint, background: "transparent", border: "none", padding: "0 2px", cursor: "pointer" }}>×</button>
+              <div key={c} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 12px", background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "10px" }}>
+                <span style={{ display: "flex", flexShrink: 0, color: over ? theme.danger : theme.accent }}><IconEnvelope size={20} /></span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "4px", gap: "8px" }}>
+                    <span style={{ fontSize: "13px", fontWeight: 700, color: theme.text }}>{c}</span>
+                    <span className="v-tabular" style={{ fontSize: "12px", color: over ? theme.danger : theme.textMuted, flexShrink: 0 }}>{fmtMoney(spent)} / {fmtMoney(l)} · {pct}%</span>
+                  </div>
+                  <div style={{ height: "6px", borderRadius: "999px", background: theme.progressTrack, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${pct}%`, borderRadius: "999px", background: over ? theme.danger : theme.accent, transition: "width 0.3s ease" }} />
+                  </div>
                 </div>
-                <div style={{ height: "6px", borderRadius: "999px", background: theme.progressTrack, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${pct}%`, borderRadius: "999px", background: over ? theme.danger : theme.accent, transition: "width 0.3s ease" }} />
-                </div>
+                <button onClick={() => removeBudget(c)} className="v-btn" title="Remove budget" style={{ fontSize: "14px", color: theme.textFaint, background: "transparent", border: "none", padding: "0 2px", cursor: "pointer", flexShrink: 0 }}>×</button>
               </div>
             );
           })}
@@ -5918,11 +5937,9 @@ function TransactionsSection({ theme, transactions, setTransactions, categoryOpt
           </div>
         </div>
       )}
-      <div style={{ display: "flex", gap: "14px", fontSize: "12px", color: theme.textFaint, marginBottom: "16px" }}>
-        <span>
-          <span className="v-tabular" style={{ color: theme.text, fontWeight: 700 }}>${totalThisMonth.toLocaleString()}</span> this month
-        </span>
-        <span>{monthTransactions.length} transaction{monthTransactions.length === 1 ? "" : "s"}</span>
+      <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap", marginBottom: "16px" }}>
+        <span className="v-tabular" style={{ fontSize: "30px", fontWeight: 800, color: theme.text }}>${totalThisMonth.toLocaleString()}</span>
+        <span style={{ fontSize: "13px", color: theme.textMuted }}>this month · {monthTransactions.length} transaction{monthTransactions.length === 1 ? "" : "s"}</span>
       </div>
 
       {showPaste && (
@@ -6003,6 +6020,7 @@ function TransactionsSection({ theme, transactions, setTransactions, categoryOpt
               <span style={{ fontSize: "11px", color: theme.textFaint, flexShrink: 0, width: "44px" }}>
                 {t.date.slice(5).replace("-", "/")}
               </span>
+              <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: theme.accent, flexShrink: 0 }} />
               <span style={{ flex: 1, minWidth: 0, fontSize: "13px", color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {t.merchant}
               </span>
@@ -13895,12 +13913,13 @@ function SubscriptionsSection({ theme, subs, setSubs }) {
             {sorted.map((s) => {
               const dleft = subDaysUntil(s.renewal);
               const renewLabel = dleft == null ? "" : dleft < 0 ? "overdue" : dleft === 0 ? "renews today" : dleft === 1 ? "renews tomorrow" : `renews in ${dleft}d`;
+              const urgent = dleft != null && dleft <= 1;
               return (
-                <div key={s.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "11px 12px", border: `1px solid ${theme.cardBorder}`, borderRadius: "10px", flexWrap: "wrap" }}>
+                <div key={s.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "11px 12px", borderLeft: `3px solid ${urgent ? theme.danger : theme.divider}`, borderRadius: "0 10px 10px 0", background: theme.accentSoft, flexWrap: "wrap" }}>
                   <BrandMark theme={theme} name={s.name} />
                   <div style={{ flex: 1, minWidth: "140px" }}>
                     <div style={{ fontSize: "14px", fontWeight: 700, color: theme.text }}>{s.name}</div>
-                    <div style={{ fontSize: "11.5px", color: theme.textFaint, marginTop: "2px" }}>
+                    <div style={{ fontSize: "11.5px", color: urgent ? theme.danger : theme.textFaint, fontWeight: urgent ? 700 : 400, marginTop: "2px" }}>
                       {[s.category, renewLabel].filter(Boolean).join(" · ")}
                     </div>
                   </div>
