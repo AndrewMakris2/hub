@@ -4969,6 +4969,33 @@ function FinancialSection({ theme, data, setData }) {
   );
 }
 
+const TRACKER_ACCENT_PALETTE = ["#f97316", "#eab308", "#22c55e", "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899", "#ef4444"];
+
+function trackerAccentFor(seed) {
+  let hash = 0;
+  const s = String(seed || "");
+  for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) | 0;
+  return TRACKER_ACCENT_PALETTE[Math.abs(hash) % TRACKER_ACCENT_PALETTE.length];
+}
+
+function trackerIconFor(label) {
+  const l = (label || "").toLowerCase();
+  if (/\b(read|book|page|chapter|novel)\b/.test(l)) return IconBookOpen;
+  if (/\b(gym|workout|exercise|run|steps|walk|lift|fitness|cardio|cycle|swim)\b/.test(l)) return IconDumbbell;
+  if (/\b(money|spend|spent|budget|save|saving|income|expense|cost|\$)\b/.test(l)) return IconWallet;
+  if (/\b(game|gaming|play)\b/.test(l)) return IconGamepad;
+  if (/\b(music|song|practice|piano|guitar)\b/.test(l)) return IconMusic;
+  if (/\b(streak|habit|goal|target)\b/.test(l)) return IconFlag;
+  if (/\b(weight|scale|lbs|kg)\b/.test(l)) return IconTrendingUp;
+  if (/\b(mood|journal|gratitude|thought)\b/.test(l)) return IconBulb;
+  if (/\b(work|job|task|project|client)\b/.test(l)) return IconBriefcase;
+  if (/\b(code|coding|dev|bug|commit)\b/.test(l)) return IconTerminal;
+  if (/\b(movie|film|watch|show)\b/.test(l)) return IconFilm;
+  if (/\b(news|article)\b/.test(l)) return IconNews;
+  if (/\b(photo|pic|picture)\b/.test(l)) return IconImage;
+  return IconSparkles;
+}
+
 function CustomTrackersSection({ theme, trackers, setTrackers, trackerHistory, onRecordTracker }) {
   const [label, setLabel] = useState("");
   const [value, setValue] = useState("");
@@ -5033,6 +5060,8 @@ function CustomTrackersSection({ theme, trackers, setTrackers, trackerHistory, o
         >
           {trackers.map((t) => {
             const progress = computeGoalProgress(t.value, t.target);
+            const accent = trackerAccentFor(t.id);
+            const TrackerIcon = trackerIconFor(t.label);
             return (
               <div
                 key={t.id}
@@ -5040,6 +5069,7 @@ function CustomTrackersSection({ theme, trackers, setTrackers, trackerHistory, o
                 style={{
                   background: theme.accentSoft,
                   border: `1px solid ${theme.divider}`,
+                  borderTop: `3px solid ${accent}`,
                   borderRadius: "14px",
                   padding: "14px 16px",
                 }}
@@ -5064,21 +5094,36 @@ function CustomTrackersSection({ theme, trackers, setTrackers, trackerHistory, o
                 >
                   ×
                 </button>
-                <div
-                  style={{
-                    fontSize: "11px",
-                    fontWeight: 600,
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    color: theme.textMuted,
-                    marginBottom: "6px",
-                    paddingRight: "18px",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {t.label}
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", paddingRight: "18px" }}>
+                  <div
+                    style={{
+                      width: "24px",
+                      height: "24px",
+                      borderRadius: "7px",
+                      flexShrink: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: `color-mix(in oklab, ${accent} 18%, transparent)`,
+                      color: accent,
+                    }}
+                  >
+                    <TrackerIcon size={13} />
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                      color: theme.textMuted,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {t.label}
+                  </div>
                 </div>
                 <input
                   value={t.value}
@@ -11165,17 +11210,11 @@ function HomeGreeting({ theme, name, weather, weatherStatus, onEnableWeather, bi
             {today.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
           </div>
         </div>
-        {todayWeather ? (
+        {todayWeather && (
           <div style={{ textAlign: "right" }}>
             <div className="v-tabular" style={{ fontSize: big ? "30px" : "24px", fontWeight: 800, color: theme.text }}>{todayWeather.tempMax}°</div>
             {todayInfo && <div style={{ fontSize: "12px", color: theme.textFaint }}>{todayInfo.icon} {todayInfo.label}</div>}
           </div>
-        ) : (
-          onEnableWeather && (
-            <button onClick={onEnableWeather} className="v-btn" style={{ fontSize: "12px", fontWeight: 700, padding: "7px 12px", borderRadius: "999px", border: `1px solid ${theme.cardBorder}`, background: "transparent", color: theme.textMuted }}>
-              Add local weather
-            </button>
-          )
         )}
       </div>
       {weatherStatus && weatherStatus.type === "error" && (
@@ -11750,9 +11789,9 @@ function PosterCard({ src, label, tag, height = 210 }) {
         style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
       />
       {(label || tag) && (
-        <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "18px 10px 8px", background: "linear-gradient(0deg, rgba(0,0,0,0.78), transparent)" }}>
-          {tag && <div style={{ fontSize: "9px", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.75)" }}>{tag}</div>}
-          {label && <div style={{ fontSize: "12px", fontWeight: 700, color: "#fff", lineHeight: 1.25 }}>{label}</div>}
+        <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "24px 10px 8px", background: "linear-gradient(0deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.6) 50%, transparent 100%)" }}>
+          {tag && <div style={{ fontSize: "9px", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.85)", textShadow: "0 1px 3px rgba(0,0,0,0.7)" }}>{tag}</div>}
+          {label && <div style={{ fontSize: "12px", fontWeight: 700, color: "#fff", lineHeight: 1.25, textShadow: "0 1px 3px rgba(0,0,0,0.7)" }}>{label}</div>}
         </div>
       )}
     </div>
@@ -13354,6 +13393,7 @@ function FeedCard({ theme, item, variant }) {
         href={item.link}
         target="_blank"
         rel="noopener noreferrer"
+        className="v-feedcard--news"
         style={{
           display: "block",
           textDecoration: "none",
@@ -13381,6 +13421,7 @@ function FeedCard({ theme, item, variant }) {
         href={item.link}
         target="_blank"
         rel="noopener noreferrer"
+        className="v-feedcard--screen"
         style={{
           position: "relative",
           display: "block",

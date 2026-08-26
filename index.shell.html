@@ -488,6 +488,16 @@
   @media (hover: hover) and (pointer: fine) {
     .v-feedcard:hover { transform: translateY(-2px); border-color: var(--v-accent) !important; box-shadow: var(--sh-3); }
   }
+  /* News-list rows and the widescreen/square screen+gaming tiles are the same
+     "click to open" surface as .v-feedcard, just with a different inline
+     layout — give them the same lift so every feed card feels pressable. */
+  .v-feedcard--news, .v-feedcard--screen {
+    transition: transform var(--dur-2) var(--ease), border-color var(--dur-2) ease, box-shadow var(--dur-2) ease;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .v-feedcard--news:hover { transform: translateY(-2px); box-shadow: var(--sh-3); }
+    .v-feedcard--screen:hover { transform: translateY(-2px); border-color: var(--v-accent) !important; box-shadow: var(--sh-3); }
+  }
   .v-feedart {
     width: 84px; aspect-ratio: 1 / 1; border-radius: 10px;
     flex-shrink: 0; object-fit: cover; display: block;
