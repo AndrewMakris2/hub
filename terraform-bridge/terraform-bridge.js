@@ -163,10 +163,27 @@ function handle(method, url, payload, res, origin) {
       if (initErr) return send(res, origin, 500, { error: initErr.message });
       const planId = crypto.randomBytes(12).toString("hex");
       const planFile = path.join(workspaceDir, ".terraform", `vantage-plan-${planId}`);
-      run(["plan", "-no-color", "-input=false", `-out=${planFile}`], (err, stdout, stderr) => {
+      const args = ["plan", "-no-color", "-input=false", `-out=${planFile}`];
+      if (payload.varFile) {
+        const varFilePath = resolveWorkspacePath(payload.varFile);
+        if (!varFilePath || !varFilePath.endsWith(".tfvars")) {
+          return send(res, origin, 400, { error: "Invalid var file." });
+        }
+        args.push(`-var-file=${varFilePath}`);
+      }
+      run(args, (err, stdout, stderr) => {
         if (err) return send(res, origin, 500, { error: stderr || err.message, output: stdout });
         currentPlan = { planId, file: planFile, createdAt: Date.now() };
         send(res, origin, 200, { planId, output: stdout });
+      });
+    });
+  }
+
+  if (method === "POST" && route === "/test") {
+    return ensureInit((initErr) => {
+      if (initErr) return send(res, origin, 500, { error: initErr.message });
+      run(["test", "-no-color"], (err, stdout, stderr) => {
+        send(res, origin, 200, { raw: stdout, error: err ? stderr || err.message : null });
       });
     });
   }
