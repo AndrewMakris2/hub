@@ -253,7 +253,19 @@ function JobCard({ theme, job, matched, bullets, profile, status, setStatus, exp
   const posted = job.postedAt ? timeAgo(job.postedAt) : "";
   return (
     <div style={{ ...cardBackgroundStyle(theme), padding: "16px", borderRadius: theme.cardRadius, opacity: status === "dismissed" ? 0.55 : 1 }}>
-      <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", flexWrap: "wrap" }}>
+        <div
+          className="v-tabular"
+          style={{
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            width: "44px", height: "44px", borderRadius: "50%", flexShrink: 0,
+            background: theme.accentSoft, border: `2px solid ${theme.accent}`,
+          }}
+          title={`${matched.length} resume keyword${matched.length === 1 ? "" : "s"} matched`}
+        >
+          <span style={{ fontSize: "15px", fontWeight: 800, color: theme.accent, lineHeight: 1 }}>{matched.length}</span>
+          <span style={{ fontSize: "7px", fontWeight: 700, color: theme.textFaint, textTransform: "uppercase", letterSpacing: "0.02em" }}>match</span>
+        </div>
         <div style={{ flex: 1, minWidth: "200px" }}>
           <div style={{ fontSize: "14.5px", fontWeight: 800, color: theme.text }}>{job.title}</div>
           <div style={{ fontSize: "12.5px", color: theme.accent, fontWeight: 700, marginTop: "2px" }}>{job.company}</div>

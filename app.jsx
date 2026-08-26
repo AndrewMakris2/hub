@@ -9739,8 +9739,9 @@ function moSourceStatus(snapshots, src) {
 }
 
 function MoStatCard({ theme, label, value, tone, note, sub }) {
+  const accentColor = tone === theme.danger ? theme.danger : tone === theme.positive ? theme.positive : theme.accent;
   return (
-    <div style={{ ...cardBackgroundStyle(theme), padding: "16px 18px", display: "flex", flexDirection: "column", gap: "3px", minWidth: 0 }}>
+    <div style={{ ...cardBackgroundStyle(theme), borderTop: `3px solid ${accentColor}`, padding: "16px 18px", display: "flex", flexDirection: "column", gap: "3px", minWidth: 0 }}>
       <div style={{ fontSize: "11px", fontWeight: 800, letterSpacing: "0.09em", textTransform: "uppercase", color: theme.sectionLabelColor }}>{label}</div>
       <div
         className="v-tabular"
@@ -9845,8 +9846,10 @@ function MoDashboard({ theme, snapshots, policies, dailyLog, cveWatchlist, appNo
         if (!tools.length) return null;
         return (
           <div key={g.id} style={{ marginTop: "26px" }}>
-            <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap", marginBottom: "12px" }}>
-              <h2 style={{ margin: 0, fontSize: "13px", fontWeight: 800, letterSpacing: "0.09em", textTransform: "uppercase", color: theme.sectionLabelColor }}>{g.label}</h2>
+            <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap", marginBottom: "12px", paddingBottom: "9px", borderBottom: `2px solid ${theme.accent}` }}>
+              <h2 style={{ margin: 0, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "12.5px", fontWeight: 800, letterSpacing: "0.03em", color: theme.accent }}>
+                <span style={{ opacity: 0.6 }}>$</span> {g.label.toUpperCase()}
+              </h2>
               <span style={{ fontSize: "13px", color: theme.textFaint }}>{g.blurb}</span>
             </div>
             <div className="v-mo-grid">
@@ -9874,8 +9877,10 @@ function MoDashboard({ theme, snapshots, policies, dailyLog, cveWatchlist, appNo
       })}
 
       <div style={{ marginTop: "26px" }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginBottom: "12px" }}>
-          <h2 style={{ margin: 0, fontSize: "13px", fontWeight: 800, letterSpacing: "0.09em", textTransform: "uppercase", color: theme.sectionLabelColor, flex: 1 }}>Consoles</h2>
+        <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginBottom: "12px", paddingBottom: "9px", borderBottom: `2px solid ${theme.accent}` }}>
+          <h2 style={{ margin: 0, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "12.5px", fontWeight: 800, letterSpacing: "0.03em", color: theme.accent, flex: 1 }}>
+            <span style={{ opacity: 0.6 }}>$</span> CONSOLES
+          </h2>
           <button onClick={() => setEditingLinks((v) => !v)} className="v-btn" style={{ fontSize: "12px", fontWeight: 700, color: theme.accentOn, background: "transparent", border: "none", padding: 0 }}>
             {editingLinks ? "Done" : "Edit links"}
           </button>

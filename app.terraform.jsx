@@ -161,7 +161,7 @@ function StatTile({ theme, label, value }) {
   return (
     <div style={{ flex: "1 1 100px" }}>
       <div style={{ fontSize: "11px", color: theme.textFaint }}>{label}</div>
-      <div className="v-tabular" style={{ fontSize: "22px", fontWeight: 800, color: theme.text }}>{value}</div>
+      <div className="v-tabular" style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "22px", fontWeight: 800, color: theme.text }}>{value}</div>
     </div>
   );
 }
@@ -175,15 +175,25 @@ function TerraformDashboard({ theme, progress, navigate }) {
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       <Card theme={theme} delay={0}>
         <SectionLabel theme={theme}>Progress</SectionLabel>
-        <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginBottom: "10px" }}>
-          <span className="v-tabular" style={{ fontSize: "30px", fontWeight: 800, color: theme.text }}>{stats.pct}%</span>
+        <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginBottom: "12px" }}>
+          <span className="v-tabular" style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "30px", fontWeight: 800, color: theme.text }}>{stats.pct}%</span>
           <span style={{ fontSize: "13px", color: theme.textMuted }}>
-            Phase {progress.phase}/5{current ? ` · Module ${current.mod.id}: ${current.mod.title}` : ""}
+            {current ? `Module ${current.mod.id}: ${current.mod.title}` : "All modules complete"}
           </span>
         </div>
-        <div style={{ height: "8px", borderRadius: "999px", background: theme.progressTrack, overflow: "hidden", marginBottom: "16px" }}>
-          <div style={{ width: stats.pct + "%", height: "100%", background: theme.progressFill }} />
+        <div style={{ display: "flex", gap: "5px", marginBottom: "8px" }}>
+          {[1, 2, 3, 4, 5].map((p) => (
+            <div
+              key={p}
+              style={{
+                flex: 1, height: "10px", borderRadius: "4px",
+                background: p < progress.phase ? theme.accent : p === progress.phase ? theme.accent : theme.progressTrack,
+                opacity: p === progress.phase ? 0.55 : 1,
+              }}
+            />
+          ))}
         </div>
+        <div style={{ fontSize: "11px", fontWeight: 700, color: theme.textFaint, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "16px" }}>Phase {progress.phase} of 5</div>
         <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
           <StatTile theme={theme} label="Assignments" value={`${stats.assignmentsDone}/${stats.totalAssignments}`} />
           <StatTile theme={theme} label="Quizzes passed" value={`${stats.quizzesPassed}/${stats.totalQuizzes}`} />
