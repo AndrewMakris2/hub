@@ -4226,9 +4226,27 @@ function generateSuggestions({ fitness, golf, trackers, profile, events, history
 ---------------------------------------------------------------------- */
 
 function FitnessSection({ theme, data, setData, history, onRecordWeight, autoOpenWeight }) {
+  const trend = history && history.length >= 2 ? history[history.length - 1].value - history[0].value : null;
   return (
     <Card theme={theme} delay={0}>
-      <SectionLabel theme={theme} icon={<IconDumbbell />}>Fitness</SectionLabel>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "2px" }}>
+        <SectionLabel theme={theme} icon={<IconDumbbell />} style={{ margin: 0, flex: 1 }}>Fitness</SectionLabel>
+        {trend != null && trend !== 0 && (
+          <span
+            className="v-tabular"
+            style={{
+              fontSize: "11.5px",
+              fontWeight: 700,
+              padding: "3px 8px",
+              borderRadius: "999px",
+              color: trend < 0 ? theme.positive : theme.danger,
+              background: trend < 0 ? theme.positive + "22" : theme.dangerSoft,
+            }}
+          >
+            {trend < 0 ? "↓" : "↑"} {Math.abs(trend).toFixed(1)} lbs
+          </span>
+        )}
+      </div>
       <MetricGrid>
         <Metric
           theme={theme}
@@ -4333,8 +4351,8 @@ function WorkoutLogSection({ theme, workouts, setWorkouts }) {
           {sorted.map((w) => (
             <div key={w.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 10px", background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "8px" }}>
               <span style={{ fontSize: "11px", color: theme.textFaint, width: "58px", flexShrink: 0 }}>{new Date(w.date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
-              <span style={{ fontSize: "13.5px", color: theme.text, flex: 1, minWidth: 0, fontWeight: 600 }}>{w.exercise}</span>
-              <span className="v-tabular" style={{ fontSize: "12.5px", color: theme.textMuted, flexShrink: 0 }}>
+              <span style={{ fontSize: "14px", color: theme.text, flex: 1, minWidth: 0, fontWeight: 700 }}>{w.exercise}</span>
+              <span className="v-tabular" style={{ fontSize: "12px", fontWeight: 700, color: theme.accent, background: theme.chip, borderRadius: "999px", padding: "3px 9px", flexShrink: 0 }}>
                 {w.sets}×{w.reps}{w.weight != null ? ` @ ${w.weight}lbs` : ""}
               </span>
               <button onClick={() => removeEntry(w.id)} className="v-btn" title="Remove lift" style={{ fontSize: "16px", color: theme.textFaint, background: "transparent", border: "none", padding: "0 4px", cursor: "pointer", flexShrink: 0 }}>×</button>
@@ -4347,9 +4365,27 @@ function WorkoutLogSection({ theme, workouts, setWorkouts }) {
 }
 
 function GolfSection({ theme, data, setData, history, onRecordHandicap }) {
+  const trend = history && history.length >= 2 ? history[history.length - 1].value - history[0].value : null;
   return (
     <Card theme={theme} delay={60}>
-      <SectionLabel theme={theme} icon={<IconGolf />}>Golf</SectionLabel>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "2px" }}>
+        <SectionLabel theme={theme} icon={<IconGolf />} style={{ margin: 0, flex: 1 }}>Golf</SectionLabel>
+        {trend != null && trend !== 0 && (
+          <span
+            className="v-tabular"
+            style={{
+              fontSize: "11.5px",
+              fontWeight: 700,
+              padding: "3px 8px",
+              borderRadius: "999px",
+              color: trend < 0 ? theme.positive : theme.danger,
+              background: trend < 0 ? theme.positive + "22" : theme.dangerSoft,
+            }}
+          >
+            {trend < 0 ? "↓" : "↑"} {Math.abs(trend).toFixed(1)} hcp
+          </span>
+        )}
+      </div>
       <MetricGrid>
         <Metric
           theme={theme}
@@ -11894,7 +11930,18 @@ function GameLine({ theme, g }) {
   const scoreTxt = g.myScore != null && g.oppScore != null ? `${g.myScore}–${g.oppScore}` : "";
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 0", borderTop: `1px solid ${theme.divider}` }}>
-      <span style={{ fontSize: "13px", fontWeight: 800, color: resColor, width: "16px", flexShrink: 0 }}>{res}</span>
+      <span
+        className="v-tabular"
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "center",
+          width: "22px", height: "22px", borderRadius: "50%", flexShrink: 0,
+          fontSize: "11.5px", fontWeight: 800,
+          color: res === "—" ? theme.textMuted : theme.accentText,
+          background: res === "—" ? theme.chip : resColor,
+        }}
+      >
+        {res}
+      </span>
       <span style={{ fontSize: "13px", color: theme.text, flex: 1, minWidth: 0 }}>{g.home ? "vs" : "@"} {g.opp}</span>
       <span className="v-tabular" style={{ fontSize: "13px", fontWeight: 700, color: theme.text }}>{scoreTxt}</span>
       <span style={{ fontSize: "11px", color: theme.textFaint, width: "70px", textAlign: "right", flexShrink: 0 }}>{schedDate(g.date)}</span>
@@ -11919,8 +11966,8 @@ function SportsScheduleView({ theme, sched, loading, error, onRefresh, fetchedAt
         return (
           <Card theme={theme} key={t.id} delay={40 * (i + 1)}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
-              <span style={{ fontSize: "13px", fontWeight: 800, color: theme.text }}>{t.label}</span>
-              <span style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.05em", color: theme.chipText, background: theme.chip, padding: "2px 7px", borderRadius: "999px" }}>{t.league}</span>
+              <span style={{ fontSize: "10.5px", fontWeight: 800, letterSpacing: "0.04em", color: theme.accentText, background: theme.accent, padding: "3px 8px", borderRadius: "6px" }}>{t.league}</span>
+              <span style={{ fontSize: "13.5px", fontWeight: 800, color: theme.text }}>{t.label}</span>
             </div>
             {!s ? (
               <div style={{ fontSize: "12.5px", color: theme.textFaint }}>{loading ? "Loading schedule…" : "Nothing cached — hit Refresh on the live site."}</div>
@@ -12077,8 +12124,8 @@ function SportsSection({ theme, state, setState }) {
         return (
           <Card theme={theme} key={feed.id} delay={40 * (fi + 1)}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-              <span style={{ fontSize: "13px", fontWeight: 800, color: theme.text }}>{feed.label}</span>
-              <span style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.05em", color: theme.chipText, background: theme.chip, padding: "2px 7px", borderRadius: "999px" }}>{feed.league}</span>
+              <span style={{ fontSize: "10.5px", fontWeight: 800, letterSpacing: "0.04em", color: theme.accentText, background: theme.accent, padding: "3px 8px", borderRadius: "6px" }}>{feed.league}</span>
+              <span style={{ fontSize: "13.5px", fontWeight: 800, color: theme.text }}>{feed.label}</span>
               <span style={{ fontSize: "11px", color: theme.textFaint, marginLeft: "auto" }}>{items.length ? `${items.length} stories` : loading ? "loading…" : ""}</span>
             </div>
             {items.length === 0 ? (

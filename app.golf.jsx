@@ -136,7 +136,7 @@ function GolfScorecards({ theme, cards, setCards, delay }) {
             const st = golfCardStats(c);
             const open = expandedId === c.id;
             return (
-              <div key={c.id} style={{ border: `1px solid ${theme.cardBorder}`, borderRadius: "10px", overflow: "hidden" }}>
+              <div key={c.id} style={{ border: `1px solid ${theme.cardBorder}`, borderLeft: `3px solid ${st.vs < 0 ? theme.positive : st.vs === 0 ? theme.textFaint : theme.danger}`, borderRadius: "0 10px 10px 0", overflow: "hidden" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "11px 12px", cursor: "pointer" }} onClick={() => setExpandedId(open ? null : c.id)}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: "14px", fontWeight: 700, color: theme.text }}>{c.course || "Round"}</div>
