@@ -5073,29 +5073,11 @@ function CustomTrackersSection({ theme, trackers, setTrackers, trackerHistory, o
                   />
                 </div>
                 {progress !== null && (
-                  <div
-                    title={`${progress}% of goal`}
-                    style={{
-                      height: "4px",
-                      borderRadius: "999px",
-                      background: theme.progressTrack,
-                      marginTop: "8px",
-                      overflow: "hidden",
-                    }}
-                  >
-                    <div
-                      style={{
-                        height: "100%",
-                        width: `${progress}%`,
-                        borderRadius: "999px",
-                        backgroundImage:
-                          typeof theme.progressFill === "string" && theme.progressFill.includes("gradient")
-                            ? theme.progressFill
-                            : undefined,
-                        background: theme.progressFill,
-                        transition: "width 0.3s ease",
-                      }}
-                    />
+                  <div title={`${progress}% of goal`} style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "10px" }}>
+                    <ProgressRing theme={theme} value={progress / 100} size={28} strokeWidth={4}>
+                      <span className="v-tabular" style={{ fontSize: "8px", fontWeight: 800, color: theme.accent }}>{progress}%</span>
+                    </ProgressRing>
+                    <span style={{ fontSize: "11px", color: theme.textMuted }}>of goal</span>
                   </div>
                 )}
                 {!Number.isNaN(Number(t.value)) && (trackerHistory[t.id] || []).length >= 2 && (
@@ -6229,20 +6211,27 @@ function GoalsBoardSection({ theme, data, setData, delay }) {
     }
   }
 
+  const statusColor = { "not-started": theme.textFaint, "in-progress": theme.accent, done: theme.positive };
+
   return (
     <Card theme={theme} delay={delay}>
       <SectionLabel theme={theme} icon={<IconFlag />}>Life Goals</SectionLabel>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "10px", marginBottom: "16px" }}>
         {GOAL_STATUSES.map((status) => (
           <div key={status}>
-            <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: theme.textMuted, marginBottom: "8px" }}>
-              {GOAL_STATUS_LABELS[status]}
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", paddingBottom: "8px", marginBottom: "8px", borderBottom: `2px solid ${statusColor[status]}` }}>
+              <span style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: theme.textMuted }}>
+                {GOAL_STATUS_LABELS[status]}
+              </span>
+              <span className="v-tabular" style={{ fontSize: "10px", fontWeight: 700, color: statusColor[status], marginLeft: "auto" }}>
+                {data.filter((g) => g.status === status).length}
+              </span>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
               {data.filter((g) => g.status === status).map((g) => (
                 <div
                   key={g.id}
-                  style={{ background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "8px", padding: "8px 8px" }}
+                  style={{ background: theme.accentSoft, borderLeft: `3px solid ${statusColor[status]}`, borderRadius: "0 8px 8px 0", padding: "8px 8px" }}
                 >
                   <div style={{ fontSize: "12px", color: theme.text, lineHeight: 1.4, wordBreak: "break-word", marginBottom: "6px" }}>{g.label}</div>
                   <div style={{ display: "flex", gap: "6px" }}>
@@ -7321,6 +7310,7 @@ function ProfileSection({ theme, profile, setProfile }) {
               borderRadius: "999px",
             }}
           >
+            <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: theme.accent, flexShrink: 0 }} />
             {interest}
             <button
               onClick={() => removeInterest(interest)}
@@ -7394,16 +7384,22 @@ function ProfileSection({ theme, profile, setProfile }) {
           flexWrap: "wrap",
         }}
       >
-        <div style={{ fontSize: "12px", color: theme.textMuted, lineHeight: 1.4 }}>
-          {quizTaken ? (
-            <>
-              Taste quiz: {profile.genres.length} genre{profile.genres.length === 1 ? "" : "s"}, {likedCount} liked
-              activit{likedCount === 1 ? "y" : "ies"}.
-            </>
-          ) : (
-            "Take the taste quiz to power richer, more specific suggestions."
-          )}
-        </div>
+        {quizTaken ? (
+          <div style={{ display: "flex", gap: "20px" }}>
+            <div>
+              <div className="v-tabular" style={{ fontSize: "22px", fontWeight: 800, color: theme.text, lineHeight: 1 }}>{profile.genres.length}</div>
+              <div style={{ fontSize: "10px", fontWeight: 700, color: theme.textFaint, textTransform: "uppercase", letterSpacing: "0.05em", marginTop: "3px" }}>Genre{profile.genres.length === 1 ? "" : "s"}</div>
+            </div>
+            <div>
+              <div className="v-tabular" style={{ fontSize: "22px", fontWeight: 800, color: theme.text, lineHeight: 1 }}>{likedCount}</div>
+              <div style={{ fontSize: "10px", fontWeight: 700, color: theme.textFaint, textTransform: "uppercase", letterSpacing: "0.05em", marginTop: "3px" }}>Liked</div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ fontSize: "12px", color: theme.textMuted, lineHeight: 1.4 }}>
+            Take the taste quiz to power richer, more specific suggestions.
+          </div>
+        )}
         <button
           onClick={() => setQuizOpen(true)}
           className="v-btn"
@@ -12928,20 +12924,25 @@ function BirthdaysSection({ theme, state, setState }) {
 
   const inputStyle = { padding: "9px 11px", borderRadius: "9px", fontSize: "13px", background: theme.inputBg, color: theme.inputText, border: `1px solid ${theme.inputBorder}`, "--focus-ring": theme.accentSoft, "--focus-border": theme.accent };
   const prettyDate = (nb) => nb ? nb.next.toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "—";
-  const dayLabel = (d) => d === 0 ? "today! 🎉" : d === 1 ? "tomorrow" : `in ${d} days`;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       <Card theme={theme} delay={0}>
         <SectionLabel theme={theme} icon={<IconGift />}>Birthdays &amp; Gifts</SectionLabel>
         {upcoming.length > 0 && (
-          <div style={{ marginBottom: "12px", padding: "11px 13px", borderRadius: "10px", background: theme.accentSoft }}>
-            <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: theme.accent, marginBottom: "5px" }}>Coming up (next 30 days)</div>
-            {upcoming.map(({ p, nb }) => (
-              <div key={p.id} style={{ fontSize: "13px", color: theme.text, padding: "2px 0" }}>
-                <strong>{p.name}</strong> — {prettyDate(nb)} · {dayLabel(nb.days)}{nb.turning ? ` · turning ${nb.turning}` : ""}
-              </div>
-            ))}
+          <div style={{ marginBottom: "14px" }}>
+            <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: theme.accent, marginBottom: "8px" }}>Coming up (next 30 days)</div>
+            <div className="v-scroll" style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "4px" }}>
+              {upcoming.map(({ p, nb }) => (
+                <div key={p.id} style={{ flexShrink: 0, width: "104px", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", padding: "12px 8px", borderRadius: "12px", background: theme.accentSoft, border: `1px solid ${theme.divider}` }}>
+                  <div style={{ width: "38px", height: "38px", borderRadius: "50%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: nb.days === 0 ? theme.accent : "transparent", border: `1.5px solid ${theme.accent}` }}>
+                    {nb.days === 0 ? <span style={{ fontSize: "15px" }}>🎂</span> : <span className="v-tabular" style={{ fontSize: "13px", fontWeight: 800, color: theme.accent }}>{nb.days}</span>}
+                  </div>
+                  <div style={{ fontSize: "12px", fontWeight: 700, color: theme.text, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%" }}>{p.name}</div>
+                  <div style={{ fontSize: "10.5px", color: theme.textFaint, textAlign: "center" }}>{prettyDate(nb)}{nb.turning ? ` · ${nb.turning}` : ""}</div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "8px" }}>
@@ -12958,10 +12959,37 @@ function BirthdaysSection({ theme, state, setState }) {
         withNext.map(({ p, nb }, i) => (
           <Card theme={theme} key={p.id} delay={40 * (i + 1)}>
             <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", flexWrap: "wrap" }}>
+              <div
+                style={{
+                  width: "46px",
+                  height: "46px",
+                  borderRadius: "50%",
+                  flexShrink: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: nb && nb.days === 0 ? theme.accent : theme.accentSoft,
+                  border: `1.5px solid ${theme.accent}`,
+                }}
+              >
+                {nb ? (
+                  nb.days === 0 ? (
+                    <span style={{ fontSize: "18px" }}>🎂</span>
+                  ) : (
+                    <>
+                      <span className="v-tabular" style={{ fontSize: "15px", fontWeight: 800, color: theme.accent, lineHeight: 1 }}>{nb.days}</span>
+                      <span style={{ fontSize: "7px", fontWeight: 700, color: theme.textFaint, textTransform: "uppercase", letterSpacing: "0.03em" }}>days</span>
+                    </>
+                  )
+                ) : (
+                  <span style={{ fontSize: "16px", color: theme.textFaint }}>—</span>
+                )}
+              </div>
               <div style={{ flex: 1, minWidth: "160px" }}>
                 <div style={{ fontSize: "16px", fontWeight: 800, color: theme.text }}>{p.name}</div>
                 <div style={{ fontSize: "12.5px", color: theme.textMuted, marginTop: "2px" }}>
-                  {p.relationship ? p.relationship + " · " : ""}{prettyDate(nb)}{nb ? ` · ${dayLabel(nb.days)}` : ""}{nb && nb.turning ? ` · turning ${nb.turning}` : ""}
+                  {p.relationship ? p.relationship + " · " : ""}{prettyDate(nb)}{nb && nb.turning ? ` · turning ${nb.turning}` : ""}
                 </div>
               </div>
               <button onClick={() => removePerson(p.id)} className="v-btn v-iconbtn" title="Remove" style={{ border: "none", background: "transparent", color: theme.textMuted, padding: "4px", display: "inline-flex" }}><IconClose /></button>
@@ -13536,11 +13564,11 @@ function ResumeView({ theme, data }) {
   return (
     <div className="v-resume" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       {/* Header */}
-      <Card theme={theme} style={{ height: "auto" }}>
+      <Card theme={theme} style={{ height: "auto", borderTop: `3px solid ${theme.accent}` }}>
         <div className="v-resume__head">
           <ResumeAvatar theme={theme} name={r.name} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <h1 style={{ margin: 0, fontSize: "clamp(22px, 3.4vw, 30px)", fontWeight: 800, letterSpacing: "-0.02em", color: theme.text, lineHeight: 1.15 }}>{r.name}</h1>
+            <h1 style={{ margin: 0, fontSize: "clamp(24px, 3.6vw, 32px)", fontWeight: 700, fontFamily: "Georgia, 'Times New Roman', serif", letterSpacing: "-0.01em", color: theme.text, lineHeight: 1.15 }}>{r.name}</h1>
             <div style={{ fontSize: "clamp(14px, 2vw, 16px)", fontWeight: 600, color: theme.accent, marginTop: "3px" }}>{r.title}</div>
             <div style={{ fontSize: "12.5px", color: theme.textMuted, marginTop: "8px", display: "flex", flexWrap: "wrap", gap: "6px 14px" }}>
               {r.location && <span>{r.location}</span>}
@@ -13571,9 +13599,10 @@ function ResumeView({ theme, data }) {
       {/* Experience */}
       {(r.experience || []).length > 0 && (
         <ResumeSection theme={theme} title="Experience">
-          <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "18px", borderLeft: `2px solid ${theme.divider}`, paddingLeft: "18px" }}>
             {r.experience.map((job, i) => (
-              <div key={i} className="v-resume__job">
+              <div key={i} className="v-resume__job" style={{ position: "relative" }}>
+                <span style={{ position: "absolute", left: "-23.5px", top: "4px", width: "9px", height: "9px", borderRadius: "50%", background: i === 0 ? theme.accent : theme.textFaint }} />
                 <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "baseline" }}>
                   <span style={{ fontSize: "15px", fontWeight: 800, color: theme.text }}>{job.title}</span>
                   <span style={{ fontSize: "13.5px", fontWeight: 600, color: theme.accent }}>{job.company}</span>
