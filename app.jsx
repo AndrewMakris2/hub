@@ -2908,19 +2908,23 @@ function MusicPage({ theme, state, setState }) {
           </div>
         )}
         {data && data.nowPlaying && (
-          <div style={{ display: "flex", gap: "12px", alignItems: "center", background: theme.accentSoft, border: `1px solid ${theme.accent}`, borderRadius: "12px", padding: "10px 12px" }}>
+          <div style={{ display: "flex", gap: "14px", alignItems: "center", background: `linear-gradient(135deg, ${theme.accentSoft}, ${theme.chip})`, border: `1px solid ${theme.accent}`, borderRadius: "14px", padding: "12px 14px" }}>
             {data.nowPlaying.image ? (
-              <img src={data.nowPlaying.image} alt="" loading="lazy" decoding="async" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} style={{ width: "44px", height: "44px", objectFit: "cover", borderRadius: "8px", flexShrink: 0, background: theme.chip }} />
+              <img src={data.nowPlaying.image} alt="" loading="lazy" decoding="async" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} style={{ width: "60px", height: "60px", objectFit: "cover", borderRadius: "10px", flexShrink: 0, background: theme.chip, boxShadow: "0 4px 14px rgba(0,0,0,0.25)" }} />
             ) : (
-              <div style={{ width: "44px", height: "44px", borderRadius: "8px", background: theme.progressTrack, flexShrink: 0 }} />
+              <div style={{ width: "60px", height: "60px", borderRadius: "10px", background: theme.progressTrack, flexShrink: 0 }} />
             )}
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: theme.accent, flexShrink: 0, animation: "v-pulse 1.6s ease-in-out infinite" }} />
+              <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+                <span style={{ display: "flex", alignItems: "flex-end", gap: "2px", height: "11px", flexShrink: 0 }}>
+                  {[0, 1, 2].map((i) => (
+                    <span key={i} style={{ width: "3px", height: "100%", borderRadius: "1px", background: theme.accent, transformOrigin: "bottom", animation: `v-eq ${0.7 + i * 0.18}s ease-in-out infinite` }} />
+                  ))}
+                </span>
                 <span style={{ fontSize: "11px", fontWeight: 700, color: theme.accent, textTransform: "uppercase", letterSpacing: "0.04em" }}>Now playing</span>
               </div>
-              <div style={{ fontSize: "13.5px", fontWeight: 700, color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: "2px" }}>{data.nowPlaying.name}</div>
-              <div style={{ fontSize: "12px", color: theme.textFaint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{data.nowPlaying.artist}</div>
+              <div style={{ fontSize: "14.5px", fontWeight: 700, color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: "3px" }}>{data.nowPlaying.name}</div>
+              <div style={{ fontSize: "12.5px", color: theme.textFaint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{data.nowPlaying.artist}</div>
             </div>
           </div>
         )}
@@ -2966,6 +2970,7 @@ function MusicPage({ theme, state, setState }) {
                   rel="noopener noreferrer"
                   style={{ display: "flex", gap: "10px", alignItems: "center", background: theme.accentSoft, border: `1px solid ${theme.divider}`, borderRadius: "10px", padding: "8px 10px", textDecoration: "none" }}
                 >
+                  <span className="v-tabular" style={{ width: "16px", fontSize: "11.5px", fontWeight: 700, color: theme.textFaint, textAlign: "right", flexShrink: 0 }}>{i + 1}</span>
                   {t.image ? (
                     <img src={t.image} alt="" loading="lazy" decoding="async" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} style={{ width: "36px", height: "36px", objectFit: "cover", borderRadius: "6px", flexShrink: 0, background: theme.chip }} />
                   ) : (
@@ -12671,8 +12676,10 @@ function ReadingSection({ theme, state, setState }) {
           />
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {shown.map((bk) => (
-              <div key={bk.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 12px", border: `1px solid ${theme.cardBorder}`, borderRadius: "10px", flexWrap: "wrap" }}>
+            {shown.map((bk) => {
+              const shelfColor = bk.status === "finished" ? theme.positive : bk.status === "reading" ? theme.accent : theme.textFaint;
+              return (
+              <div key={bk.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 12px 10px 10px", borderLeft: `3px solid ${shelfColor}`, background: theme.accentSoft, borderRadius: "0 10px 10px 0", flexWrap: "wrap" }}>
                 <BookCover theme={theme} url={bookCoverUrl(bk.coverId)} title={bk.title} w={48} />
                 <div style={{ flex: 1, minWidth: "150px" }}>
                   <div style={{ fontSize: "14px", fontWeight: 700, color: theme.text }}>{bk.title}</div>
@@ -12684,7 +12691,8 @@ function ReadingSection({ theme, state, setState }) {
                 </select>
                 <button onClick={() => removeBook(bk.id)} className="v-btn v-iconbtn" title="Remove" style={{ border: "none", background: "transparent", color: theme.textMuted, padding: "4px", display: "inline-flex", flexShrink: 0 }}><IconClose /></button>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Card>
@@ -12848,8 +12856,10 @@ function GamesSection({ theme, state, setState }) {
           />
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {shown.map((g) => (
-              <div key={g.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 12px", border: `1px solid ${theme.cardBorder}`, borderRadius: "10px", flexWrap: "wrap" }}>
+            {shown.map((g) => {
+              const shelfColor = g.status === "beaten" ? theme.positive : g.status === "playing" ? theme.accent : g.status === "dropped" ? theme.danger : theme.textFaint;
+              return (
+              <div key={g.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 12px 10px 10px", borderLeft: `3px solid ${shelfColor}`, background: theme.accentSoft, borderRadius: "0 10px 10px 0", flexWrap: "wrap" }}>
                 <GameTile theme={theme} title={g.title} platform={g.platform} />
                 <div style={{ flex: 1, minWidth: "150px" }}>
                   <div style={{ fontSize: "14px", fontWeight: 700, color: theme.text }}>{g.title}</div>
@@ -12865,7 +12875,8 @@ function GamesSection({ theme, state, setState }) {
                 </select>
                 <button onClick={() => removeGame(g.id)} className="v-btn v-iconbtn" title="Remove" style={{ border: "none", background: "transparent", color: theme.textMuted, padding: "4px", display: "inline-flex", flexShrink: 0 }}><IconClose /></button>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Card>
@@ -13272,8 +13283,34 @@ function FeedArt({ theme, item }) {
   );
 }
 
-function FeedCard({ theme, item }) {
+function FeedCard({ theme, item, variant }) {
   const fav = feedFavicon(item.host);
+  if (variant === "news") {
+    return (
+      <a
+        href={item.link}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          display: "block",
+          textDecoration: "none",
+          padding: "12px 14px",
+          borderLeft: `3px solid ${theme.accent}`,
+          background: theme.accentSoft,
+          borderRadius: "0 10px 10px 0",
+          color: theme.text,
+        }}
+      >
+        <span style={{ display: "block", fontSize: "15px", fontWeight: 700, lineHeight: 1.35, color: theme.text }}>{item.title}</span>
+        {item.summary && <span style={{ display: "block", fontSize: "12.5px", lineHeight: 1.45, color: theme.textMuted, marginTop: "4px" }}>{truncateText(item.summary, 130)}</span>}
+        <span style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", fontWeight: 700, color: theme.textFaint, textTransform: "uppercase", letterSpacing: "0.03em", marginTop: "7px" }}>
+          {fav && <img src={fav} alt="" width="13" height="13" loading="lazy" style={{ borderRadius: "3px" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />}
+          <span>{item.source || item.host}</span>
+          {item.pub && <span style={{ fontWeight: 400, textTransform: "none" }}>· {feedRelTime(item.pub)}</span>}
+        </span>
+      </a>
+    );
+  }
   return (
     <a
       href={item.link}
@@ -13361,7 +13398,7 @@ function MovieWatchSuggestions({ theme, profile, watchlist, setWatchlist }) {
 }
 
 /* A whole news surface: category chips + grid, driven by the shared engine. */
-function FeedSection({ theme, state, setState, categories, title, icon, intro }) {
+function FeedSection({ theme, state, setState, categories, title, icon, intro, variant }) {
   const cats = categories && categories.length ? categories : FEED_CATEGORIES;
   const [active, setActive] = useState(cats[0].id);
   const [loading, setLoading] = useState(false);
@@ -13429,9 +13466,13 @@ function FeedSection({ theme, state, setState, categories, title, icon, intro })
         <Card theme={theme} delay={60}>
           <EmptyState theme={theme} art="search" title="No stories yet" message="Hit Refresh to pull the latest headlines." />
         </Card>
+      ) : variant === "news" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {items.map((it) => <FeedCard key={it.id} theme={theme} item={it} variant={variant} />)}
+        </div>
       ) : (
         <div className="v-feedgrid">
-          {items.map((it) => <FeedCard key={it.id} theme={theme} item={it} />)}
+          {items.map((it) => <FeedCard key={it.id} theme={theme} item={it} variant={variant} />)}
         </div>
       )}
     </div>
@@ -14099,8 +14140,8 @@ function NewsSection({ theme, state, setState }) {
         const items = cache[t] || [];
         return (
           <Card theme={theme} key={t} delay={40 * (ti + 1)}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-              <span style={{ fontSize: "13px", fontWeight: 800, color: theme.text, textTransform: "capitalize" }}>{t}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px", paddingBottom: "10px", borderBottom: `2px solid ${theme.accent}` }}>
+              <span style={{ fontSize: "13px", fontWeight: 800, color: theme.text, textTransform: "uppercase", letterSpacing: "0.04em" }}>{t}</span>
               <span style={{ fontSize: "11px", color: theme.textFaint }}>{items.length ? `${items.length} stories` : loading ? "loading…" : "no stories"}</span>
             </div>
             {items.length === 0 ? (
@@ -14116,9 +14157,9 @@ function NewsSection({ theme, state, setState }) {
                     style={{ display: "block", textDecoration: "none", padding: "10px 0", borderTop: i === 0 ? "none" : `1px solid ${theme.divider}` }}
                   >
                     <div style={{ fontSize: "14px", fontWeight: 600, color: theme.text, lineHeight: 1.4 }}>{it.title}</div>
-                    <div style={{ fontSize: "11.5px", color: theme.textFaint, marginTop: "3px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    <div style={{ fontSize: "11.5px", color: theme.textFaint, marginTop: "5px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                      <span className="v-tabular" style={{ fontSize: "11px", fontWeight: 700, color: theme.accent, background: theme.accentSoft, borderRadius: "999px", padding: "2px 8px" }}>▲ {it.points}</span>
                       {newsDomain(it.url) && <span>{newsDomain(it.url)}</span>}
-                      <span>▲ {it.points}</span>
                       <span>{newsRelTime(it.date)}</span>
                     </div>
                   </a>
@@ -15307,6 +15348,7 @@ function App() {
               title="Headlines"
               icon={<IconNews />}
               intro="World, national, business, science, sports and cybersecurity headlines, refreshed on demand."
+              variant="news"
             />
           )}
           {page === "sports" && <SportsSection theme={theme} state={sports} setState={setSports} />}
