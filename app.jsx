@@ -4777,8 +4777,10 @@ function FinancialAccountsSection({ theme, data, setData, accountHistory, onReco
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "14px", marginTop: "14px", marginBottom: "18px" }}>
         {accounts.map((a) => {
           const series = (accountHistory && accountHistory[a.id]) || [];
+          const accent = accentColorFor(a.id);
+          const AccountIcon = iconForLabel(a.name);
           return (
-            <div key={a.id} className="v-rowact" style={{ background: `linear-gradient(135deg, ${theme.accentSoft}, ${theme.chip})`, border: `1px solid ${theme.divider}`, borderRadius: "14px", padding: "14px 16px" }}>
+            <div key={a.id} className="v-rowact" style={{ background: `linear-gradient(135deg, ${theme.accentSoft}, ${theme.chip})`, border: `1px solid ${theme.divider}`, borderTop: `3px solid ${accent}`, borderRadius: "14px", padding: "14px 16px" }}>
               <button
                 onClick={() => removeAccount(a.id)}
                 title={"Remove " + (a.name || "account")}
@@ -4788,12 +4790,29 @@ function FinancialAccountsSection({ theme, data, setData, accountHistory, onReco
               >
                 ×
               </button>
-              <input
-                value={a.name}
-                onChange={(e) => renameAccount(a.id, e.target.value)}
-                className="v-input v-input--bare"
-                style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: theme.textMuted, border: "none", marginBottom: "6px", "--focus-ring": theme.accentSoft, "--focus-border": "transparent" }}
-              />
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px", paddingRight: "18px" }}>
+                <div
+                  style={{
+                    width: "24px",
+                    height: "24px",
+                    borderRadius: "7px",
+                    flexShrink: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: `color-mix(in oklab, ${accent} 18%, transparent)`,
+                    color: accent,
+                  }}
+                >
+                  <AccountIcon size={13} />
+                </div>
+                <input
+                  value={a.name}
+                  onChange={(e) => renameAccount(a.id, e.target.value)}
+                  className="v-input v-input--bare"
+                  style={{ flex: 1, minWidth: 0, fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: theme.textMuted, border: "none", "--focus-ring": theme.accentSoft, "--focus-border": "transparent" }}
+                />
+              </div>
               <div className="v-fieldpair" style={{ display: "flex", alignItems: "baseline", gap: "2px" }}>
                 <span className="v-tabular" style={{ fontSize: "16px", fontWeight: 700, color: theme.textFaint, flexShrink: 0 }}>$</span>
                 <input
@@ -4969,20 +4988,28 @@ function FinancialSection({ theme, data, setData }) {
   );
 }
 
-const TRACKER_ACCENT_PALETTE = ["#f97316", "#eab308", "#22c55e", "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899", "#ef4444"];
+// Shared by any page that renders a grid of user-named, free-text tiles
+// (Custom Trackers, Financial Accounts) — gives each tile a deterministic
+// accent color and a best-guess icon so a dense grid of same-shaped tiles
+// doesn't read as one flat wall.
+const ACCENT_PALETTE = ["#f97316", "#eab308", "#22c55e", "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899", "#ef4444"];
 
-function trackerAccentFor(seed) {
+function accentColorFor(seed) {
   let hash = 0;
   const s = String(seed || "");
   for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) | 0;
-  return TRACKER_ACCENT_PALETTE[Math.abs(hash) % TRACKER_ACCENT_PALETTE.length];
+  return ACCENT_PALETTE[Math.abs(hash) % ACCENT_PALETTE.length];
 }
 
-function trackerIconFor(label) {
+function iconForLabel(label) {
   const l = (label || "").toLowerCase();
   if (/\b(read|book|page|chapter|novel)\b/.test(l)) return IconBookOpen;
   if (/\b(gym|workout|exercise|run|steps|walk|lift|fitness|cardio|cycle|swim)\b/.test(l)) return IconDumbbell;
-  if (/\b(money|spend|spent|budget|save|saving|income|expense|cost|\$)\b/.test(l)) return IconWallet;
+  if (/\b(credit|visa|mastercard|amex)\b/.test(l)) return IconCreditCard;
+  if (/\b(401k|403b|ira|roth|retire|retirement|brokerage|invest|investment|stock|stocks|etf)\b/.test(l)) return IconTrendingUp;
+  if (/\b(check|checking)\b/.test(l)) return IconReceipt;
+  if (/\b(saving|savings|cash|hsa|cd)\b/.test(l)) return IconWallet;
+  if (/\b(money|spend|spent|budget|save|income|expense|cost|\$)\b/.test(l)) return IconWallet;
   if (/\b(game|gaming|play)\b/.test(l)) return IconGamepad;
   if (/\b(music|song|practice|piano|guitar)\b/.test(l)) return IconMusic;
   if (/\b(streak|habit|goal|target)\b/.test(l)) return IconFlag;
@@ -5060,8 +5087,8 @@ function CustomTrackersSection({ theme, trackers, setTrackers, trackerHistory, o
         >
           {trackers.map((t) => {
             const progress = computeGoalProgress(t.value, t.target);
-            const accent = trackerAccentFor(t.id);
-            const TrackerIcon = trackerIconFor(t.label);
+            const accent = accentColorFor(t.id);
+            const TrackerIcon = iconForLabel(t.label);
             return (
               <div
                 key={t.id}
