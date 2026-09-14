@@ -1,7 +1,7 @@
 {
   "name": "BearVantageHub",
   "short_name": "BearVantageHub",
-  "description": "A personal dashboard for fitness, golf, goals, and more.",
+  "description": "A local video library with a scheduled YouTube auto-poster.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

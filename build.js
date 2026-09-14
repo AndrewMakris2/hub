@@ -27,21 +27,6 @@ const SRC = path.join(ROOT, "app.jsx");
 const OUT = path.join(ROOT, "index.html");
 const SHELL = path.join(ROOT, "index.shell.html");
 
-// Page chunks: compiled separately from app.jsx and written as their own
-// static .js file instead of being inlined into index.html, so a page's
-// code only downloads/parses/executes when someone actually opens it. Each
-// chunk reads shared core utilities off window.__v and registers what it
-// exports onto window.__vChunks — see the "LAZY-LOADED PAGE CHUNKS" comment
-// near the bottom of app.jsx for the loader that expects this contract.
-const CHUNKS = [
-  { name: "ravenseye", src: path.join(ROOT, "app.ravenseye.jsx"), out: path.join(ROOT, "chunk-ravenseye.js") },
-  { name: "golf", src: path.join(ROOT, "app.golf.jsx"), out: path.join(ROOT, "chunk-golf.js") },
-  { name: "mechanicalorchard", src: path.join(ROOT, "app.mechanicalorchard.jsx"), out: path.join(ROOT, "chunk-mechanicalorchard.js") },
-  { name: "jobsearch", src: path.join(ROOT, "app.jobsearch.jsx"), out: path.join(ROOT, "chunk-jobsearch.js") },
-  { name: "fantasy", src: path.join(ROOT, "app.fantasy.jsx"), out: path.join(ROOT, "chunk-fantasy.js") },
-  { name: "terraform", src: path.join(ROOT, "app.terraform.jsx"), out: path.join(ROOT, "chunk-terraform.js") },
-];
-
 function loadBabel() {
   for (const p of ["@babel/standalone", path.join(ROOT, "node_modules/@babel/standalone")]) {
     try { return require(p); } catch (e) { /* try the next location */ }
@@ -133,20 +118,6 @@ async function main() {
   console.log("compiled     " + kb(code.length) + "  in " + compiledMs + "ms");
   if (terser) console.log("minified     " + kb(out.length) + "  in " + minMs + "ms");
   console.log("index.html   " + kb(html.length) + "  (no Babel at runtime)");
-
-  for (const chunk of CHUNKS) {
-    if (!fs.existsSync(chunk.src)) { console.error("Missing chunk source " + chunk.src); process.exit(1); }
-    const chunkJsx = fs.readFileSync(chunk.src, "utf8");
-    const c = await compile(babel, terser, chunkJsx, path.basename(chunk.src));
-    const chunkSafe = c.out.replace(/<\/script>/gi, "<\\/script>");
-    const chunkOut = '(function(){"use strict";\n' + chunkSafe + "\n})();";
-    fs.writeFileSync(chunk.out, chunkOut);
-    console.log(
-      path.basename(chunk.src) + "  " + kb(chunkJsx.length) +
-      " -> " + path.basename(chunk.out) + "  " + kb(chunkOut.length) +
-      (terser ? "  in " + (c.compiledMs + c.minMs) + "ms" : "")
-    );
-  }
 }
 
 main();
