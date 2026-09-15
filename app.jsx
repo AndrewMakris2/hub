@@ -575,7 +575,7 @@ async function uploadVideoToYouTube(video, meta, accessToken) {
 // Client ID here (same one Calendar/YouTube subscriptions used) to enable
 // "Post to YouTube". Until then, that flow just shows its one-time-setup
 // message below, same as a fresh install would.
-const GOOGLE_CLIENT_ID = "";
+const GOOGLE_CLIENT_ID = "150681444713-10darm14jipq4v3l46d0pvadjgrd3ook.apps.googleusercontent.com";
 
 function PostToYouTubeModal({ theme, video, onClose }) {
   const [title, setTitle] = useState(video.title || "");
