@@ -246,6 +246,8 @@
     box-shadow: 0 0 0 4px var(--v-accent-soft, rgba(0,0,0,0.12));
     border-color: var(--v-accent, currentColor) !important;
   }
+  /* Digits that line up in a column shouldn't jitter width as they change. */
+  .v-tabular { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 
   /* iOS zooms the page when a focused input's text is under 16px. Every
      input in the app sets fontSize inline, so this has to be !important. */

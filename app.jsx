@@ -5,38 +5,39 @@ const { useState, useEffect, useRef } = React;
    THEME
    BearVantageHub used to offer 28 selectable themes across ~30 pages.
    This build keeps exactly one page (the video library), so it's hardcoded
-   to what used to be the app's default theme ("Minimal") rather than
-   carrying the whole picker/catalog for a choice nobody can make anymore.
+   to a single custom dark theme — dark grey ground, a lighter blue as the
+   secondary/accent color — rather than carrying the whole picker/catalog
+   for a choice nobody can make anymore.
 ---------------------------------------------------------------------- */
 const THEME = {
-  name: "Minimal",
-  pageBg: "#fafaf8",
+  name: "Nightshade",
+  pageBg: "#14161b",
   pageBgGradient: "none",
-  text: "#1a1a1a",
-  textMuted: "#71716f",
-  textFaint: "#757572",
-  cardBg: "#ffffff",
-  cardBorder: "#e8e8e4",
-  cardShadow: "0 1px 2px rgba(0,0,0,0.04)",
-  cardRadius: "14px",
-  sectionLabelColor: "#70706c",
-  accent: "#1a1a1a",
-  accentText: "#ffffff",
-  accentOn: "#1a1a1a",
-  accentSoft: "#f0f0ec",
-  divider: "#eeeeea",
-  inputBg: "#ffffff",
-  inputBorder: "#dcdcd6",
-  inputText: "#1a1a1a",
-  danger: "#c0392b",
-  dangerSoft: "#fbeceb",
-  chip: "#f2f2ee",
-  chipText: "#5a5a56",
-  themeBarBg: "rgba(255,255,255,0.7)",
-  themeBarBorder: "#e8e8e4",
-  positive: "#2f6b3f",
-  progressTrack: "#eeeeea",
-  progressFill: "#1a1a1a",
+  text: "#eef1f5",
+  textMuted: "#97a0ac",
+  textFaint: "#6b7280",
+  cardBg: "#1c1f26",
+  cardBorder: "#2a2e37",
+  cardShadow: "0 1px 2px rgba(0,0,0,0.4)",
+  cardRadius: "18px",
+  sectionLabelColor: "#8a92a0",
+  accent: "#6cb6f5",
+  accentText: "#0b1420",
+  accentOn: "#6cb6f5",
+  accentSoft: "#22384a",
+  divider: "#262a32",
+  inputBg: "#171a20",
+  inputBorder: "#2e323b",
+  inputText: "#eef1f5",
+  danger: "#f0616a",
+  dangerSoft: "#3a2126",
+  chip: "#232730",
+  chipText: "#b7bfca",
+  themeBarBg: "rgba(20,22,27,0.7)",
+  themeBarBorder: "#2a2e37",
+  positive: "#4ade9c",
+  progressTrack: "#262a32",
+  progressFill: "#6cb6f5",
   headerWeight: 700,
   cardStyle: "flat",
 };
@@ -347,6 +348,24 @@ function Card({ theme, children, style, delay = 0 }) {
     >
       {children}
     </div>
+  );
+}
+// An overview tile for the homepage-style summary row — same card shell as
+// `Card`, just with a fixed label/value/sub-line layout so the three
+// summary numbers (library size, storage, pool status) read as one family.
+function StatCard({ theme, label, value, sub, delay, children }) {
+  return (
+    <Card theme={theme} delay={delay} style={{ gap: "8px" }}>
+      <SectionLabel theme={theme} style={{ marginBottom: 0 }}>{label}</SectionLabel>
+      <div
+        className="v-tabular"
+        style={{ fontSize: "30px", fontWeight: 800, letterSpacing: "-0.01em", color: theme.text, fontFamily: "var(--v-font-display, inherit)", lineHeight: 1.1 }}
+      >
+        {value}
+      </div>
+      {sub && <div style={{ fontSize: "12px", color: theme.textFaint }}>{sub}</div>}
+      {children}
+    </Card>
   );
 }
 
@@ -1057,73 +1076,83 @@ function VideoLibrarySection({ theme }) {
   const estRemainingVideos = remainingBytes !== null ? Math.floor(remainingBytes / avgVideoBytes) : null;
 
   return (
-    <Card theme={theme}>
-      <SectionLabel theme={theme} icon={<IconVideo />}>Videos</SectionLabel>
-      <AutopostAlert theme={theme} />
-      <div style={{ fontSize: "12px", color: theme.textMuted, marginBottom: "16px", lineHeight: 1.4 }}>
-        Stored locally in this browser only — not backed up or synced.
-      </div>
-
-      {storageSupported && storageEstimate && (
-        <div style={{ marginBottom: "18px" }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "baseline",
-              fontSize: "11.5px",
-              color: theme.textMuted,
-              marginBottom: "6px",
-              gap: "8px",
-            }}
-          >
-            <span>
-              {formatBytes(storageEstimate.usage)} used of {formatBytes(storageEstimate.quota)}
-            </span>
-            {estRemainingVideos !== null && (
-              <span style={{ color: theme.textFaint, flexShrink: 0 }}>
-                ~{estRemainingVideos.toLocaleString()} more 1-min video{estRemainingVideos === 1 ? "" : "s"}
-              </span>
-            )}
-          </div>
-          <div style={{ height: "6px", borderRadius: "999px", background: theme.progressTrack, overflow: "hidden" }}>
-            <div
-              style={{
-                height: "100%",
-                width: `${usagePct || 0}%`,
-                borderRadius: "999px",
-                background: theme.progressFill,
-                transition: "width 0.3s ease",
-              }}
-            />
-          </div>
+    <>
+      <header style={{ marginBottom: "36px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px", color: theme.accent }}>
+          <IconVideo size={15} />
+          <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Videos</span>
         </div>
-      )}
-
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", fontSize: "11.5px", color: theme.textFaint, marginBottom: "14px", flexWrap: "wrap" }}>
-        <span style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-          <span>
-            {poolIds.size} video{poolIds.size === 1 ? "" : "s"} in the scheduled auto-post pool
-            {paused && <strong style={{ color: theme.danger }}> · paused</strong>}
-          </span>
-          <button
-            onClick={togglePause}
-            disabled={pauseBusy}
-            className="v-btn"
-            style={{ border: `1px solid ${theme.inputBorder}`, background: "transparent", color: theme.textMuted, borderRadius: "6px", padding: "3px 8px", fontSize: "11px", fontWeight: 700, opacity: pauseBusy ? 0.6 : 1 }}
-          >
-            {pauseBusy ? "…" : paused ? "Resume" : "Pause"}
-          </button>
-        </span>
-        <a
-          href={`${AUTOPOST_BACKEND_URL}/.netlify/functions/youtube-auth-start`}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ color: theme.accent, fontWeight: 600, textDecoration: "none" }}
+        <h1
+          style={{
+            margin: 0,
+            fontSize: "clamp(28px, 4vw, 38px)",
+            fontWeight: 800,
+            letterSpacing: "-0.02em",
+            lineHeight: 1.1,
+            color: theme.text,
+            fontFamily: "var(--v-font-display, inherit)",
+          }}
         >
-          Set up / re-authorize auto-poster →
-        </a>
-      </div>
+          Your video library
+        </h1>
+        <p style={{ margin: "10px 0 0", fontSize: "14px", color: theme.textMuted, maxWidth: "48ch", lineHeight: 1.55 }}>
+          Stored locally in this browser only — upload a clip, queue it for the daily auto-poster, or push it straight to YouTube.
+        </p>
+      </header>
+
+      <AutopostAlert theme={theme} />
+
+      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px", marginBottom: "20px" }}>
+        <StatCard theme={theme} delay={0} label="Library" value={videos.length} sub={videos.length === 1 ? "video stored" : "videos stored"} />
+        <StatCard
+          theme={theme}
+          delay={60}
+          label="Storage"
+          value={storageSupported && storageEstimate ? formatBytes(storageEstimate.usage) : "—"}
+          sub={
+            storageSupported && storageEstimate
+              ? `of ${formatBytes(storageEstimate.quota)}${estRemainingVideos !== null ? ` · ~${estRemainingVideos.toLocaleString()} more 1-min clip${estRemainingVideos === 1 ? "" : "s"}` : ""}`
+              : "Unavailable in this browser"
+          }
+        >
+          {storageSupported && storageEstimate && (
+            <div style={{ height: "6px", borderRadius: "999px", background: theme.progressTrack, overflow: "hidden", marginTop: "2px" }}>
+              <div
+                style={{
+                  height: "100%",
+                  width: `${usagePct || 0}%`,
+                  borderRadius: "999px",
+                  background: theme.progressFill,
+                  transition: "width 0.3s ease",
+                }}
+              />
+            </div>
+          )}
+        </StatCard>
+        <StatCard theme={theme} delay={120} label="Auto-post pool" value={poolIds.size} sub={paused ? "Paused" : "Posts once daily"}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "2px" }}>
+            <button
+              onClick={togglePause}
+              disabled={pauseBusy}
+              className="v-btn"
+              style={{ border: `1px solid ${theme.inputBorder}`, background: "transparent", color: theme.textMuted, borderRadius: "6px", padding: "4px 10px", fontSize: "11.5px", fontWeight: 700, opacity: pauseBusy ? 0.6 : 1 }}
+            >
+              {pauseBusy ? "…" : paused ? "Resume" : "Pause"}
+            </button>
+            <a
+              href={`${AUTOPOST_BACKEND_URL}/.netlify/functions/youtube-auth-start`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontSize: "11.5px", color: theme.accent, fontWeight: 600, textDecoration: "none" }}
+            >
+              Re-authorize →
+            </a>
+          </div>
+        </StatCard>
+      </section>
+
+      <Card theme={theme} delay={180}>
+      <SectionLabel theme={theme} icon={<IconVideo />}>All Videos</SectionLabel>
 
       {dbError && (
         <div style={{ fontSize: "13px", color: theme.danger, marginBottom: "14px" }}>{dbError}</div>
@@ -1150,14 +1179,14 @@ function VideoLibrarySection({ theme }) {
               <div
                 key={v.id}
                 style={{
-                  background: theme.accentSoft,
+                  background: theme.chip,
                   border: `1px solid ${theme.divider}`,
                   borderRadius: "14px",
                   padding: "12px",
                   display: "flex",
                   flexDirection: "column",
                   gap: "8px",
-                  boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
+                  boxShadow: "0 6px 18px rgba(0,0,0,0.28)",
                 }}
               >
                 <video
@@ -1320,7 +1349,8 @@ function VideoLibrarySection({ theme }) {
           onClose={() => setPostingVideo(null)}
         />
       )}
-    </Card>
+      </Card>
+    </>
   );
 }
 
@@ -1338,7 +1368,7 @@ function App() {
         color: THEME.text,
       }}
     >
-      <div style={{ maxWidth: "720px", margin: "0 auto", padding: "32px 20px" }}>
+      <div style={{ maxWidth: "920px", margin: "0 auto", padding: "40px 24px 64px" }}>
         <VideoLibrarySection theme={THEME} />
       </div>
       <ToastHost theme={THEME} />
